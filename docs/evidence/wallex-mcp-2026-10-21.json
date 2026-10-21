@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-21",
+  "source": "https://api.wallex.ir/mcp",
+  "authentication": "none; no private key transmitted",
+  "initialize": {
+    "http_status": 200,
+    "protocolVersion": "2024-11-05",
+    "serverName": "api.wallex.ir",
+    "serverVersion": "1.0.0"
+  },
+  "tools_list": {
+    "http_status": 200,
+    "count": 52,
+    "sha256": "2809775834c37b71b2ea768f09abd280ffdff39c099232e40888be42cd239187"
+  },
+  "enabled_tools": [
+    {
+      "name": "wallex_basic_get_markets",
+      "title": "List markets through the basic API",
+      "description": "List all Wallex markets using the basic-services market endpoint.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wallex_spot_get_markets",
+      "title": "List markets through the spot API",
+      "description": "List all Wallex markets using the spot-trading market endpoint.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "wallex_basic_get_market_depth",
+      "title": "Get a public market order book",
+      "description": "Get current bid and ask depth for one market symbol.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "نماد معاملاتی مورد نظر",
+            "example": "USDCUSDT"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "wallex_basic_get_latest_trades",
+      "title": "List latest public market trades",
+      "description": "List the most recent public trades executed for one market symbol.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "نماد معاملاتی مورد نظر",
+            "example": "USDCUSDT"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "symbol"
+        ]
+      }
+    },
+    {
+      "name": "wallex_basic_candle_history",
+      "title": "Get market candle history",
+      "description": "Retrieve public OHLCV candles for one market symbol, resolution, and Unix time range.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "The symbol to retrieve historical data for",
+            "example": "BTCTMN"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "Candle resolution (e.g. 1, 5, 15, 60, D)",
+            "example": "60"
+          },
+          "from": {
+            "type": "integer",
+            "description": "Start of time range (Unix timestamp)",
+            "format": "int64",
+            "example": 1733425200
+          },
+          "to": {
+            "type": "integer",
+            "description": "End of time range (Unix timestamp)",
+            "format": "int64",
+            "example": 1733428800
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "symbol",
+          "resolution",
+          "from",
+          "to"
+        ]
+      }
+    }
+  ],
+  "public_smoke": {
+    "tool": "wallex_basic_get_markets",
+    "http_status": 200,
+    "jsonrpc_error": false,
+    "isError": false,
+    "content": "JSON result.markets array observed; market data quality not evaluated"
+  },
+  "codex_config": "TOML parsed; existing settings unchanged; CLI get wallex passed",
+  "not_checked": [
+    "Codex session tool reload",
+    "other four public tools/call",
+    "private authentication/account selection",
+    "strategy quality/latency comparison"
+  ]
+}
