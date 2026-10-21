@@ -136,3 +136,10 @@ TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیج�
 ```
 
 فرمان اول فقط داده پذیرفته manifest و baseline بدون AI می‌گیرد؛ هر run مسیر تازه دارد. فرمان دوم در این مأموریت با ۲۵ GET از سقف۲۷، BLOCKED_DATA شد؛ برای اجرای دوباره پروتکل/بودجه تازه صریح لازم است و retry برای عبور از محدودیت مجاز نیست. نتیجه/شواهد و محدودیت در docs/historical-validation.md؛ چهار کندل shadow_cycle تست synthetic است، نه Shadow جاری. رزرو مدل usage/invoice نیست و ledger آن پاک/صفر نمی‌شود.
+
+
+## Execution review checkpoint (2026-10-22)
+
+Read docs/execution-readiness-review.md before execution changes. WallexLiveBroker is an offline MockTransport-only contract harness; constructor overrides cannot enable production. CANDIDATE_SHADOW stays blocked. The twelve-configuration plan is config/strategy-experiment-plan.json; its historical prospective freeze is unverified.
+
+Verified no-cost CLI help: `.\.venv\Scripts\python.exe -X utf8 scripts\evaluate_ai_role.py --help`. No flag prints help; `--run` explicitly starts paid diagnostic snapshots, capped before HTTP at 24 requests / USD 0.04 reserved per invocation, plus the shared durable global budget. This is not a portfolio backtest. Personal prompts and review output remain under ignored .local/.

@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "frozen_at_utc": "2026-10-22T02:05:00+00:00",
+  "frozen_at_tehran": "2026-10-22T05:35:00+03:30",
+  "source_revision": "19bf18c77bfb86651c47235887ed0bec5077384a",
+  "scope": "HISTORICAL_EVALUATION_AND_SHADOW_OBSERVATION; live trading fail-closed",
+  "symbol": "USDTTMN",
+  "public_get_cap": 120,
+  "public_get_rate_spacing_seconds": 1.0,
+  "public_get_timeout_seconds": 20,
+  "evaluation_interval_seconds": 3600,
+  "windows_72h_duration_seconds": 259200,
+  "warmup_bars": 31,
+  "splits": [
+    {
+      "name": "development",
+      "purpose": "candidate_ranking_and_parameter_exploration",
+      "description": "Windows 1-4 of Segment 1 (Sept 01-15, 2026)",
+      "windows_72h": 4
+    },
+    {
+      "name": "validation",
+      "purpose": "formal_selection_confirmation",
+      "description": "Windows 5-6 of Segment 1 (Sept 15-22, 2026)",
+      "windows_72h": 2
+    },
+    {
+      "name": "holdout_diagnostic",
+      "purpose": "unseen_test_disclosure",
+      "description": "Window 7 of Segment 2 (Sept 22-27, 2026). Note: Exposed in diagnostic commit 19bf18c; not virgin holdout",
+      "windows_72h": 1
+    }
+  ],
+  "configurations": [
+    {
+      "id": "trend_0",
+      "family": "trend",
+      "sma_spread": "0.0"
+    },
+    {
+      "id": "trend_0_003",
+      "family": "trend",
+      "sma_spread": "0.003"
+    },
+    {
+      "id": "trend_0_006",
+      "family": "trend",
+      "sma_spread": "0.006"
+    },
+    {
+      "id": "reversion_30",
+      "family": "mean_reversion",
+      "rsi_entry": 30,
+      "rsi_exit": 70
+    },
+    {
+      "id": "reversion_35",
+      "family": "mean_reversion",
+      "rsi_entry": 35,
+      "rsi_exit": 65
+    },
+    {
+      "id": "reversion_40",
+      "family": "mean_reversion",
+      "rsi_entry": 40,
+      "rsi_exit": 60
+    },
+    {
+      "id": "breakout_atr_1_0",
+      "family": "volatility_breakout",
+      "atr_hurdle": "0.010",
+      "min_spread": "0.003",
+      "rsi_exit": 75
+    },
+    {
+      "id": "breakout_atr_1_5",
+      "family": "volatility_breakout",
+      "atr_hurdle": "0.015",
+      "min_spread": "0.004",
+      "rsi_exit": 75
+    },
+    {
+      "id": "breakout_atr_2_0",
+      "family": "volatility_breakout",
+      "atr_hurdle": "0.020",
+      "min_spread": "0.005",
+      "rsi_exit": 75
+    },
+    {
+      "id": "regime_mom_vol12",
+      "family": "regime_momentum",
+      "sma_spread": "0.005",
+      "min_volume_ratio": "1.2",
+      "rsi_entry_max": 68,
+      "rsi_exit": 75
+    },
+    {
+      "id": "regime_mom_vol15",
+      "family": "regime_momentum",
+      "sma_spread": "0.008",
+      "min_volume_ratio": "1.5",
+      "rsi_entry_max": 68,
+      "rsi_exit": 75
+    },
+    {
+      "id": "regime_mom_strict",
+      "family": "regime_momentum",
+      "sma_spread": "0.010",
+      "min_volume_ratio": "1.5",
+      "rsi_entry_max": 65,
+      "rsi_exit": 72
+    }
+  ],
+  "fees": {
+    "taker_per_side": "0.0030",
+    "maker_per_side": "0.0025",
+    "source": "VERIFIED_WALLEX_PROP_ACCOUNT_PROBE",
+    "fee_model": "TAKER_ONLY_ON_ALL_FILLS_CONSERVATIVE"
+  },
+  "execution": {
+    "base_adverse_slippage": "0.0005",
+    "limit_penetration": "0.0",
+    "latency_seconds": 10,
+    "limit_fill_rule": "FILL_AT_LIMIT_PRICE_NO_PRICE_IMPROVEMENT",
+    "stop_fill_rule": "FILL_AT_LOW_MINUS_ADVERSE_SLIPPAGE",
+    "causality_guard": "CANDLE_OPEN_TIME_GE_ORDER_TIMESTAMP"
+  },
+  "stress_scenarios": [
+    {
+      "id": "extra_bar_delay",
+      "extra_latency_seconds": 3600
+    },
+    {
+      "id": "pessimistic_cost",
+      "adverse_slippage": "0.0020",
+      "limit_penetration": "0.0010"
+    },
+    {
+      "id": "no_limit_fill",
+      "no_fill": true
+    }
+  ],
+  "risk_policy": {
+    "initial_capital_tmn": "5000000",
+    "max_order_tmn": "1500000",
+    "max_exposure_tmn": "3000000",
+    "stop_loss_pct": "0.02",
+    "max_drawdown_pct": "0.05",
+    "status": "APPROVED_FOR_OFFLINE_AND_SHADOW_RESEARCH"
+  },
+  "selection_protocol": {
+    "ranking_criterion": "HIGHEST_WORST_WINDOW_NET_RETURN",
+    "secondary_criterion": "HIGHEST_AGGREGATE_NET_RETURN",
+    "tertiary_criterion": "LOWEST_MAX_DRAWDOWN",
+    "tie_breaker": "LOWER_CONFIG_ID_ALPHABETICAL",
+    "freeze_rule": "ONE_CANDIDATE_FROZEN_BEFORE_VALIDATION",
+    "holdout_rule": "RUN_EXACTLY_ONCE_NO_RETUNING"
+  },
+  "ai_budget_cap": {
+    "initial_decisions": 12,
+    "initial_reserved_usd": "0.04",
+    "mission_max_decisions": 24,
+    "mission_max_http_requests": 48,
+    "mission_max_reserved_usd": "0.08",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "none",
+    "max_output_tokens": 512,
+    "per_decision_timeout_seconds": 30,
+    "max_turns": 2,
+    "max_retries": 0
+  }
+}

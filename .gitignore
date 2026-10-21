@@ -19,3 +19,4 @@ artifacts/
 *.mp3
 
 /MASTER_PROMPT.md
+/.local/

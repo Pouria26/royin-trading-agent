@@ -189,6 +189,61 @@ class CandidateEvaluationTests(unittest.TestCase):
             evaluate_candidate_configurations(self.trending_candles, self.rules, self.policy,
                                                [self.configurations[0]] * 2)
 
+    def test_new_candidate_families_validation_and_producers(self):
+        # Valid breakout configuration
+        valid_breakout = {
+            "id": "breakout_atr_1_0",
+            "family": "volatility_breakout",
+            "atr_hurdle": "0.010",
+            "min_spread": "0.003",
+            "rsi_exit": 75,
+        }
+        producer_bo = build_candidate_producer(valid_breakout, allowed_symbols=("USDTTMN",))
+        self.assertTrue(callable(producer_bo))
+
+        # Valid regime momentum configuration
+        valid_regime = {
+            "id": "regime_mom_vol12",
+            "family": "regime_momentum",
+            "sma_spread": "0.005",
+            "min_volume_ratio": "1.2",
+            "rsi_entry_max": 68,
+            "rsi_exit": 75,
+        }
+        producer_rm = build_candidate_producer(valid_regime, allowed_symbols=("USDTTMN",))
+        self.assertTrue(callable(producer_rm))
+
+        # Rejection of invalid breakout configs
+        for bad_bo in [
+            {"id": "b1", "family": "volatility_breakout", "atr_hurdle": "0"},
+            {"id": "b2", "family": "volatility_breakout", "atr_hurdle": "0.01", "min_spread": "0.003", "rsi_exit": 30},
+            {"id": "b3", "family": "volatility_breakout", "atr_hurdle": "0.01", "min_spread": "0.003", "rsi_exit": 75, "extra": 1},
+        ]:
+            with self.subTest(bad_bo=bad_bo), self.assertRaises(ValueError):
+                build_candidate_producer(bad_bo)
+
+        # Rejection of invalid regime momentum configs
+        for bad_rm in [
+            {"id": "r1", "family": "regime_momentum", "sma_spread": "0.005"},
+            {"id": "r2", "family": "regime_momentum", "sma_spread": "0.005", "min_volume_ratio": "0.5", "rsi_entry_max": 68, "rsi_exit": 75},
+            {"id": "r3", "family": "regime_momentum", "sma_spread": "0.005", "min_volume_ratio": "1.2", "rsi_entry_max": 80, "rsi_exit": 70},
+        ]:
+            with self.subTest(bad_rm=bad_rm), self.assertRaises(ValueError):
+                build_candidate_producer(bad_rm)
+
+    def test_round_2_experiment_plan_contains_all_12_unique_valid_configurations(self):
+        plan_r2_path = ROOT / "config" / "strategy-experiment-plan.json"
+        self.assertTrue(plan_r2_path.exists())
+        plan_r2 = json.loads(plan_r2_path.read_text(encoding="utf-8"))
+        self.assertEqual(len(plan_r2["configurations"]), 12)
+        cids = [c["id"] for c in plan_r2["configurations"]]
+        self.assertEqual(len(set(cids)), 12)
+
+        # Ensure all 12 producers can be built without error
+        for cfg in plan_r2["configurations"]:
+            producer = build_candidate_producer(cfg, allowed_symbols=("USDTTMN",))
+            self.assertTrue(callable(producer))
+
 
 if __name__ == "__main__":
     unittest.main()

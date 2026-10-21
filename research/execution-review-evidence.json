@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "reviewed_delivery_revision": "defd88bc2220447f16406628690cdd59cfe70572",
+  "permitted_use": "DIAGNOSTIC_ONLY",
+  "plan_sha256": "8c94519451a98782cd0ce376fb4db678e0008e035d9bcf7b34bec5f6c7db7230",
+  "plan_frozen_at_utc": "2026-10-22T02:05:00+00:00",
+  "candidate_manifest_created_at_utc": "2026-10-21T22:38:52.548500+00:00",
+  "prospective_freeze_verified": false,
+  "candidate_manifest_sha256": "90cc0619018148221f28988a2948e36705bb0bad240aed804da719212a9431d7",
+  "candidate_status": "INSUFFICIENT_EVIDENCE",
+  "candidate_shadow_approved": false,
+  "ai_report_sha256": "b85582a07dd1726ad33cd67d75524db3157ad12366fb63b96d969126976672f2",
+  "ai_snapshot_count": 12,
+  "baseline_agreement_count": 9,
+  "profitability_evaluated": false,
+  "matching_unique_audit_decisions": 12,
+  "sdk_reported_input_tokens": 12123,
+  "sdk_reported_output_tokens": 1237,
+  "audit_logs": [
+    {
+      "sha256": "a87a225a6cc6060dac209b074687b925b000d7089b04ea21ea05e15c9a0241fd",
+      "matching_results": 1
+    },
+    {
+      "sha256": "55709110bca928a2ddf9cd90a86c274c244d8386c2464ad35d4d6f8655c0ae17",
+      "matching_results": 1
+    },
+    {
+      "sha256": "1497a926e8d5cb2abc10c079895ca78a95129a0ad72ca5f33107001a99d07816",
+      "matching_results": 1
+    },
+    {
+      "sha256": "b76a6a4a3883f05e0db84f77ca0a872b72a43a9235a4663669b02c06cdd10337",
+      "matching_results": 1
+    },
+    {
+      "sha256": "b4538be80ed909cd402a3e45261f049e31eb764a95525bf9615728a7eece1348",
+      "matching_results": 1
+    },
+    {
+      "sha256": "846f66e18a4b9a6f3c4898c02af691ff2d3aa3b963b0f1263a72d3750ce30d78",
+      "matching_results": 1
+    },
+    {
+      "sha256": "8c43e4439870d8c594624a13a977c561e9b2d4d11c1714b2b09b6d16fa32cc93",
+      "matching_results": 1
+    },
+    {
+      "sha256": "49eff8e5e0418f8da505d7342270848d9fb243e3ccf6c0fc7756cf1bd6c36dd6",
+      "matching_results": 1
+    },
+    {
+      "sha256": "2a3e806b3516c05f7c8fed480397b8f6f475888772be1e7c0c53204553f1e423",
+      "matching_results": 1
+    },
+    {
+      "sha256": "e83924c149d0d722679b4cefad5dfb5b3e5526e134c0d382592eeed8cddc0274",
+      "matching_results": 1
+    },
+    {
+      "sha256": "be0acee07ca8d900711fa0690afaf8fdb749bb1417e20d77fbdf4e36c0e27d05",
+      "matching_results": 1
+    },
+    {
+      "sha256": "0682a254a835b41018689e06ea1932b93919683689494c6ae6db488922531566",
+      "matching_results": 1
+    }
+  ],
+  "budget_reservations": {
+    "new_reservations_count": 24,
+    "new_reserved_nano_usd": 29675520,
+    "new_reserved_usd": "0.029676",
+    "new_tokens_reserved": 208896,
+    "within_mission_cap": true
+  },
+  "new_paid_requests_during_review": 0,
+  "real_orders_during_review": 0,
+  "invoice_verified": false,
+  "review_checks": {
+    "unit_tests_passed": 194,
+    "unit_test_seconds": "24.760",
+    "ruff": "PASS",
+    "compileall": "PASS",
+    "wheel": "PASS",
+    "diff_check": "PASS",
+    "model_network_retested": false,
+    "production_order_transport_tested": false
+  }
+}

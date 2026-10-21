@@ -178,7 +178,11 @@ async def decide(
                 )
             proposal = run_result.output
             if audit:
-                usage = run_result.usage()
+                usage = (
+                    run_result.usage()
+                    if callable(getattr(run_result, "usage", None))
+                    else getattr(run_result, "usage", None)
+                )
                 audit.record_event(
                     "AI_RESULT",
                     "AGENT",

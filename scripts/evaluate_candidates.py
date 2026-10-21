@@ -24,8 +24,8 @@ def evaluate_diagnostics(manifest_path, expected_sha256, plan_path):
         raise ValueError("Data manifest hash mismatch")
     plan_raw = Path(plan_path).read_bytes()
     plan = decode_json(plan_raw)
-    if plan.get("schema_version") != 1 or len(plan["configurations"]) != 6:
-        raise ValueError("Expected the six frozen research candidates")
+    if plan.get("schema_version") != 1 or len(plan["configurations"]) not in (6, 12):
+        raise ValueError("Expected 6 or 12 frozen research candidates")
     datasets = accepted_datasets(manifest_path)
     if not datasets:
         raise ValueError("No structurally accepted data")

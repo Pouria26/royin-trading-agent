@@ -1,6 +1,8 @@
 import json
+import tempfile
 import unittest
 from decimal import Decimal
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import httpx2
@@ -14,6 +16,7 @@ from royin.evaluation import (
     verify_decision_causality,
 )
 from royin.features import extract_features
+from royin.logger import AuditLogger
 from royin.market_data import Candle, CandleSeries
 from royin.model_budget import BudgetBlocked
 
@@ -118,12 +121,17 @@ class AgentDecisionTests(unittest.IsolatedAsyncioTestCase):
         )
         client, requests = self._make_mock_client(proposal)
 
-        decision = await decide(
-            snapshot,
-            config=self.config,
-            client=client,
-            allowed_symbols=("USDTTMN",),
-        )
+        with tempfile.TemporaryDirectory() as temp:
+            audit = AuditLogger(log_dir=Path(temp), enable_console=False)
+            decision = await decide(
+                snapshot, config=self.config, client=client,
+                allowed_symbols=("USDTTMN",), audit=audit,
+            )
+            events = [json.loads(line) for line in audit.audit_path.read_text(encoding="utf-8").splitlines()]
+            result = next(event for event in events if event["event_type"] == "AI_RESULT")
+            self.assertEqual(result["payload"]["provider_reported_usage"]["input_tokens"], 250)
+            self.assertEqual(result["payload"]["provider_reported_usage"]["output_tokens"], 70)
+            audit.close()
         self.assertEqual(decision.action, "ENTER")
         self.assertEqual(decision.symbol, "USDTTMN")
         self.assertEqual(decision.cutoff, self.cutoff)

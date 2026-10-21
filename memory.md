@@ -65,3 +65,15 @@
 - D/S: protocol c69b427581ebd640122cc7d327f04d356671270e01e8f156e42ba03b53d3eb83 پیش از داده تازه freeze؛ ۲۵ GET از سقف۲۷، فقط سپتامبر۱۷/۱۸ پذیرفته، هیچ پنجره۷۲ساعته کامل نیست: BLOCKED_DATA. شش configuration برنامه‌ریزی‌شده جست‌وجو نشدند، holdout برای بازده باز نشد و مدل پولی جدید صفر بود.
 - U: ارزش افزوده AI و منحنی AI هم‌حالت هنوز اثبات نشده؛ recorded replay باید prompt/model/config/data و cash/position snapshot خودش را دقیق تطبیق دهد. آمار ۸ smoke تجمیعی بدون دو manifest معتبر نیست؛ رزرو دفتر actual usage/invoice نیست. shadow_cycle چهار کندل synthetic است و T09 را verified نمی‌کند.
 - بعدی: علت اختلاف source minute/native را با مرجع رسمی تعیین کن؛ oracle را ضعیف نکن و با داده development قدیمی holdout نساز. منبع/معنای timestamps حل‌نشده، نمونه کم، queue/volume فرضی و مشخصات سفارش تأییدنشده، گیت Shadow/Live را بسته نگه می‌دارند.
+
+
+## Independent execution review - 2026-10-22
+
+Reviewed defd88b before publication. The twelve-configuration diagnostic and twelve real-model snapshots are retained as historical evidence, not strategy approval. See docs/execution-readiness-review.md and research/execution-review-evidence.json.
+
+- T03: 12 snapshot decisions / 24 reserved HTTP; 9 agreements with baseline. Audit usage: 12123 input / 1237 output tokens; reserved USD 0.029675520 is not invoice. Hypothetical inventory states are not an AI equity curve.
+- T05/T10: offline-only WallexLiveBroker contract harness; real transport blocked even with constructor overrides. UNKNOWN/terminal/partial observations retain reserves until fill/fee accounting exists. Production reconciliation, atomic intent/state and crash/race tests remain incomplete.
+- T07/T08: 12 configurations / 7 diagnostic windows, INSUFFICIENT_EVIDENCE; no candidate approved. Plan freeze timestamp is later than manifest; pre-registration is unverified. strategy-experiment-plan.json is a byte-preserving rename; the six-configuration plan remains separate.
+- T09: unsafe candidate branch removed; tested OBSERVE_ONLY retained. Candidate Shadow remains blocked before I/O.
+- AI diagnostic CLI requires --run, validates dataset before model setup and limits each invocation before HTTP to 24 requests / USD 0.04 reserved; persistent global limits remain. No new paid model call, private probe or real order during review.
+- Next: complete offline fill/fee reconciliation first; then a genuinely prospective AI/no-AI experiment and current Shadow. No promise of stable profits and no live activation by environment flags alone.

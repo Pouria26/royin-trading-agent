@@ -1,0 +1,2 @@
+# Preserve the byte hash referenced by historical diagnostic manifests on Windows.
+/config/strategy-experiment-plan.json text eol=lf

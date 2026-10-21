@@ -141,3 +141,8 @@ OHLC-only فقط کندل کاملاً پس از زمان اقدام را match 
 Audit موجود در مرز داده/تصمیم/ریسک/intent/fill/ledger/stop/finalization وصل شده؛ run و sequence و snapshot/decision/client/fill/position ID، زمان با offset و hashes ثبت می‌شوند. JSONL با fsync و خطای صریح از گزارش انسانی جداست. payload allowlist و redaction صرفاً دفاع چندلایه‌اند؛ raw header/response مجاز نیست. تزریق شبکه production ممنوع، مسیر owned HTTP هوک ModelBudget پیش از ارسال دارد؛ mockهای آفلاین از REAL_MODEL تفکیک‌اند. رزرو محافظه‌کارانه و usage گزارش‌شده provider و invoice سه چیز متفاوت‌اند.
 
 مسیر recorded REAL_MODEL فقط با انطباق snapshot نقد/position همان شاخه و prompt/model/config/data قابل replay است؛ بدون record دقیق fail closed می‌شود. اجرای آن روی منحنی کامل در این مأموریت به علت BLOCKED_DATA انجام نشد؛ prompt فعلی هنوز نقش افزوده فراتر از قواعد را اثبات نمی‌کند.
+
+
+### Execution contract prototype (2026-10-22)
+
+WallexLiveBroker is offline-only (MockTransport without mounts). It persists intent and order observations, accepts documented create-order HTTP 201, and conservatively retains reservations for ambiguous/partial/terminal observations. Fill/fee settlement and atomic intent/state recovery are not complete; real transport is blocked. OBSERVE_ONLY remains the sole runner mode. The twelve-configuration diagnostic plan is separate from the original six-configuration plan; see docs/execution-readiness-review.md for evidence corrections and current gates.

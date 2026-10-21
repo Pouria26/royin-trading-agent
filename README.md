@@ -51,3 +51,6 @@
 ```
 
 این فرمان GET عمومی مصرف می‌کند. `COMPLETE` فقط تکمیل مشاهده درخواستی است؛ `PARTIAL` با exit 2 یعنی مشاهده کامل نشده است. مسیر `CANDIDATE_SHADOW` قبل از شبکه رد می‌شود. داده خام پژوهش ignored است؛ بازپخش دقیق در کلون تازه نیازمند بسته داده همراه تحویل است.
+
+
+Latest execution review: [readiness and evidence limits](docs/execution-readiness-review.md). The order adapter is an offline contract harness; production orders and Candidate Shadow remain blocked. Twelve fixed AI snapshots are not proof of profitable trading.

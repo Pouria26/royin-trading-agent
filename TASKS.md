@@ -129,3 +129,17 @@
 - توضیح جدید کاربر درباره اسپات بدون لوریج، فهرست جفت‌های غیرفعال و تصویر مقایسه حساب خوانده و به قرارداد، معماری، ارزیابی و Master Prompt منتقل شد. مجهول قبلی نبود قاعده بازار superseded شد؛ دسترسی واقعی حساب هنوز بررسی نشده است.
 - snapshot کامل ۳۴۵ جفت در config/wallex-credit-market-policy.json ذخیره شد؛ ۱۷۱ TMN و ۱۷۴ USDT، بدون تکرار و با حفظ نام‌های عددی. سه تست snapshot اضافه شد؛ گیت runtime به Coding Agent سپرده شده و تأییدشده تلقی نمی‌شود.
 - دستور unittest کامل روی همین نسخه: **۱۵ passed، صفر failed/skip**. Ruff موفق؛ بررسی whitespace و لینک‌های محلی قبل از commit انجام می‌شود. تست مدل واقعی/خصوصی و سفارش انجام نشده است؛ داده تاریخی دوباره دریافت نشد چون این تغییر به downloader دست نزده است.
+
+
+## Independent execution review - 2026-10-22
+
+Reviewed defd88b before publication. The twelve-configuration diagnostic and twelve real-model snapshots are retained as historical evidence, not strategy approval. See docs/execution-readiness-review.md and research/execution-review-evidence.json.
+
+- T03: 12 snapshot decisions / 24 reserved HTTP; 9 agreements with baseline. Audit usage: 12123 input / 1237 output tokens; reserved USD 0.029675520 is not invoice. Hypothetical inventory states are not an AI equity curve.
+- T05/T10: offline-only WallexLiveBroker contract harness; real transport blocked even with constructor overrides. UNKNOWN/terminal/partial observations retain reserves until fill/fee accounting exists. Production reconciliation, atomic intent/state and crash/race tests remain incomplete.
+- T07/T08: 12 configurations / 7 diagnostic windows, INSUFFICIENT_EVIDENCE; no candidate approved. Plan freeze timestamp is later than manifest; pre-registration is unverified. strategy-experiment-plan.json is a byte-preserving rename; the six-configuration plan remains separate.
+- T09: unsafe candidate branch removed; tested OBSERVE_ONLY retained. Candidate Shadow remains blocked before I/O.
+- AI diagnostic CLI requires --run, validates dataset before model setup and limits each invocation before HTTP to 24 requests / USD 0.04 reserved; persistent global limits remain. No new paid model call, private probe or real order during review.
+- Next: complete offline fill/fee reconciliation first; then a genuinely prospective AI/no-AI experiment and current Shadow. No promise of stable profits and no live activation by environment flags alone.
+
+Final review checks: 194 tests passed (24.760s), Ruff clean, compileall exit 0, wheel built, git diff --check clean. Local transcript: .local/parallel/execution-review-tests.txt (ignored).

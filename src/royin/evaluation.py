@@ -241,6 +241,23 @@ def build_candidate_producer(
         entry, exit_ = decimal_number(config["rsi_entry"]), decimal_number(config["rsi_exit"])
         if not 0 <= entry < exit_ <= 100:
             raise ValueError("RSI thresholds must be ordered within 0..100")
+    elif config.get("family") == "volatility_breakout":
+        if set(config) != {"id", "family", "atr_hurdle", "min_spread", "rsi_exit"}:
+            raise ValueError("Unknown volatility_breakout configuration fields")
+        atr_h = decimal_number(config["atr_hurdle"])
+        min_sp = decimal_number(config["min_spread"])
+        rsi_ex = decimal_number(config["rsi_exit"])
+        if not (0 < atr_h < 1 and 0 <= min_sp < 1 and 50 < rsi_ex <= 100):
+            raise ValueError("Invalid volatility_breakout parameters")
+    elif config.get("family") == "regime_momentum":
+        if set(config) != {"id", "family", "sma_spread", "min_volume_ratio", "rsi_entry_max", "rsi_exit"}:
+            raise ValueError("Unknown regime_momentum configuration fields")
+        sma_sp = decimal_number(config["sma_spread"])
+        min_vr = decimal_number(config["min_volume_ratio"])
+        rsi_max_in = decimal_number(config["rsi_entry_max"])
+        rsi_ex = decimal_number(config["rsi_exit"])
+        if not (0 <= sma_sp < 1 and min_vr >= 1 and 40 < rsi_max_in < rsi_ex <= 100):
+            raise ValueError("Invalid regime_momentum parameters")
     else:
         raise ValueError("Unknown candidate family")
     family = config["family"]
@@ -366,6 +383,156 @@ def build_candidate_producer(
             )
 
         return reversion_producer
+
+    elif family == "volatility_breakout":
+        atr_hurdle = Decimal(str(config["atr_hurdle"]))
+        min_spread = Decimal(str(config["min_spread"]))
+        rsi_exit = Decimal(str(config["rsi_exit"]))
+
+        def breakout_producer(snapshot: FeatureSnapshot) -> Decision:
+            did = f"{config_id}_{snapshot.cutoff}"
+            if snapshot.symbol not in allowed_symbols:
+                return always_wait_decision(snapshot, did)
+
+            has_position = snapshot.current_position_base > Decimal(0)
+            sma_spread = (
+                (snapshot.trend_sma_fast - snapshot.trend_sma_slow) / snapshot.trend_sma_slow
+                if snapshot.trend_sma_slow > Decimal(0)
+                else Decimal(0)
+            )
+            atr_pct = (
+                snapshot.atr_14 / snapshot.last_close
+                if snapshot.last_close > Decimal(0)
+                else Decimal(0)
+            )
+
+            if not has_position:
+                is_bullish = "EV_TREND_BULLISH" in snapshot.evidences and sma_spread >= min_spread
+                vol_expansion = atr_pct >= atr_hurdle
+                rsi_not_extreme = snapshot.rsi_14 <= Decimal("70")
+                if is_bullish and vol_expansion and rsi_not_extreme:
+                    proposal = DecisionProposal(
+                        action="ENTER",
+                        evidence_ids=("EV_TREND_BULLISH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} ENTER on breakout with ATR expansion {atr_pct * 100:.2f}% >= {atr_hurdle * 100:.2f}% and spread {sma_spread * 100:.2f}%",
+                        invalidation="Price drops below fast SMA",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} WAIT: ATR expansion {atr_pct * 100:.2f}% or spread {sma_spread * 100:.2f}% below hurdle",
+                        invalidation="Volatility surge and trend breakout",
+                    )
+            else:
+                if (
+                    "EV_TREND_BEARISH" in snapshot.evidences
+                    or sma_spread < Decimal(0)
+                    or snapshot.rsi_14 >= rsi_exit
+                ):
+                    evs = ["EV_POSITION_LONG"]
+                    if "EV_TREND_BEARISH" in snapshot.evidences:
+                        evs.append("EV_TREND_BEARISH")
+                    if snapshot.rsi_14 >= rsi_exit:
+                        evs.append("EV_RSI_OVERBOUGHT")
+                    proposal = DecisionProposal(
+                        action="EXIT",
+                        evidence_ids=tuple(evs),
+                        reason=f"Candidate {config_id} EXIT on trend breakdown or RSI {snapshot.rsi_14:.1f} >= {rsi_exit}",
+                        invalidation="Trend continuation",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG"),
+                        reason=f"Candidate {config_id} WAIT: Holding volatility breakout position",
+                        invalidation="Stop-loss or momentum reversal",
+                    )
+
+            return bind_decision(
+                proposal,
+                decision_id=did,
+                symbol=snapshot.symbol,
+                cutoff=snapshot.cutoff,
+                snapshot_sha256=snapshot.snapshot_sha256,
+                available_evidence_ids=frozenset(snapshot.evidences.keys()),
+                allowed_symbols=frozenset(allowed_symbols),
+            )
+
+        return breakout_producer
+
+    elif family == "regime_momentum":
+        sma_spread_hurdle = Decimal(str(config["sma_spread"]))
+        min_volume_ratio = Decimal(str(config["min_volume_ratio"]))
+        rsi_entry_max = Decimal(str(config["rsi_entry_max"]))
+        rsi_exit = Decimal(str(config["rsi_exit"]))
+
+        def regime_producer(snapshot: FeatureSnapshot) -> Decision:
+            did = f"{config_id}_{snapshot.cutoff}"
+            if snapshot.symbol not in allowed_symbols:
+                return always_wait_decision(snapshot, did)
+
+            has_position = snapshot.current_position_base > Decimal(0)
+            sma_spread = (
+                (snapshot.trend_sma_fast - snapshot.trend_sma_slow) / snapshot.trend_sma_slow
+                if snapshot.trend_sma_slow > Decimal(0)
+                else Decimal(0)
+            )
+
+            if not has_position:
+                is_bullish = "EV_TREND_BULLISH" in snapshot.evidences and sma_spread >= sma_spread_hurdle
+                vol_surge = snapshot.volume_ratio >= min_volume_ratio
+                rsi_in_range = Decimal("45") <= snapshot.rsi_14 <= rsi_entry_max
+                if is_bullish and vol_surge and rsi_in_range:
+                    proposal = DecisionProposal(
+                        action="ENTER",
+                        evidence_ids=("EV_TREND_BULLISH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} ENTER on regime momentum spread {sma_spread * 100:.2f}% and volume ratio {snapshot.volume_ratio:.2f}x",
+                        invalidation="Spread collapses below hurdle or volume dries up",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} WAIT: Regime momentum criteria not met",
+                        invalidation="Volume surge with bullish spread",
+                    )
+            else:
+                if (
+                    "EV_TREND_BEARISH" in snapshot.evidences
+                    or sma_spread < Decimal(0)
+                    or snapshot.rsi_14 >= rsi_exit
+                ):
+                    evs = ["EV_POSITION_LONG"]
+                    if "EV_TREND_BEARISH" in snapshot.evidences:
+                        evs.append("EV_TREND_BEARISH")
+                    if snapshot.rsi_14 >= rsi_exit:
+                        evs.append("EV_RSI_OVERBOUGHT")
+                    proposal = DecisionProposal(
+                        action="EXIT",
+                        evidence_ids=tuple(evs),
+                        reason=f"Candidate {config_id} EXIT on momentum reversal or RSI {snapshot.rsi_14:.1f} >= {rsi_exit}",
+                        invalidation="New breakout surge",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG"),
+                        reason=f"Candidate {config_id} WAIT: Holding regime momentum position",
+                        invalidation="Stop-loss or trend breach",
+                    )
+
+            return bind_decision(
+                proposal,
+                decision_id=did,
+                symbol=snapshot.symbol,
+                cutoff=snapshot.cutoff,
+                snapshot_sha256=snapshot.snapshot_sha256,
+                available_evidence_ids=frozenset(snapshot.evidences.keys()),
+                allowed_symbols=frozenset(allowed_symbols),
+            )
+
+        return regime_producer
 
     else:
         raise ValueError(f"Unknown candidate family: {family}")
