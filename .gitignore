@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+.ruff_cache/
+.pytest_cache/
+data/
+artifacts/
+*.sqlite*
+*.mp4
+*.wav
+*.mp3

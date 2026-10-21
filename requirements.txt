@@ -1,0 +1,7 @@
+# Direct dependencies for preparation probes, not a completed trading engine.
+# Add a provider extra only after the actual model endpoint is confirmed.
+httpx==0.28.1
+pydantic==2.14.1
+pydantic-ai-slim[google]==2.59.0
+python-dotenv==1.2.4
+ruff==0.17.1

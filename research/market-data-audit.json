@@ -1,0 +1,288 @@
+{
+  "kind": "PUBLIC_DATA_QUALITY_NOT_STRATEGY_PERFORMANCE",
+  "fetched_at_utc": "2026-10-21T13:45:24.485992+00:00",
+  "scope": "3 public symbols, 2 fixed historical windows, 15-minute candles",
+  "caveats": [
+    "Public symbols are not the contest account allowlist.",
+    "No fees, private account, LLM, strategy, fills or profitability tested.",
+    "Historical order-book depth is not reconstructed from OHLCV.",
+    "Raw snapshots are local and ignored; hashes identify this retrieval."
+  ],
+  "records": [
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "15",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "548e4cd0f5aeb5278f3c054028bccee5621f6b38ed12a2a69287da65e4b18895",
+      "raw_file": "data/research/BTCTMN_2026-10-01_2026-10-08_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 10080,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1791417540,
+      "zero_volume_rows": 2246,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 10079
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 9408,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "15",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "fed2e06ef62aeb681828a4080586a7edfdd648f30f85a6105d740e5a025c545f",
+      "raw_file": "data/research/BTCTMN_2026-10-08_2026-10-15_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 10078,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1791417600,
+      "last_timestamp": 1792022340,
+      "zero_volume_rows": 3626,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 10076,
+        "180": 1
+      },
+      "missing_at_modal_interval": 2,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 9406,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "ETHTMN",
+        "resolution": "15",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "44297a6eb7493503227cc07f58a80df3de4de1e09dd427f73dc37cf65d9ae071",
+      "raw_file": "data/research/ETHTMN_2026-10-01_2026-10-08_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 10080,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1791417540,
+      "zero_volume_rows": 4847,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 10079
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 9408,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "ETHTMN",
+        "resolution": "15",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "e1c85f167694ec76a197e3bf38a3c229d6b11d8bec9319877ff9cf41b383d99d",
+      "raw_file": "data/research/ETHTMN_2026-10-08_2026-10-15_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 10078,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1791417600,
+      "last_timestamp": 1792022340,
+      "zero_volume_rows": 5886,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 10076,
+        "180": 1
+      },
+      "missing_at_modal_interval": 2,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 9406,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "15",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "5cc88394bee64a408c68907d1b9a9f9cbeae5ef5b67f7d4a6ead4726ea53a916",
+      "raw_file": "data/research/USDTTMN_2026-10-01_2026-10-08_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 10080,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1791417540,
+      "zero_volume_rows": 5072,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 10079
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 9408,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "15",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "e112b88eb8d0ab537e33dcd7e21aecd5848d346d1c1424dd84e4a42ab3178475",
+      "raw_file": "data/research/USDTTMN_2026-10-08_2026-10-15_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 672,
+      "selected_rows": 9653,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1791417600,
+      "last_timestamp": 1792022340,
+      "zero_volume_rows": 3595,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 9651,
+        "25680": 1
+      },
+      "missing_at_modal_interval": 427,
+      "duplicates": 0,
+      "missing_candles": 28,
+      "off_grid_candles": 9009,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    }
+  ],
+  "one_day_resolution_controls": [
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "1",
+        "from": 1790812800,
+        "to": 1790899200
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "b894c4247edbd1081ae7e50e322d1e04153434abb1909324bdc1ce1a6758475d",
+      "raw_file": "data/research/control_BTCTMN_2026-10-01_1.json",
+      "status": "PASS",
+      "expected_rows": 1440,
+      "selected_rows": 1440,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1790899140,
+      "zero_volume_rows": 294,
+      "requested_interval_seconds": 60,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 1439
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 0,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "15",
+        "from": 1790812800,
+        "to": 1790899200
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "b894c4247edbd1081ae7e50e322d1e04153434abb1909324bdc1ce1a6758475d",
+      "raw_file": "data/research/control_BTCTMN_2026-10-01_15.json",
+      "status": "DEGRADED",
+      "expected_rows": 96,
+      "selected_rows": 1440,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1790899140,
+      "zero_volume_rows": 294,
+      "requested_interval_seconds": 900,
+      "modal_observed_interval_seconds": 60,
+      "observed_interval_counts": {
+        "60": 1439
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 1344,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    },
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "60",
+        "from": 1790812800,
+        "to": 1790899200
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "3649a36e582a6e0899b10c5f96ec2b643e4feec57899f2992abb7238f371d080",
+      "raw_file": "data/research/control_BTCTMN_2026-10-01_60.json",
+      "status": "PASS",
+      "expected_rows": 24,
+      "selected_rows": 24,
+      "boundary_end_rows_excluded": 1,
+      "first_timestamp": 1790812800,
+      "last_timestamp": 1790895600,
+      "zero_volume_rows": 0,
+      "requested_interval_seconds": 3600,
+      "modal_observed_interval_seconds": 3600,
+      "observed_interval_counts": {
+        "3600": 23
+      },
+      "missing_at_modal_interval": 0,
+      "duplicates": 0,
+      "missing_candles": 0,
+      "off_grid_candles": 0,
+      "outside_requested_range": 0,
+      "non_increasing_pairs": 0,
+      "invalid_numeric_or_ohlc_rows": 0
+    }
+  ]
+}
