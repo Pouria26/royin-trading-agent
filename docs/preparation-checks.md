@@ -1,5 +1,9 @@
 # شواهد واقعی آماده‌سازی
 
+**T02، ۲۰۲۶-۱۰-۲۱:** ۴۹/۴۹ تست با صفر fail/skip در محیط فعلی؛ Ruff/compileall/wheel و CLI/help موفق. قرارداد عمومی داده و fixture schema خصوصی ساخته شد؛ نصب پاک این گام تکرار نشد، lock عوض نشد. [گزارش T02](../research/t02-data-contract.json) **DEGRADED/exit 1** است: از شش پنجره، فقط USDTTMN هفته اول از parser و reference ساعتی روز اول گذشت؛ BTC/ETH هفته اول اختلاف OHLCV و سه پنجره هفته دوم gap داشتند. درخواست هفت‌روزه resolution=1 نیز پیش‌تر فقط boundary داده بود؛ [شکست اولیه](../research/t02-seven-day-request-rejected.json) حفظ شد. علت این اختلاف‌ها هنوز U و داده جامع برای بک‌تست تأیید نشده است.
+
+**مدل واقعی، supersedes مانع no-key قبلی:** GOOGLE_API_KEY در .env محلی ثبت و smoke واقعی PASS/exit 0 شد: WAIT، یک read_snapshot، دو درخواست، ۳۳۴ input و ۴۱ output token، ۱۶٫۶۲۵ ثانیه. [شاهد](evidence/google-smoke-2026-10-21.json) از probe بدون تغییر revision d10e456 است؛ ورودی synthetic بوده و این موفقیت نشان‌دهنده دقت یا سود نیست. هزینه پولی اندازه‌گیری نشد. حساب خصوصی/fee واقعی و min-order هنوز تأیید نشده؛ همه liveها بسته‌اند.
+
 **T01، ۲۰۲۶-۱۰-۲۱:** package/config/CLI ساخته و ۲۸/۲۸ تست در محیط فعلی، نصب پاک از lock و wheel نصب‌شده گذشت؛ صفر fail/skip. Ruff و compileall با اضافه‌شدن src موفق‌اند. این به‌روزرسانی، عبارت‌های تاریخی «Build/CLI نداریم» را فقط برای CLI اعتبارسنجی supersede می‌کند؛ موتور، broker، AI واقعی و سودآوری هنوز تأیید نشده‌اند. همه liveها بسته‌اند. دستورهای دقیق جدید در AGENTS.md و گزارش AC/revision در TASKS.md است.
 
 نصب پاک این گام در پوشه موقت جدا با Python 3.12.15، `uv pip sync --python <clean-python> requirements.lock` و سپس `uv pip install --python <clean-python> --no-deps --editable .` انجام شد. `uv build --wheel` موفق و wheel خروجی با `--no-deps --reinstall` در همان محیط نصب و تست شد. `check-config` روی env نمونه و محلی، `VALID_CONFIG_ONLY` داد؛ هیچ شبکه یا سفارش/SQLite ایجاد نمی‌کند. build backend فقط برای packaging است؛ وابستگی runtime تازه‌ای اضافه نشد. فرمان‌های help هر دو probe هم موفق‌اند.

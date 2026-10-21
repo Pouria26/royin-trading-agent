@@ -51,6 +51,15 @@ uv pip install --python .\.venv\Scripts\python.exe --no-deps --editable .
 uv build --wheel
 ```
 
+دستور **اجراشده T02**، عمومی و بدون خواندن .env/کلید حساب، با سقف ۴۹ GET و بدون retry:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m scripts.prepare_market_data --help
+.\.venv\Scripts\python.exe -X utf8 -m scripts.prepare_market_data
+```
+
+rawهای content-addressed و گزارش در `data/t02` ذخیره می‌شوند؛ snapshot دارای hash/query/زمان است. خروجی `PASS_DATA_ONLY` فقط قرارداد/کیفیت محدود داده است؛ وضعیت جاری **DEGRADED و exit 1** است، نه pass. gap، پاسخ مرزی بدون داده و اختلاف OHLCV نمونه ساعتی dataset خروجی را برای همان پنجره می‌بندد. این ابزار backtest، shadow یا تأیید حساب نیست؛ private transport ندارد.
+
 خروجی سالم `VALID_CONFIG_ONLY` و `network_enabled=false` و `trading_enabled=false` است؛ خطای config، `BLOCKED` و exit 2 است. این CLI **موتور معامله نیست**؛ همه liveها، حتی با کلید/allowlist، تا تکمیل گیت‌های بعدی رد می‌شوند. broker و سیاست ریسک هنوز وجود ندارند؛ موفقیت check-config مجوز بازار یا readiness نیست. compileall جای lint/typecheck نیست.
 
 config از .env پوشه جاری (در صورت وجود) و سپس متغیرهای فرایند خوانده می‌شود؛ `--env-file` صریح باید وجود داشته باشد. کلید ناشناخته فایل و متغیر ناشناخته با پیشوند اختصاصی پروژه رد می‌شود؛ متغیرهای عمومی سیستم نادیده گرفته می‌شوند. dotenv نامعتبر/تکراری رد و interpolation غیرفعال است. بودجه‌های token/cost/currency یا هر سه خالی‌اند یا هر سه معتبر؛ خالی بودن در T01 هیچ درخواست مدلی فعال نمی‌کند. LLM_BASE_URL در runtime فقط خالی و WALLEX_BASE_URL فقط origin رسمی است؛ probe موجود مستقل باقی می‌ماند.

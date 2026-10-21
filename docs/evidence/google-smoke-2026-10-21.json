@@ -1,0 +1,22 @@
+{
+  "kind": "REAL_PROVIDER_COMPATIBILITY_NOT_TRADING_QUALITY",
+  "status": "PASS",
+  "model": "gemini-3.5-flash-lite",
+  "wall_seconds": 16.625,
+  "tool_calls": [
+    "read_snapshot"
+  ],
+  "output": {
+    "action": "WAIT",
+    "evidence_id": "SYNTHETIC_STALE_1"
+  },
+  "requests": 2,
+  "input_tokens": 334,
+  "output_tokens": 41,
+  "exit_code": 0,
+  "executed_on": "2026-10-21",
+  "source_revision": "d10e456",
+  "probe_script_sha256": "1e8bf1ddbd04e86a8e9adf40f9b19a7ac466e0b656ab4fb6296762a7d669559c",
+  "limits": "Two model requests, one tool, 512 output tokens per request, 30-second deadline; no exchange transport",
+  "caveat": "Recorded from observed CLI output; real provider on synthetic stale input, not a trading quality evaluation. Monetary cost and provider version metadata were not measured."
+}

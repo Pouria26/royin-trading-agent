@@ -1,0 +1,101 @@
+{
+  "kind": "PUBLIC_DATA_CONTRACT_NOT_BACKTEST_OR_ACCOUNT_PERMISSION",
+  "records": [
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "1",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "841d42f329404b9ddc86b10d8b7101f99eb830f50ede85474c584474471dced9",
+      "raw_file": "data/t02/841d42f329404b9ddc86b10d8b7101f99eb830f50ede85474c584474471dced9.json",
+      "fetched_at_utc": "2026-10-21T15:46:06.269773+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    },
+    {
+      "query": {
+        "symbol": "BTCTMN",
+        "resolution": "1",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "223446207716059ae7f6df5ae5850fb034ac6bc23675d0ce1372f441b1207de3",
+      "raw_file": "data/t02/223446207716059ae7f6df5ae5850fb034ac6bc23675d0ce1372f441b1207de3.json",
+      "fetched_at_utc": "2026-10-21T15:46:06.811459+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    },
+    {
+      "query": {
+        "symbol": "ETHTMN",
+        "resolution": "1",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "da85422c7c3ee461217ebf8ded8653b8ce834345ef71e15a7ceaf55012b1ad02",
+      "raw_file": "data/t02/da85422c7c3ee461217ebf8ded8653b8ce834345ef71e15a7ceaf55012b1ad02.json",
+      "fetched_at_utc": "2026-10-21T15:46:07.415992+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    },
+    {
+      "query": {
+        "symbol": "ETHTMN",
+        "resolution": "1",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "d9afa9a9a398416cd2ff5970ff1081b8e9db12bf832f967f57dba2d9100d22a7",
+      "raw_file": "data/t02/d9afa9a9a398416cd2ff5970ff1081b8e9db12bf832f967f57dba2d9100d22a7.json",
+      "fetched_at_utc": "2026-10-21T15:46:07.954819+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1790812800,
+        "to": 1791417600
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "4b3579e40ea332665ac14413f1dc2b0056405a5d1331065bdb45a90e2af0cc8b",
+      "raw_file": "data/t02/4b3579e40ea332665ac14413f1dc2b0056405a5d1331065bdb45a90e2af0cc8b.json",
+      "fetched_at_utc": "2026-10-21T15:46:08.493915+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1791417600,
+        "to": 1792022400
+      },
+      "source_url": "https://api.wallex.ir/v1/udf/history",
+      "raw_sha256": "8476539990fdc1fbc0dae913e16f9dfd40b37fb2caa20caa24e38e2b91a3c47d",
+      "raw_file": "data/t02/8476539990fdc1fbc0dae913e16f9dfd40b37fb2caa20caa24e38e2b91a3c47d.json",
+      "fetched_at_utc": "2026-10-21T15:46:09.036174+00:00",
+      "status": "REJECTED",
+      "error_type": "ValueError"
+    }
+  ],
+  "account_access": "BLOCKED_NO_PRIVATE_CONTRACT",
+  "timestamp_semantics": "open time assumed; hourly comparison checked separately",
+  "catalog": {
+    "source_url": "https://api.wallex.ir/hector/web/v1/markets",
+    "query": {},
+    "raw_sha256": "300f70f727e8eca481d3ba494ce36dced2096ff6890a3c2e69ad8f2e3c86a750",
+    "raw_file": "data/t02/300f70f727e8eca481d3ba494ce36dced2096ff6890a3c2e69ad8f2e3c86a750.json",
+    "fetched_at_utc": "2026-10-21T15:46:05.697444+00:00",
+    "parsed_markets": 469
+  },
+  "policy_sha256": "1e7cc946ddb2e5d3f378f4c5ab3573d39a3958ae30d9b16cb102fd647f7f542a",
+  "status": "DEGRADED"
+}

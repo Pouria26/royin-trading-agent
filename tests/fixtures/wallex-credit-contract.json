@@ -1,0 +1,13 @@
+{
+  "kind": "OFFICIAL_SCHEMA_WITH_SYNTHETIC_VALUES_NOT_AN_ACCOUNT_OBSERVATION",
+  "balances": {
+    "result": {
+      "TMN": {"symbol": "TMN", "total": "5000000", "available": "4990000", "freeze": "10000"},
+      "BTC": {"symbol": "BTC", "total": "0.002", "available": "0.0015", "freeze": "0.0005"}
+    },
+    "success": true
+  },
+  "fee": {
+    "result": {"BTCTMN": {"makerFeeRate": "0.001", "takerFeeRate": "0.002", "recent_days_sum": "0"}}
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "catalog": {
+    "source_url": "https://api.wallex.ir/hector/web/v1/markets",
+    "raw_sha256": "064f2c7fa7aedbe815e48341fb66f41b6f665c62d5c1e6bc5bfcfe107bbead7d",
+    "projection": "8 rows projected to symbol/base_asset/quote_asset/is_spot/amount_precision/price_precision/is_margin; values unchanged"
+  },
+  "history": {
+    "source_url": "https://api.wallex.ir/v1/udf/history",
+    "raw_sha256": "b894c4247edbd1081ae7e50e322d1e04153434abb1909324bdc1ce1a6758475d",
+    "query": {
+      "symbol": "BTCTMN",
+      "resolution": "1",
+      "from": 1790812800,
+      "to": 1790899200
+    },
+    "projection": "first 31 rows; source values were decimal strings"
+  },
+  "account_fee": {
+    "source_url": "https://developers.wallex.ir/docs/basic-services-account-fee",
+    "kind": "DOCUMENTED_FIELD_NAMES_SYNTHETIC_VALUES_NOT_ACCOUNT_RESPONSE"
+  },
+  "credit_balances": {
+    "source_url": "https://developers.wallex.ir/assets/files/trade-credit-ff5c60b5b97b77a5b2c2e4800f07729c.yaml",
+    "source_sha256": "b84075a0a2ab849e4c14606406588ef14aba287ffd6d81e3917243d8010d6f2b",
+    "endpoint": "/v1/account/balances-detail",
+    "kind": "OFFICIAL_SCHEMA_WITH_SYNTHETIC_VALUES_NOT_ACCOUNT_RESPONSE"
+  }
+}

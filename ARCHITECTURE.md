@@ -1,6 +1,6 @@
 # معماری پیشنهادی و دفتر تصمیم‌ها
 
-وضعیت: **T01 package/config/CLI ساخته شد؛ موتور هنوز پیاده‌سازی نشده است.** برچسب R/S/D/U طبق docs/challenge-brief.md. بخش‌های بعدی قرارداد پیشنهادی‌اند؛ دستورهای موجود در AGENTS.md هستند.
+وضعیت: **T02 قراردادها/collector عمومی ساخته شد؛ کیفیت جامع داده و دسترسی خصوصی تأییدنشده‌اند. موتور هنوز پیاده‌سازی نشده است.** برچسب R/S/D/U طبق docs/challenge-brief.md. بخش‌های بعدی قرارداد پیشنهادی‌اند؛ دستورهای موجود در AGENTS.md هستند.
 
 ## انتخاب ابزار با دلیل
 
@@ -99,12 +99,14 @@ flowchart LR
 | depth | GET /v1/depth?symbol=... | bid/ask؛ polling پرتکرار نکنید |
 | قوانین بازار | GET /hector/web/v1/markets | در پاسخ واقعی result.markets دیده شد؛ فرض symbols نکنید؛ schema T02 |
 | fee | GET /v1/account/fee | قبل از live برای حساب هکاتون تأیید شود |
-| balance | GET /v1/account/balances | شکل/حساب اعتباری هنوز authenticated آزمایش نشده |
+| credit balance | GET /v1/account/balances-detail | schema رسمی اعتبار: result[asset].total/available/freeze؛ هدر حساب اختصاصی اجباری؛ authenticated هنوز آزموده نشده |
 | ایجاد | POST /v1/account/orders | quantity و price رشته، stop_Price شرطی، client_id پایدار |
 | استعلام | GET /v1/account/orders/{client_id} | timeout ارسال را پیش از هر retry با این/فهرست تطبیق دهید |
 | لغو | DELETE /v1/account/orders/{client_id} | body قدیمی Blueprint مبنا نیست؛ cancel با fill هم‌زمان reconcile شود |
 
 مسیر سایر endpointها، از جمله open orders، از مستند واقعی خوانده و با پاسخ حساب تأیید شود. Web API داخلی محصول لازم نیست؛ مسیر ساختگی `/api/trade` نسازید.
+
+**تصحیح T02 / S:** `/v1/account/balances` در مستند کیف‌پول حساب اصلی است؛ یادداشت قبلی آن را برای حساب اعتباری تأیید نکرده بود و اکنون superseded است. Swagger رسمی اعتبار مسیر balances-detail و هدر sub-account-client-id را نشان می‌دهد؛ با وجود عبارت متناقض «no custom header» در description، پارامتر ساخت‌یافته و اصل fail-closed مبناست. هیچ درخواست خصوصی در T02 ارسال نشد. fixture موجودی/fee فقط schema با عدد synthetic است؛ min-order، معنای precision به‌عنوان tick/step، هویت حساب و تازگی محدودیت‌ها هنوز نیازمند تأیید واقعی‌اند.
 
 برای درخواست خصوصی: origin رسمی allowlist، TLS فعال، redirect غیرفعال، هدر x-api-key و sub-account-client-id هر دو اجباری؛ نبود شناسه اعتبار fallback به حساب اصلی نداشته باشد. schema و success و وضعیت HTTP هر سه بررسی شوند. 401/403 خطای تنظیم، 429 توقف محدود با Retry-After، 5xx/read timeout فقط خواندن با backoff محدود؛ timeout نوشتن حالت **UNKNOWN** است، نه شکست قطعی. SDK/adapter تنها یک مالک retry دارد و تعداد همه تلاش‌ها حساب می‌شود.
 

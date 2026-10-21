@@ -2,7 +2,7 @@
 
 وضعیت‌ها: TODO / IN_PROGRESS / BLOCKED / VERIFIED / FAILED. VERIFIED فقط با شاهد همان نسخه. وابستگی خارجی مسدود به معنی توقف کار مستقل نیست. مالک اصلی همه تسک‌های این مخزن Coding Agent پوریا است؛ کار انسانی لازم در هر ردیف روشن است.
 
-**T01 تأیید شد؛ تسک آماده بعدی T02 است. P1 هنوز مسیر عمودی کامل ندارد.** پایان معتبر بنا به تأیید پوریا: جمعه ۲۰۲۶-۱۰-۲۳، ۲۳:۵۰ Asia/Tehran. امروز ۲۱ اکتبر آماده‌سازی/آزمون؛ live از فردا به درخواست پوریا، مشروط به گیت‌های فنی. مهلت دقیق ارسال ویدئو باید زودتر نهایی شود. زمان‌ها را از ساعت واقعی بخوانید و reserve تحویل را قربانی فیچر نکنید.
+**T02: قراردادها و ابزار عمومی ساخته شد؛ کیفیت کامل داده و تأیید خصوصی BLOCKED است. P1 هنوز مسیر عمودی کامل ندارد.** پایان معتبر بنا به تأیید پوریا: جمعه ۲۰۲۶-۱۰-۲۳، ۲۳:۵۰ Asia/Tehran. امروز ۲۱ اکتبر آماده‌سازی/آزمون؛ live از فردا به درخواست پوریا، مشروط به گیت‌های فنی. مهلت دقیق ارسال ویدئو باید زودتر نهایی شود. زمان‌ها را از ساعت واقعی بخوانید و reserve تحویل را قربانی فیچر نکنید.
 
 ## ترتیب و پذیرش
 
@@ -10,8 +10,8 @@
 |---|---|---|---|---|
 | T00 / P0 / P0 | قرارداد چالش، ماتریس امتیاز، نقد Blueprint و طرح شروع | بریف پوریا و منابع | همه R01–R22 و J01–J09 پوشش؛ ابهام‌ها U ثبت؛ مستندات و Master Prompt متقابلاً سازگار؛ secret ignore بررسی | VERIFIED؛ docs/preparation-checks.md، آزمون ۱۲/۱۲ در محیط فعلی و پاک؛ آمادگی موتور ادعا نشده |
 | T01 / P1 / P0 | کمترین package/CLI و config؛ بدون زیرساخت اضافی | T00 | lock نصب پاک؛ config ناقص/ناشناخته رد؛ shadow پیش‌فرض؛ تست mode و ممنوعیت live بدون حساب/allowlist/پایان/سیاست؛ دستور واقعی تست/اجرا به AGENTS افزوده شود | VERIFIED؛ ۲۸/۲۸ در محیط فعلی و پاک از lock، wheel نصب و آزموده؛ CLI فقط check-config، همه liveها بسته؛ گزارش T01 پایین |
-| T02 / P1 / P0 | قرارداد market/account؛ ذخیره داده و profile زمانی | T01؛ بخش عمومی مستقل از کلید | parser قرارداد واقعی، price/qty/fee و واحد روشن، ترتیب/گپ/بازه/کندل بسته؛ fixture sanitized؛ داده عمومی مجوز بازار نیست | TODO؛ probe مقدماتی در research، قرارداد خصوصی BLOCKED تا دریافت دسترسی |
-| T03 / P1 / P0 | Agent واقعی Gemini و اولین تصمیم قابل بررسی با ابزار خواندنی | T01، داده T02؛ کلید از پوریا | schema، آرگومان ابزار، no-op، malformed/timeout/budget؛ smoke واقعی مدل؛ تصمیم ورود/عدم اقدام/خروج از evidence؛ snapshot→AI→risk→simulated order | TODO؛ آزمون FunctionModel آماده است، کلید واقعی BLOCKED |
+| T02 / P1 / P0 | قرارداد market/account؛ ذخیره داده و profile زمانی | T01؛ بخش عمومی مستقل از کلید | parser قرارداد واقعی، price/qty/fee و واحد روشن، ترتیب/گپ/بازه/کندل بسته؛ fixture sanitized؛ داده عمومی مجوز بازار نیست | BLOCKED برای پذیرش کامل؛ کد و fixture قرارداد عمومی/خصوصی آزموده؛ اجرای واقعی DEGRADED، خصوصی/fee/min-order تأیید نشده؛ گزارش T02 پایین |
+| T03 / P1 / P0 | Agent واقعی Gemini و اولین تصمیم قابل بررسی با ابزار خواندنی | T01، داده T02؛ کلید از پوریا | schema، آرگومان ابزار، no-op، malformed/timeout/budget؛ smoke واقعی مدل؛ تصمیم ورود/عدم اقدام/خروج از evidence؛ snapshot→AI→risk→simulated order | TODO؛ smoke واقعی کوچک PASS روی probe revision d10e456؛ تصمیم معاملاتی/برش کامل هنوز ساخته نشده |
 | T04 / P1 / P0 | ledger و حسابداری مالی | T01 | Decimal و quantization؛ fill جزئی/fee پایه و quote/locked funds؛ مثال بازده ۲۵٪ و زیان ۱۰٪؛ عدم دوباره‌شماری cumulative fills و هزینه؛ تطبیق balance | TODO |
 | T05 / P1 / P0 | broker مشترک و وضعیت سفارش مقاوم به تکرار | T02/T04؛ authenticated contract بعداً | shadow/historical هیچ write شبکه نکنند؛ intent قبل از side effect، UNKNOWN/reconcile، restart، cancel/fill race و duplicate event؛ تست با fake منطبق قرارداد | TODO |
 | T06 / P1 / P0 | گیت ریسک و توقف/پایان مستقل از AI | T04/T05 | سقف حجم/exposure، stop، min buy/sell، fee، stale data، دارایی قفل؛ model malicious/NaN نتواند gate را دور بزند؛ end-time/ازسرگیری finalization و residual آزموده شوند | TODO؛ policy عددی پس از داده تنظیم شود |
@@ -24,7 +24,7 @@
 
 ## نقاط کنترل انسانی و زمان
 
-- اکنون: پوریا `GOOGLE_API_KEY` را فقط در .env محلی می‌گذارد؛ smoke در AGENTS مشخص است. مقدار budget آزمایش را پیش از اجرای انبوه تعیین کند.
+- اکنون: GOOGLE_API_KEY در .env محلی قرار گرفت و smoke PASS شد؛ کلید از Git خارج است. مقدار budget آزمایش را پیش از اجرای انبوه تعیین کند.
 - امروز: Coding Agent یک vertical slice شبیه‌سازی‌شده، آزمون تاریخی معتبر و سپس سایه می‌سازد. ساخته نشدن/خرابی core به تعویق UI و فیچر اضافی منجر شود.
 - فردا: دریافت حساب → راستی‌آزمایی read-only نوع حساب/بازار/fee → اتمام گیت‌های فنی → live حداقلی. نبود شواهد با خواست شروع سریع پوشانده نشود.
 - بازبینی داخلی اواخر روز دوم برنامه تیم است؛ reviewer باید کد و خروجی تازه را بررسی کند و پوریا منطق را توضیح بدهد. بازنویسی معماری بدون خطای واقعی در این مقطع توجیه ندارد.
@@ -33,6 +33,8 @@
 ## تصمیم‌های مهم
 
 ترجیح تازه پوریا: پیاده‌سازی گام‌به‌گام، یک تسک فعال با پذیرش/تست/گزارش و به‌روزرسانی وضعیت پیش از تسک وابسته بعدی. commitها در سطح فاز منسجم باشند؛ دو commit آماده‌سازی با درخواست صریح او تجمیع می‌شوند. این تجمیع شامل نسخه معاملاتی نیست و مجوز بازنویسی خودکار تاریخچه در آینده نیست.
+
+به‌روزرسانی ترجیح پوریا در T02: commit زیاد نزن؛ تمرکز بر کیفیت و بهبود قابل سنجش. این نوبت بدون commit میانی، فقط یک checkpoint برای مجموعه آزموده T02 و بررسی منابع ساخته می‌شود؛ شرط revision تمیز پیش از live پابرجاست.
 
 به‌روزرسانی T02/T05/T06/T07/T10: فقط اسپات بدون لوریج و فروش از موجودی؛ `docs/market-access-policy.md` و snapshot `config/wallex-credit-market-policy.json` لازم‌الاجرا هستند. T02 به جای انتظار فهرست مثبت دستی تازه، universe را از catalog/دسترسی حساب پس از حذف اجتماع ممنوع‌ها می‌سازد. تست‌های اجرایی بعدی باید نماد ممنوع در env/پیشنهاد مدل، دو quote، پیشوند عددی، refresh محدودیت و SELL بدون موجودی را رد کنند. تست فعلی فقط صحت snapshot است، نه تأیید دسترسی یا گیت runtime.
 
@@ -58,6 +60,18 @@
 - commit آماده‌سازی فقط شواهد این مرحله است؛ revision از git log -1 قابل بازیابی است. هیچ کد سودساز یا نتیجه live به آن نسبت داده نشده است.
 
 بعد از هر فاز همین‌جا بنویس: زمان/commit، هدف و AC، دستور/نتیجه، real/simulated/blocked، خطای باقیمانده و task بعدی. این دفتر جای log هر tick یا ذخیره Secret نیست.
+
+### ۲۰۲۶-۱۰-۲۱ — T02 و اولین smoke واقعی مدل
+
+- **دامنه/AC:** market/account parser، داده دقیق، source/hash، cutoff، gap/cadence و کندل کامل؛ فقط collector عمومی و tests مصرف‌کننده‌اند. J07/J08/J09 و مقدمات R08/R09/R18؛ بدون broker، استراتژی یا سفارش. callerهای probe قبلی دست‌نخورده‌اند؛ migration و وابستگی جدید لازم نشد.
+- **ساخته‌شده و آزموده:** JSON بدون float/NaN/duplicate keys؛ Decimal غیرمنفی و سقف host برابر ۱۲۸ digit/exponent؛ پنجره حداکثر ۱۰۰هزار کندل؛ closed cutoff، UTC aggregation و flag bin ناقص؛ universe از metadata واقعی و account universe صریح منهای اجتماع ممنوع‌ها. account نامعلوم و selection ممنوع رد می‌شوند. precision صرفاً metadata است و min-order/tick از آن حدس زده نمی‌شود.
+- **Simulated/private:** balance با total/available/freeze و fee coefficients طبق schema رسمی fixture دارند، نه پاسخ حساب واقعی. `/v1/account/balances` متعلق به حساب اصلی است؛ reference به balances-detail اصلاح شد. نبود کلید Wallex/شناسه، fee و min-order، تأیید خصوصی را BLOCKED نگه می‌دارد.
+- **Real Google:** کلید فقط در .env ignored قرار گرفت؛ `probe_model.py --run`، PASS/exit 0، WAIT و یک read_snapshot، دو درخواست، ۳۳۴ input و ۴۱ output token، ۱۶٫۶۲۵ ثانیه. [شاهد sanitized](docs/evidence/google-smoke-2026-10-21.json) متعلق به probe revision d10e456 است؛ کیفیت تصمیم معاملاتی یا قیمت پولی token سنجیده نشد. نتیجه no-key قبلی superseded است، تست no-key همچنان موجود است.
+- **Real Wallex:** ۴۶۹ بازار catalog parse شد. درخواست resolution=1 هفت‌روزه شش بار فقط ردیف end داد؛ شکست در research/t02-seven-day-request-rejected.json حفظ شد. collector به روزانه با حداکثر ۴۹ GET بدون retry محدود شد. اجرای نهایی **DEGRADED/exit 1**: هفته اول BTCTMN هفت و ETHTMN ده کندل ساعتی با aggregation دقیقه‌ای اختلاف داشتند؛ USDTTMN ۶۷۲ کندل ۱۵دقیقه و تطبیق ۲۴ ساعت روز اول را گذراند. هفته دوم هر سه در اولین روز گپ‌دار رد شدند؛ BTC/ETH هرکدام ۲ و USDT در همان روز ۸۷ دقیقه غایب داشتند؛ کل هفته با این توقف دوباره کامل profile نشد. [گزارش](research/t02-data-contract.json) hash/زمان/query دارد. عبور یک نمونه، تأیید کل داده یا سود نیست.
+- **Checks:** `unittest discover -s tests -v`: **۴۹ passed / صفر failed / صفر skipped**؛ Ruff، compileall، build wheel، help ابزار جدید و check-config محلی موفق. نصب پاک مجدد در T02 انجام نشد؛ شاهد نصب پاک T01 برای همان lock است. spy عمومی فقط GET بدون header خصوصی و HTTP200/success=false و mismatch/rejection آزموده شد.
+- **منابع:** README هفت مخزن و پنج فایل مرتبط بررسی و یافته/کاربرد/ادعای تأییدنشده در docs/source-review.md ثبت شد. هیچ افزونه، مدل، agent اضافه یا وعده دقت/latency از روی آن‌ها پذیرفته نشد.
+- **Revision/commit:** فقط یک checkpoint بدون commit میانی، `Add exact market data contracts and public preparation`، parent d10e456؛ hash از `git log -1 --format=%H -- src/royin/market_data.py` قابل بازیابی است. تغییر مستقل .gitignore در حین کار دیده شد؛ حفظ و از commit این فاز خارج می‌شود. push انجام نمی‌شود.
+- **قدم بعدی:** علت اختلاف OHLCV و semantics زمان از پاسخ رسمی/منبع مستقل بررسی شود؛ dataset گپ‌دار یا ناسازگار معیار سود نیست. T03 می‌تواند بر قرارداد fixture و مجموعه سناریوی مستقل کار کند، اما T07/backtest معتبر و T10/live تا رفع موانع تأیید نمی‌شوند. پیش از eval انبوه بودجه مدل معلوم شود؛ فردا WALLEX_API_KEY حساب اختصاصی و SUB_ACCOUNT_CLIENT_ID فقط در .env برای تأیید read-only لازم‌اند؛ هیچ دانلود فعلی از پوریا لازم نیست.
 
 ### ۲۰۲۶-۱۰-۲۱ — T01، config و CLI بدون transport
 

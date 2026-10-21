@@ -24,6 +24,16 @@
 
 یادگیری بعدی باید با تست/منبع مشخص اضافه شود؛ گزارش fake را real یا عدد حدسی را measured ننویسید.
 
+## T02 — ۲۰۲۶-۱۰-۲۱
+
+- **User / D:** commit کمتر و تمرکز بر بهبود دقت؛ یک checkpoint منسجم به جای commitهای ریز. ارجاع «چهار منبع» با متن تکمیلی شامل هفت repository شد؛ دامنه خوانده‌شده و blobها در research/source-review-manifest.json و تصمیم‌ها در docs/source-review.md ثبت است. برتری مناظره/MCP و اعداد دقت/latency متن منبع آزموده و پذیرفته نشده‌اند.
+- **Real provider / S، supersedes نبود کلید در T01:** GOOGLE_API_KEY فقط محلی ثبت و probe PASS شد؛ ۱۶٫۶۲۵ ثانیه، دو درخواست، یک ابزار، WAIT، ۳۳۴/۴۱ token. این شاهد سازگاری است، نه دقت استراتژی. قیمت token و budget انبوه هنوز U هستند؛ Secret در حافظه ثبت نمی‌شود.
+- **Official Swagger / S، supersedes balance reference قدیمی:** `/v1/account/balances` main wallet است. credit schema در `/v1/account/balances-detail`، result[asset] با total/available/freeze است؛ هدر sub-account-client-id در پارامتر ساخت‌یافته آمده. هیچ private call انجام نشد؛ parser و fee فقط با fixture schema/synthetic آزموده‌اند.
+- **Wallex observation / S:** resolution=1 با بازه هفت‌روزه فقط مرز end داد، ولی درخواست روزانه کامل‌تر بود. loader روزانه/با cadence صریح و سقف داده ساخته شد. سری‌های gapped رد می‌شوند؛ هیچ fill یا resample خاموش انجام نمی‌شود.
+- **Data contradiction / S/U:** روی روز اول اکتبر، aggregation دقیقه‌ای با hourly API برای BTC در ۷ و ETH در ۱۰ ساعت اختلاف داشت؛ علت اثبات نشده و dataset این پنجره‌ها رد است. USDT هفته اول ۶۷۲ bar و reference روز اول را گذراند؛ مقایسه ساعتی فقط همان یک روز و واحد volume/base و timestamp/open فرض استاندارد ثبت‌شده‌اند، تأیید معنایی کامل Wallex نیستند. T07 بدون رفع ابهام سود اعلام نکند.
+- **Diagnostic / S:** در ساعت‌های ناسازگار، volume در همه موارد برابر بود و اختلاف در OHLC بود. فرضیه کنارگذاشتن کندل صفرحجم فقط ۴ از ۷ اختلاف BTC و ۷ از ۱۰ اختلاف ETH را رفع کرد؛ راه‌حل کامل یا قرارداد رسمی نیست و در aggregation اعمال نشد. oracle برای سبز شدن ضعیف نشود.
+- **Checks / S:** ۴۹ تست پاس، صفر skip/fail؛ Ruff/compileall/wheel موفق. rawها در data/t02 ignored، شواهد sanitized در research و docs/evidence؛ hash و query نگه‌داری می‌شوند. هیچ درخواست سفارش/حساب خصوصی و هیچ استراتژی سودساز هنوز وجود ندارد.
+
 ## T01 — ۲۰۲۶-۱۰-۲۱
 
 - **User / D، supersedes نقش آماده‌ساز بالا:** این Agent اکنون مالک پیاده‌سازی رویین است؛ فقط تسک محدود آماده را با تست/گزارش/commit پیش می‌برد. T01 تکمیل، قدم بعدی T02 است.

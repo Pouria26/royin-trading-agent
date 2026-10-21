@@ -1,0 +1,80 @@
+{
+  "result": {
+    "markets": [
+      {
+        "symbol": "BTCTMN",
+        "base_asset": "BTC",
+        "quote_asset": "TMN",
+        "is_spot": true,
+        "amount_precision": 8,
+        "price_precision": 0,
+        "is_margin": true
+      },
+      {
+        "symbol": "PAXGTMN",
+        "base_asset": "PAXG",
+        "quote_asset": "TMN",
+        "is_spot": true,
+        "amount_precision": 6,
+        "price_precision": 0,
+        "is_margin": false
+      },
+      {
+        "symbol": "1BBABYDOGETMN",
+        "base_asset": "1BBABYDOGE",
+        "quote_asset": "TMN",
+        "is_spot": true,
+        "amount_precision": 8,
+        "price_precision": 0,
+        "is_margin": false
+      },
+      {
+        "symbol": "YFITMN",
+        "base_asset": "YFI",
+        "quote_asset": "TMN",
+        "is_spot": true,
+        "amount_precision": 5,
+        "price_precision": 0,
+        "is_margin": false
+      },
+      {
+        "symbol": "BTCUSDT",
+        "base_asset": "BTC",
+        "quote_asset": "USDT",
+        "is_spot": true,
+        "amount_precision": 8,
+        "price_precision": 2,
+        "is_margin": true
+      },
+      {
+        "symbol": "PAXGUSDT",
+        "base_asset": "PAXG",
+        "quote_asset": "USDT",
+        "is_spot": true,
+        "amount_precision": 6,
+        "price_precision": 2,
+        "is_margin": false
+      },
+      {
+        "symbol": "YFIUSDT",
+        "base_asset": "YFI",
+        "quote_asset": "USDT",
+        "is_spot": true,
+        "amount_precision": 5,
+        "price_precision": 2,
+        "is_margin": false
+      },
+      {
+        "symbol": "1BBABYDOGEUSDT",
+        "base_asset": "1BBABYDOGE",
+        "quote_asset": "USDT",
+        "is_spot": true,
+        "amount_precision": 8,
+        "price_precision": 2,
+        "is_margin": false
+      }
+    ]
+  },
+  "message": "Success",
+  "success": true
+}

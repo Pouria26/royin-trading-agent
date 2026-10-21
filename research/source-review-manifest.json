@@ -1,0 +1,78 @@
+{
+  "reviewed_on": "2026-10-21",
+  "scope": "Seven READMEs and five relevant implementation/documentation files; not a complete audit or benchmark of those repositories",
+  "sources": [
+    {
+      "repository": "TauricResearch/TradingAgents",
+      "path": "README.md",
+      "blob_sha": "cedcdb1e5bf56705cab3fa4b86944686cd62276c",
+      "url": "https://github.com/TauricResearch/TradingAgents/blob/main/README.md"
+    },
+    {
+      "repository": "virattt/ai-hedge-fund",
+      "path": "README.md",
+      "blob_sha": "7123a5dcea0073dc9cc760e6b1f1abb16d791a20",
+      "url": "https://github.com/virattt/ai-hedge-fund/blob/main/README.md"
+    },
+    {
+      "repository": "AI4Finance-Foundation/FinRobot",
+      "path": "README.md",
+      "blob_sha": "65fa262404162040a4e439f598db8d0f294e4528",
+      "url": "https://github.com/AI4Finance-Foundation/FinRobot/blob/master/README.md"
+    },
+    {
+      "repository": "LLMQuant/awesome-trading-agents",
+      "path": "README.md",
+      "blob_sha": "f01382e2578f5b7693f0d1d2dce34392fe72146b",
+      "url": "https://github.com/LLMQuant/awesome-trading-agents/blob/master/README.md"
+    },
+    {
+      "repository": "tradermonty/claude-trading-skills",
+      "path": "README.md",
+      "blob_sha": "7fc2a10b770ea872b4052962ca26048cd7056fdc",
+      "url": "https://github.com/tradermonty/claude-trading-skills/blob/main/README.md"
+    },
+    {
+      "repository": "hummingbot/hummingbot",
+      "path": "README.md",
+      "blob_sha": "20dadd44364c91a25448716ebb92e142797794da",
+      "url": "https://github.com/hummingbot/hummingbot/blob/master/README.md"
+    },
+    {
+      "repository": "freqtrade/freqtrade",
+      "path": "README.md",
+      "blob_sha": "3d1a903ce1c76f32e5d3e7fc12f0e5c4845f2308",
+      "url": "https://github.com/freqtrade/freqtrade/blob/develop/README.md"
+    },
+    {
+      "repository": "virattt/ai-hedge-fund",
+      "path": "hedge_fund/risk/limits.py",
+      "blob_sha": "364d9b8406cb6d7c143d24117040aac15c8ec4f3",
+      "url": "https://github.com/virattt/ai-hedge-fund/blob/main/hedge_fund/risk/limits.py"
+    },
+    {
+      "repository": "TauricResearch/TradingAgents",
+      "path": "tradingagents/agents/structured.py",
+      "blob_sha": "8992e535167be65451cc39ec04a58fc19cf6bdda",
+      "url": "https://github.com/TauricResearch/TradingAgents/blob/main/tradingagents/agents/structured.py"
+    },
+    {
+      "repository": "freqtrade/freqtrade",
+      "path": "docs/lookahead-analysis.md",
+      "blob_sha": "ab0b72a412675b7161f34babed63ded43def4cb1",
+      "url": "https://github.com/freqtrade/freqtrade/blob/develop/docs/lookahead-analysis.md"
+    },
+    {
+      "repository": "hummingbot/hummingbot",
+      "path": "hummingbot/connector/budget_checker.py",
+      "blob_sha": "9f19db06383e9ab5c2605293df99465214ea48c6",
+      "url": "https://github.com/hummingbot/hummingbot/blob/master/hummingbot/connector/budget_checker.py"
+    },
+    {
+      "repository": "tradermonty/claude-trading-skills",
+      "path": "skills/pre-trade-discipline-gate/SKILL.md",
+      "blob_sha": "e13fa024a4ff6b3b68ac6105671a60e11334dad1",
+      "url": "https://github.com/tradermonty/claude-trading-skills/blob/main/skills/pre-trade-discipline-gate/SKILL.md"
+    }
+  ]
+}
