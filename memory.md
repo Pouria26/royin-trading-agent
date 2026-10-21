@@ -1,8 +1,12 @@
 # حافظه فنی رویین
 
-آخرین تطبیق با کد و شواهد مخزن: ۲۰۲۶-۱۰-۲۱. فقط قرارداد جاری، دام فنی و محدودیت ماندگار اینجا بماند؛ تاریخچه جلسات/تعداد تست‌ها در TASKS.md، قوانین در docs/challenge-brief.md و قیمت‌ها در policy مربوط‌اند. اطلاعات شخصی، Secret، شناسه حساب و یادداشت superseded نگه ندارید.
+آخرین تطبیق با کد و شواهد مخزن: ۲۰۲۶-۱۰-۲۲. فقط قرارداد جاری، دام فنی و محدودیت ماندگار اینجا بماند؛ تاریخچه جلسات/تعداد تست‌ها در TASKS.md، قوانین در docs/challenge-brief.md و قیمت‌ها در policy مربوط‌اند. اطلاعات شخصی، Secret، شناسه حساب و یادداشت superseded نگه ندارید.
 
 ## وضعیت و مرز اجرای واقعی
+
+- به‌روزرسانی ۲۰۲۶-۱۰-۲۲: native-hour مستقل با ۶۲۳ bar/دو قطعه و یک ساعت gap، DIAGNOSTIC_ONLY است؛ نه پذیرش T02. source semantics/finality/volume هنوز مجهول‌اند. نام‌های جاری planها config/native-hour-source-plan.json و config/candidate-evaluation-plan.json؛ hash freeze قبلی حفظ شده است.
+- یکپارچه‌سازی: شش تنظیم روی۷ پنجره۷۲ساعته با warmup۳۱bar ارزیابی تشخیصی شدند؛ هیچ نامزد تأیید نشد. سپتامبر۲۴–۲۷ outcome دیده شده و Holdout دست‌نخورده نیست؛ حد۳۰ معامله رسمی/آماری نیست. docs/candidate-evaluation.md مرجع نتیجه و محدودیت است.
+- run_shadow اکنون فقط OBSERVE_ONLY و native hourly USDTTMN: یک snapshot بسته واقعی ثبت شد؛ CANDIDATE_SHADOW پیش از شبکه بسته، بدون مدل/ledger/سفارش. warmup prefix کوتاه‌تر صریح، gap داخلی/open/stale رد؛ COMPLETE مشاهده است نه T09. قفل فقط محلی، پوشه run غیرخالی رد، قفل پس از crash فقط با بررسی دستی مالک بازیابی شود.
 
 - CLI فعلی check-config و ارزیابی تاریخیِ manifest-gated دارد؛ ledger/risk/PaperBroker/features/Agent موجودند. تعداد تست یا schema-valid بودن، اعتبار مالی/آمادگی live نیست. یافته‌های این مأموریت و شواهد قبلی در docs/historical-validation.md تفکیک شده‌اند؛ هیچ نامزد تاریخی به Shadow واقعی منتقل نشد.
 - R/S: گزارش کاربر و probe قبلی برای حساب ۵٬۰۰۰٬۰۰۰ TMN و TMN maker/taker=0.0025/0.0030 موجود است؛ در این مأموریت probe خصوصی تکرار نشد. feeAsset/minimum/step/expiry تأیید حسابی ندارند؛ fee اعتبار صفر با معامله بدون fee متفاوت است.

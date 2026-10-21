@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 from pydantic import SecretStr
 
@@ -10,6 +11,16 @@ from royin.logger import AuditLogger, _sanitize_for_json, redact_secrets
 
 
 class LoggerTests(unittest.TestCase):
+    def test_reused_logger_closes_old_file_handlers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            first = AuditLogger(Path(temp) / "first", False)
+            handler = first._file_handler
+            with patch("royin.logger.logging.getLogger", return_value=first._py_logger):
+                second = AuditLogger(Path(temp) / "second", False)
+            self.assertIsNone(handler.stream)
+            second.close()
+            first.close()
+
     def test_nested_free_text_pipe_url_exception_and_token_counts(self):
         secret = "12345|synthetic-only-suffix"
         payload = {

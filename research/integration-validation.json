@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "reviewed_at_utc": "2026-10-21T22:19:56.758419+00:00",
+  "base_revision": "a8a5294488f1b330ca0f8df5f9800c2b2d6962fb",
+  "run_source_state": "dirty review tree; each original run retains its exact hashes",
+  "scope_status": "INTEGRATED_DIAGNOSTIC_TOOLING",
+  "strategy_status": "INSUFFICIENT_EVIDENCE",
+  "candidate_shadow_approved": false,
+  "live_trading_enabled": false,
+  "data": {
+    "bars": 623,
+    "segment_bars": [
+      517,
+      106
+    ],
+    "missing_hour_utc": "2026-09-22T13:00:00Z",
+    "permitted_use": "DIAGNOSTIC_ONLY",
+    "delivered_manifest_sha256": "a0f2e09cd732d183ffad674b2eb190b65018a16cc264a3b6acf0e8048a01b928",
+    "delivered_contract_sha256": "d3a06da0dd7e1435f4be2217bba3ee3c80a684ad6447c3eead962d684502f8da",
+    "current_contract_sha256": "6f3c7b8389cc1158531d9f3729747e9001f342138f6ac82a581f4c6f59801d5b",
+    "source_plan_sha256": "fd94f5797fb35ce3cffe75caa7a04e3314f2334d3d58f3dfc1f90692567f4570",
+    "offline_replay_manifest": "data/round-2-data/20261021T221424Z_eea47606/manifest.json",
+    "offline_replay_gets": 0
+  },
+  "evaluation": {
+    "manifest": "artifacts/candidate-evaluation/20261021T221403Z_4da16f77/manifest.json",
+    "configurations": 6,
+    "nonoverlapping_72h_windows": 7,
+    "warmup_bars": 31,
+    "formal_validation_performed": false,
+    "holdout_warning": "September 24-27 was exposed in diagnostics; cannot be claimed untouched",
+    "rankings": [
+      {
+        "bars": 517,
+        "windows": 6,
+        "ranking": [
+          {
+            "config_id": "reversion_35",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "-0.386719353835600",
+            "aggregate_net_return_pct": "-1.081026270291200",
+            "max_drawdown_pct": "1.3161"
+          },
+          {
+            "config_id": "reversion_30",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "-0.6472692104500",
+            "aggregate_net_return_pct": "-1.019375716675600",
+            "max_drawdown_pct": "1.2805"
+          },
+          {
+            "config_id": "reversion_40",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "-0.927899023685700",
+            "aggregate_net_return_pct": "-1.830173807976900",
+            "max_drawdown_pct": "1.3161"
+          },
+          {
+            "config_id": "trend_0_006",
+            "family": "trend",
+            "worst_window_net_return_pct": "-1.163941895674100",
+            "aggregate_net_return_pct": "-3.133611645099800",
+            "max_drawdown_pct": "1.1682"
+          },
+          {
+            "config_id": "trend_0_003",
+            "family": "trend",
+            "worst_window_net_return_pct": "-1.565283312535700",
+            "aggregate_net_return_pct": "-2.711694016505700",
+            "max_drawdown_pct": "1.5653"
+          },
+          {
+            "config_id": "trend_0",
+            "family": "trend",
+            "worst_window_net_return_pct": "-1.623675792535700",
+            "aggregate_net_return_pct": "-4.355012895525700",
+            "max_drawdown_pct": "1.6237"
+          }
+        ]
+      },
+      {
+        "bars": 106,
+        "windows": 1,
+        "ranking": [
+          {
+            "config_id": "reversion_30",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "0.120389025415800",
+            "aggregate_net_return_pct": "0.120389025415800",
+            "max_drawdown_pct": "0.1630"
+          },
+          {
+            "config_id": "reversion_35",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "-0.08613593600",
+            "aggregate_net_return_pct": "-0.08613593600",
+            "max_drawdown_pct": "0.2784"
+          },
+          {
+            "config_id": "reversion_40",
+            "family": "mean_reversion",
+            "worst_window_net_return_pct": "-0.088707092600",
+            "aggregate_net_return_pct": "-0.088707092600",
+            "max_drawdown_pct": "0.2161"
+          },
+          {
+            "config_id": "trend_0_006",
+            "family": "trend",
+            "worst_window_net_return_pct": "-0.097038871600",
+            "aggregate_net_return_pct": "-0.097038871600",
+            "max_drawdown_pct": "0.0970"
+          },
+          {
+            "config_id": "trend_0_003",
+            "family": "trend",
+            "worst_window_net_return_pct": "-0.435063861237200",
+            "aggregate_net_return_pct": "-0.435063861237200",
+            "max_drawdown_pct": "0.5091"
+          },
+          {
+            "config_id": "trend_0",
+            "family": "trend",
+            "worst_window_net_return_pct": "-0.501336554847800",
+            "aggregate_net_return_pct": "-0.501336554847800",
+            "max_drawdown_pct": "0.5752"
+          }
+        ]
+      }
+    ]
+  },
+  "observation": {
+    "manifest": "data/shadow/20261021T221522Z_0b227ff7/shadow_manifest.json",
+    "status": "COMPLETE",
+    "cycles": 1,
+    "new_public_gets_during_integration": 3,
+    "model_requests": 0,
+    "orders": 0,
+    "captures": [
+      {
+        "sha256": "424a66782fbe55195fd52c402e0174770ffd4a81fc604ec392159d3da7ac04ff",
+        "query": {
+          "symbol": "USDTTMN",
+          "resolution": "60",
+          "from": 1792476000,
+          "to": 1792620000
+        },
+        "received_at_utc": "2026-10-21T22:15:25.197007+00:00"
+      }
+    ],
+    "coverage": {
+      "requested_start": 1792476000,
+      "actual_start": 1792483200,
+      "end": 1792620000
+    },
+    "semantics": "timestamp start inferred; volume asset and finality unknown"
+  },
+  "checks": {
+    "unittest": {
+      "passed": 177,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ruff": "PASS",
+    "compileall": "PASS",
+    "wheel": "PASS",
+    "diff_check": "PASS"
+  },
+  "limitations": [
+    "No accepted profitable candidate",
+    "No AI return curve or independent holdout",
+    "No multi-hour observation or strategy shadow",
+    "Local lock cannot coordinate separate machines",
+    "Exact offline replay requires ignored public capture bundle",
+    "No live order API, private account re-probe or new paid model request"
+  ],
+  "executable_hashes": {
+    "src/royin/__init__.py": "4b0c0e9db6c80ac2341912f91b25f3ee31f4126abb8f3c5937ac39e94e6e10ff",
+    "src/royin/__main__.py": "c19ba2ddeadd568f17dce600f730630194f88eb856cab60fc7ca276168acdee3",
+    "src/royin/agent.py": "9d2f2e757e879aafef5bb977ee4b75579b08e6831e5ba3bc06ecdc0f406a0ec9",
+    "src/royin/broker.py": "89a877f85a8c260ef3341fe8107610cc91f8dc5014538c5f7b14b64ea782bb67",
+    "src/royin/config.py": "4b148135f1fa3fddefe94f203dd98d60630a004dc21db45e646affcf9b4e75fb",
+    "src/royin/datasets.py": "289fa34b7c9dedcc0bbb9814a20c3792dedae541c25ee10a8a92eb00976d4b53",
+    "src/royin/decision.py": "aed057a720a1a180a3cd46fab1a35f9f870ec97f96932ce83d23c6f20cc2ae60",
+    "src/royin/evaluation.py": "fa8d30a84b9769e3105540a2be5f26477a2ddf16148e541c539bb5572b5576db",
+    "src/royin/features.py": "8e124759849229627b19dbf1727ad83179eba065c7e483a1b9a4d184a0053cca",
+    "src/royin/ledger.py": "c40f7c8e807a367b6e9b5af6585e9e9ca932d2c0f4f3decd836156a9821bfc24",
+    "src/royin/logger.py": "1ceed44fe89e1960d92e5a292d27bb30dff579ff48007122c29d09110efa9617",
+    "src/royin/market_data.py": "60e8d85de8827203aaf969e0ef715fa5a46471e16b1baac17f453388cabcfa19",
+    "src/royin/markets.py": "32992da6212250ad8e717c9c2056ae32e3013883de50b00107f4f5ea869ceaf9",
+    "src/royin/model_budget.py": "93e527b4aa3afa69656a731bd046e2af9d312ee240d219dc00d3f16f30126937",
+    "src/royin/risk.py": "3c988e2ea2cb44f0e4c71129cdc8fb78f15a90886ef1e39560b311eec4c8340f",
+    "scripts/audit_market_data.py": "f01afbd9582b27368754c119dc3166e330092c050ffa027398874bbe8ae29251",
+    "scripts/collect_validation_data.py": "7fd54ee1a08b465f9ff6dd7d0cb96e23fdf948e66758b9efc5b946eed7fe2496",
+    "scripts/evaluate_candidates.py": "58e54381d6be9b726d0b26cc330d3d08f3ab2a60228cb5f1cc6d41e1ea50e9ac",
+    "scripts/prepare_market_data.py": "10120d35799dbc2e409f7643e63967546e6a9753351b68d7c6e40fa81df23566",
+    "scripts/probe_model.py": "7db91b5a875136ecb2776cdb0e3fe6fdd48349ae0076db71efed35313e7e7839",
+    "scripts/probe_wallex_account.py": "0887b657073fa29c78e12ffb78eb060f13855e242bdc6287281dc6967f10422c",
+    "scripts/replay_paper.py": "a975f68dfe11baf0a2ba2b6d7bde5638da696ce15bf3adb9f55a00078f7c6c22",
+    "scripts/run_eval.py": "28592ae933dbd3d88846cf8ce8fdbe113d5883a54af42b82b83a5323f93f9fcc",
+    "scripts/run_shadow.py": "2c9875ae7173f5f59c799b9b8e4d528f98aac0596cd8fdf7f15d35d7182cf4a0",
+    "scripts/shadow_cycle.py": "5910dbcefcd62f609db374c0d53ad15175272516c2c53cae03e0d71d87d8d424",
+    "scripts/smoke_trading_agent.py": "d99b90b1bccc8c3b2f7fbee04169b33aae8f3c632ada2f83d5d72bee6defa6d4"
+  }
+}

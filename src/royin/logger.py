@@ -182,7 +182,9 @@ class AuditLogger:
         self._py_logger = logging.getLogger(f"royin.{id(self)}")
         self._py_logger.setLevel(logging.INFO)
         self._py_logger.propagate = False
-        self._py_logger.handlers.clear()
+        for handler in list(self._py_logger.handlers):
+            handler.close()
+            self._py_logger.removeHandler(handler)
 
         # Console handler with clean formatting
         if self.enable_console:

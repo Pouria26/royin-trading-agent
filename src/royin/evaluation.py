@@ -16,7 +16,7 @@ from royin.decision import Decision, DecisionProposal, bind_decision
 from royin.features import FeatureSnapshot, extract_features
 from royin.ledger import Ledger, validate_decimal
 from royin.logger import AuditLogger
-from royin.market_data import Candle, CandleSeries
+from royin.market_data import Candle, CandleSeries, decimal_number
 from royin.markets import load_restrictions
 from royin.risk import MarketRules, RiskPolicy, evaluate_risk
 
@@ -221,6 +221,237 @@ def conviction_fee_aware_decision(
         available_evidence_ids=frozenset(snapshot.evidences.keys()),
         allowed_symbols=frozenset(allowed_symbols),
     )
+
+
+def build_candidate_producer(
+    config: dict[str, Any],
+    allowed_symbols: Sequence[str] = ("USDTTMN",),
+) -> Callable[[FeatureSnapshot], Decision]:
+    """Factory creating deterministic Decision producer for a frozen candidate configuration."""
+    if not isinstance(config, dict) or not isinstance(config.get("id"), str) or not config["id"].strip():
+        raise ValueError("Candidate needs a nonempty ID")
+    if config.get("family") == "trend":
+        if set(config) != {"id", "family", "sma_spread"}:
+            raise ValueError("Unknown trend configuration fields")
+        if decimal_number(config["sma_spread"]) >= 1:
+            raise ValueError("SMA spread must be a ratio below one")
+    elif config.get("family") == "mean_reversion":
+        if set(config) != {"id", "family", "rsi_entry", "rsi_exit"}:
+            raise ValueError("Unknown reversion configuration fields")
+        entry, exit_ = decimal_number(config["rsi_entry"]), decimal_number(config["rsi_exit"])
+        if not 0 <= entry < exit_ <= 100:
+            raise ValueError("RSI thresholds must be ordered within 0..100")
+    else:
+        raise ValueError("Unknown candidate family")
+    family = config["family"]
+    config_id = config["id"]
+
+    if family == "trend":
+        sma_spread_hurdle = Decimal(str(config["sma_spread"]))
+
+        def trend_producer(snapshot: FeatureSnapshot) -> Decision:
+            did = f"{config_id}_{snapshot.cutoff}"
+            if snapshot.symbol not in allowed_symbols:
+                return always_wait_decision(snapshot, did)
+
+            has_position = snapshot.current_position_base > Decimal(0)
+            sma_spread = (
+                (snapshot.trend_sma_fast - snapshot.trend_sma_slow) / snapshot.trend_sma_slow
+                if snapshot.trend_sma_slow > Decimal(0)
+                else Decimal(0)
+            )
+
+            if not has_position:
+                if "EV_TREND_BULLISH" in snapshot.evidences and sma_spread >= sma_spread_hurdle:
+                    proposal = DecisionProposal(
+                        action="ENTER",
+                        evidence_ids=("EV_TREND_BULLISH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} ENTER on bullish SMA spread {sma_spread:.4f} >= {sma_spread_hurdle}",
+                        invalidation="Price drops below fast SMA",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} WAIT: SMA spread {sma_spread:.4f} below hurdle {sma_spread_hurdle}",
+                        invalidation="Bullish crossover with required spread",
+                    )
+            else:
+                if (
+                    "EV_TREND_BEARISH" in snapshot.evidences
+                    or sma_spread < Decimal(0)
+                    or "EV_RSI_OVERBOUGHT" in snapshot.evidences
+                ):
+                    evs = ["EV_POSITION_LONG"]
+                    if "EV_TREND_BEARISH" in snapshot.evidences:
+                        evs.append("EV_TREND_BEARISH")
+                    if "EV_RSI_OVERBOUGHT" in snapshot.evidences:
+                        evs.append("EV_RSI_OVERBOUGHT")
+                    proposal = DecisionProposal(
+                        action="EXIT",
+                        evidence_ids=tuple(evs),
+                        reason=f"Candidate {config_id} EXIT on trend reversal or overbought RSI",
+                        invalidation="Regime stabilizes",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG"),
+                        reason=f"Candidate {config_id} WAIT: Holding trend position",
+                        invalidation="Stop-loss or trend breach",
+                    )
+
+            return bind_decision(
+                proposal,
+                decision_id=did,
+                symbol=snapshot.symbol,
+                cutoff=snapshot.cutoff,
+                snapshot_sha256=snapshot.snapshot_sha256,
+                available_evidence_ids=frozenset(snapshot.evidences.keys()),
+                allowed_symbols=frozenset(allowed_symbols),
+            )
+
+        return trend_producer
+
+    elif family == "mean_reversion":
+        rsi_entry = Decimal(str(config["rsi_entry"]))
+        rsi_exit = Decimal(str(config["rsi_exit"]))
+
+        def reversion_producer(snapshot: FeatureSnapshot) -> Decision:
+            did = f"{config_id}_{snapshot.cutoff}"
+            if snapshot.symbol not in allowed_symbols:
+                return always_wait_decision(snapshot, did)
+
+            has_position = snapshot.current_position_base > Decimal(0)
+
+            if not has_position:
+                if snapshot.rsi_14 <= rsi_entry:
+                    proposal = DecisionProposal(
+                        action="ENTER",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} ENTER: Oversold RSI {snapshot.rsi_14:.1f} <= {rsi_entry}",
+                        invalidation="RSI fails to bounce",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_FLAT"),
+                        reason=f"Candidate {config_id} WAIT: RSI {snapshot.rsi_14:.1f} > entry threshold {rsi_entry}",
+                        invalidation="Oversold dip",
+                    )
+            else:
+                if snapshot.rsi_14 >= rsi_exit:
+                    proposal = DecisionProposal(
+                        action="EXIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG"),
+                        reason=f"Candidate {config_id} EXIT: Reversion target reached RSI {snapshot.rsi_14:.1f} >= {rsi_exit}",
+                        invalidation="New downward wave",
+                    )
+                else:
+                    proposal = DecisionProposal(
+                        action="WAIT",
+                        evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG"),
+                        reason=f"Candidate {config_id} WAIT: Holding until RSI reaches {rsi_exit}",
+                        invalidation="Stop loss hit",
+                    )
+
+            return bind_decision(
+                proposal,
+                decision_id=did,
+                symbol=snapshot.symbol,
+                cutoff=snapshot.cutoff,
+                snapshot_sha256=snapshot.snapshot_sha256,
+                available_evidence_ids=frozenset(snapshot.evidences.keys()),
+                allowed_symbols=frozenset(allowed_symbols),
+            )
+
+        return reversion_producer
+
+    else:
+        raise ValueError(f"Unknown candidate family: {family}")
+
+
+def evaluate_candidate_configurations(
+    candles: Sequence[Candle],
+    rules: MarketRules,
+    policy: RiskPolicy,
+    configurations: Sequence[dict[str, Any]],
+    *,
+    initial_capital: Decimal = Decimal("5000000"),
+    interval_seconds: int = 900,
+    **simulation_kwargs,
+) -> dict[str, dict[str, Any]]:
+    """Evaluate a set of candidate configurations on identical candles."""
+    if not configurations or len({c["id"] for c in configurations}) != len(configurations):
+        raise ValueError("Candidate configurations must be nonempty and unique")
+    results = {}
+    for cfg in configurations:
+        cid = cfg["id"]
+        producer = build_candidate_producer(cfg, allowed_symbols=(rules.symbol,))
+        res = run_simulation(
+            candles,
+            producer,
+            rules,
+            policy,
+            initial_capital=initial_capital,
+            interval_seconds=interval_seconds,
+            **simulation_kwargs,
+        )
+        res["config_id"] = cid
+        res["family"] = cfg["family"]
+        results[cid] = res
+    return results
+
+
+def rank_and_select_candidate(
+    development_results: Sequence[dict[str, dict[str, Any]]],
+    configurations: Sequence[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Rank candidate configurations across development windows and select the best candidate.
+
+    Ranking protocol:
+    1. Highest worst-window net return (%)
+    2. Highest aggregate net return (%)
+    3. Lowest maximum drawdown (%)
+    4. Alphabetical on config id (tie-breaker)
+    """
+    if not development_results or not configurations:
+        raise ValueError("No development observations; ranking would invent a winner")
+    ids = {c["id"] for c in configurations}
+    if len(ids) != len(configurations) or any(set(w) != ids for w in development_results):
+        raise ValueError("Each window must contain every unique candidate")
+    ranked = []
+    for cfg in configurations:
+        cid = cfg["id"]
+        window_returns = [
+            Decimal(str(w[cid]["net_return_pct"])) for w in development_results
+        ]
+        window_dds = [
+            Decimal(str(w[cid]["max_drawdown_pct"])) for w in development_results
+        ]
+
+        if any(not v.is_finite() for v in window_returns + window_dds) or any(v < 0 for v in window_dds):
+            raise ValueError("Invalid window metrics")
+        worst_window_ret = min(window_returns)
+        aggregate_ret = sum(window_returns, Decimal(0))
+        max_dd = max(window_dds) if window_dds else Decimal(0)
+
+        ranked.append(
+            {
+                "config_id": cid,
+                "family": cfg["family"],
+                "worst_window_net_return_pct": str(worst_window_ret),
+                "aggregate_net_return_pct": str(aggregate_ret),
+                "max_drawdown_pct": str(max_dd),
+                "_sort_key": (-worst_window_ret, -aggregate_ret, max_dd, cid),
+            }
+        )
+
+    ranked.sort(key=lambda x: x["_sort_key"])
+    selected_id = ranked[0]["config_id"]
+    for r in ranked:
+        del r["_sort_key"]
+    return selected_id, ranked
 
 
 async def replay_snapshots(

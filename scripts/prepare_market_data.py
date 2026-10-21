@@ -38,6 +38,9 @@ def fetch_public(client, endpoint, query, directory):
         "source_url": url, "query": query, "raw_sha256": digest,
         "raw_file": path.resolve().relative_to(ROOT).as_posix(),
         "fetched_at_utc": datetime.now(UTC).isoformat(),
+        "public_cache_headers": {name: response.headers[name] for name in
+                                 ("date", "age", "etag", "last-modified", "cache-control")
+                                 if name in response.headers},
     }
 
 

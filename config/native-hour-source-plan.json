@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "contract_id": "WALLEX_NATIVE_60_SOURCE_V1",
+  "frozen_at_utc": "2026-10-21T21:30:24.766172+00:00",
+  "source_revision": "a8a5294488f1b330ca0f8df5f9800c2b2d6962fb",
+  "scope": "SOURCE_ONLY_NO_RETURN_OR_STRATEGY_SELECTION",
+  "symbols": [
+    "USDTTMN"
+  ],
+  "symbol_reason": "Existing accepted-quality market; no new universe selection; account access unverified",
+  "endpoint": "/v1/udf/history",
+  "resolution": "60",
+  "interval_seconds": 3600,
+  "start": "2026-09-01",
+  "end_exclusive": "2026-09-27",
+  "cutoff": 1792618224,
+  "public_get_cap": 80,
+  "public_get_estimate": 40,
+  "retry": 0,
+  "timeout_seconds": 20,
+  "rate_spacing_seconds": 1.1,
+  "acceptance": "Native 60 only; strict exact UTC-hour cadence and complete [from,to) closed bars; positive finite consistent OHLC, nonnegative Decimal volume; no gaps/duplicates/future/open; inclusive to tail excluded. Raw hash and metadata bound. Cross-resolution comparison diagnostic only under a new explicit contract, not legacy T02 acceptance. Timestamp open interpretation remains documented research assumption unless event evidence proves it. No rows removed, shifted, rounded or filled. Conflicting overlaps reject joins.",
+  "join": "Only consecutive accepted daily blocks; exact equal overlap dedup; gaps split coverage, never filled",
+  "role_of_periods": "Quality-only coverage; prior Sep15-21/Sep21-24/Sep24-27 roles remain integrator-controlled. Sep1-8 Oct development-only. No new split or strategy selection. 31 hourly warmup bars require >1 day, not old 31 fifteen-minute bars.",
+  "diagnostics": [
+    {
+      "label": "minute",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789347600,
+        "to": 1789351200
+      }
+    },
+    {
+      "label": "native",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351200
+      }
+    },
+    {
+      "label": "minute_repeat",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789347600,
+        "to": 1789351200
+      }
+    },
+    {
+      "label": "native_repeat",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351200
+      }
+    },
+    {
+      "label": "requested15",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "15",
+        "from": 1789347600,
+        "to": 1789351200
+      }
+    },
+    {
+      "label": "to_minus_one",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351199
+      }
+    },
+    {
+      "label": "overlap",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789354800
+      }
+    },
+    {
+      "label": "accepted_minute",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789606800,
+        "to": 1789610400
+      }
+    },
+    {
+      "label": "accepted_native",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789606800,
+        "to": 1789610400
+      }
+    },
+    {
+      "label": "gap_repeat",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790035200,
+        "to": 1790121600
+      }
+    },
+    {
+      "label": "gap_overlap",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790031600,
+        "to": 1790125200
+      }
+    },
+    {
+      "label": "current_a",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1792609200,
+        "to": 1792618224
+      }
+    },
+    {
+      "label": "current_b",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1792609200,
+        "to": 1792618224
+      }
+    }
+  ]
+}

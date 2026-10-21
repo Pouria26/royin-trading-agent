@@ -41,7 +41,7 @@ BoxAPI جایگزین Gemini شد؛ fallback به Google یا OpenAI مستقی�
 .\.venv\Scripts\python.exe -X utf8 -m scripts.probe_wallex_account --run
 ```
 
-فقط GET به فهرست sub-account و، پس از تشخیص یکتای حساب فعال prop، balances-detail دارد؛ حساب اصلی/فعال‌سازی/سفارش ممنوع‌اند. شناسه کشف‌شده فقط در .env ذخیره می‌شود. نتیجه فعلی HTTP موفق با result=[] و BLOCKED/exit 2 است؛ حساب یا اعتبار تخصیص داده نشده را فعال نکنید. جزئیات در docs/wallex-read-only-setup.md.
+فقط GET به فهرست sub-account و، پس از تشخیص یکتای حساب فعال prop، balances-detail و fee دارد؛ حساب اصلی/فعال‌سازی/سفارش ممنوع‌اند. شناسه کشف‌شده فقط در .env ذخیره می‌شود. نتیجه خالی اولیه شاهد تاریخی است؛ probe بعدی حساب فعال و ۵ میلیون TMN را ثبت کرده، اما مجوز Live یا تأیید minimum/step نیست. جزئیات در docs/wallex-read-only-setup.md.
 
 برای نصب آماده‌سازی در محیط تازه با uv (lock پس از حل وابستگی‌ها):
 
@@ -118,6 +118,17 @@ memory.md حافظه واحد پروژه است؛ فایل agent.md موازی �
 TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیجه تست/مانع و قدم بعدی به‌روز کن. گزارش فاز: تغییر → معیار داوری/AC → دستور و نتیجه واقعی → real/simulated → محدودیت → درخواست دقیق کار انسانی در صورت نیاز → commit. پایان پاسخ یک یا دو خط: چه چیزی چک نشد/کنار گذاشته شد و خطر باقیمانده. رتبه اول یا سود تضمینی ادعا نکن.
 
 ## فرمان ارزیابی اصلاح‌شده — اجراشده، نه گیت سود
+
+تحویل جاری در docs/candidate-evaluation.md و docs/market-data-semantics.md است. فایل‌های config/native-hour-source-plan.json و config/candidate-evaluation-plan.json نام‌های کاربردی برنامه‌های قبلی‌اند؛ freezeهای قدیمی و hash آن‌ها حفظ شده‌اند. هر تغییر بعدی طرح آزمایش باید پیش از outcomes نسخه‌دار شود. سپتامبر ۲۴–۲۷ در diagnostics دیده شده و Holdout دست‌نخورده نیست؛ N≥30 قاعده رسمی یا تضمین آماری نیست.
+
+فرمان‌های جدید اجراشده از ریشه:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts\run_shadow.py --mode OBSERVE_ONLY --cycles 1 --interval 3600 --max-attempts 1
+.\.venv\Scripts\python.exe -X utf8 -m scripts.evaluate_candidates --help
+```
+
+ارزیابی نامزدها فقط آفلاین و با manifest و SHA256 صریح است؛ دستور کامل در docs/candidate-evaluation.md. پایش فقط native ساعتی USDTTMN، بدون کلید، LLM، ledger یا سفارش؛ کندل باز/گپ/کهنگی رد و warmup کوتاه‌تر صریح ثبت می‌شود. COMPLETE فقط مشاهده تشخیصی، PARTIAL خروج 2؛ CANDIDATE_SHADOW بسته است. قفل فقط فرایندهای دارای مسیر محلی مشترک را هماهنگ می‌کند، نه دو دستگاه؛ run قبلی overwrite/reset نمی‌شود. فرمان چهارچرخه‌ای مستندشده هنوز اجرا نشده است.
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts\run_eval.py --manifest config\evaluation-datasets.json --all

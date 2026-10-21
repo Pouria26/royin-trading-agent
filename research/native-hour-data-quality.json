@@ -1,0 +1,2643 @@
+{
+  "schema_version": 1,
+  "kind": "SOURCE_QUALITY_NO_RETURNS_NO_STRATEGY_OUTCOMES",
+  "status": "DATA_READY_FOR_EVALUATION",
+  "permitted_use": "DIAGNOSTIC_ONLY",
+  "source_revision": "a8a5294488f1b330ca0f8df5f9800c2b2d6962fb",
+  "source_dirty": true,
+  "created_at_utc": "2026-10-21T21:38:15.168893+00:00",
+  "source_plan_sha256": "fd94f5797fb35ce3cffe75caa7a04e3314f2334d3d58f3dfc1f90692567f4570",
+  "capture_path": "data/round-2-data/20261021T213210Z_2e0f3a63/manifest.json",
+  "capture_sha256": "9044a02036138767175136b536cf4083fe412ef0f2c0af4b0faee7e1246c9927",
+  "manifest_path": "data/round-2-data/20261021T213718Z_f8e726a7/manifest.json",
+  "manifest_sha256": "a0f2e09cd732d183ffad674b2eb190b65018a16cc264a3b6acf0e8048a01b928",
+  "source_hashes": {
+    "scripts/collect_validation_data.py": "7fd54ee1a08b465f9ff6dd7d0cb96e23fdf948e66758b9efc5b946eed7fe2496",
+    "scripts/prepare_market_data.py": "10120d35799dbc2e409f7643e63967546e6a9753351b68d7c6e40fa81df23566",
+    "src/royin/market_data.py": "60e8d85de8827203aaf969e0ef715fa5a46471e16b1baac17f453388cabcfa19",
+    "src/royin/datasets.py": "289fa34b7c9dedcc0bbb9814a20c3792dedae541c25ee10a8a92eb00976d4b53"
+  },
+  "contract_id": "WALLEX_NATIVE_60_SOURCE_V1",
+  "public_api_gets": 40,
+  "offline_replay_gets": 0,
+  "offline_replayed_requests": 40,
+  "retry": 0,
+  "model_calls": 0,
+  "private_calls": 0,
+  "offline_legacy_replay": [
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-14",
+      "start": 1789344000,
+      "end": 1789430400,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789344000,
+            "to": 1789430400
+          },
+          "raw_sha256": "58f41e380fe89847a76f7768724044195cbe8f0d8becb4e890f17380f45461a1",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/58f41e380fe89847a76f7768724044195cbe8f0d8becb4e890f17380f45461a1.json",
+          "fetched_at_utc": "2026-10-21T19:59:27.571672+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789344000,
+            "to": 1789430400
+          },
+          "raw_sha256": "59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae.json",
+          "fetched_at_utc": "2026-10-21T19:59:28.391175+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789344000,
+            1789344060
+          ],
+          "last": [
+            1789430340,
+            1789430400
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 111
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789344000,
+            1789347600
+          ],
+          "last": [
+            1789426800,
+            1789430400
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1789347600,
+          "hour_utc": "2026-09-14T01:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "232814",
+              "native": "232719"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "232719",
+            "high": "233575",
+            "low": "232499",
+            "close": "233000"
+          },
+          "zero_volume_minute_count": 14
+        },
+        {
+          "hour_open_time": 1789351200,
+          "hour_utc": "2026-09-14T02:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "233000",
+              "native": "232812"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "232812",
+            "high": "233832",
+            "low": "232480",
+            "close": "233720"
+          },
+          "zero_volume_minute_count": 18
+        },
+        {
+          "hour_open_time": 1789394400,
+          "hour_utc": "2026-09-14T14:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "231740",
+              "native": "231739"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "231739",
+            "high": "231820",
+            "low": "231191",
+            "close": "231225"
+          },
+          "zero_volume_minute_count": 6
+        },
+        {
+          "hour_open_time": 1789426800,
+          "hour_utc": "2026-09-14T23:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "230635",
+              "native": "230478"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "230478",
+            "high": "230799",
+            "low": "230451",
+            "close": "230452"
+          },
+          "zero_volume_minute_count": 18
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-15",
+      "start": 1789430400,
+      "end": 1789516800,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789430400,
+            "to": 1789516800
+          },
+          "raw_sha256": "f778add0a2cbe403286051cad15b24274c275bd8933b6e033a7c1b8df1ca6a08",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/f778add0a2cbe403286051cad15b24274c275bd8933b6e033a7c1b8df1ca6a08.json",
+          "fetched_at_utc": "2026-10-21T19:59:29.642210+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789430400,
+            "to": 1789516800
+          },
+          "raw_sha256": "e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893.json",
+          "fetched_at_utc": "2026-10-21T19:59:30.662198+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789430400,
+            1789430460
+          ],
+          "last": [
+            1789516740,
+            1789516800
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 143
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789430400,
+            1789434000
+          ],
+          "last": [
+            1789513200,
+            1789516800
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1789434000,
+          "hour_utc": "2026-09-15T01:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "229671",
+              "native": "229571"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "229571",
+            "high": "230483",
+            "low": "229570",
+            "close": "230483"
+          },
+          "zero_volume_minute_count": 32
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-16",
+      "start": 1789516800,
+      "end": 1789603200,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789516800,
+            "to": 1789603200
+          },
+          "raw_sha256": "d8260a271200e29f365fbaa183fe065c1c0244457342852ac97f181c3a3be511",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/d8260a271200e29f365fbaa183fe065c1c0244457342852ac97f181c3a3be511.json",
+          "fetched_at_utc": "2026-10-21T19:59:31.944255+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789516800,
+            "to": 1789603200
+          },
+          "raw_sha256": "ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c.json",
+          "fetched_at_utc": "2026-10-21T19:59:32.732223+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789516800,
+            1789516860
+          ],
+          "last": [
+            1789603140,
+            1789603200
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 164
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789516800,
+            1789520400
+          ],
+          "last": [
+            1789599600,
+            1789603200
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1789520400,
+          "hour_utc": "2026-09-16T01:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "230800",
+              "native": "230799"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "230799",
+            "high": "231190",
+            "low": "230741",
+            "close": "231012"
+          },
+          "zero_volume_minute_count": 31
+        },
+        {
+          "hour_open_time": 1789527600,
+          "hour_utc": "2026-09-16T03:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "231428",
+              "native": "231420"
+            },
+            "high": {
+              "minute_derived": "231428",
+              "native": "231420"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "231420",
+            "high": "231420",
+            "low": "231183",
+            "close": "231183"
+          },
+          "zero_volume_minute_count": 12
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-17",
+      "start": 1789603200,
+      "end": 1789689600,
+      "previous_status": "ACCEPTED",
+      "replayed_status": "ACCEPTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789603200,
+            "to": 1789689600
+          },
+          "raw_sha256": "f5dfbaa6883189192648d21b472bb35f9792d9507ea848df66f3d6a469184458",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/f5dfbaa6883189192648d21b472bb35f9792d9507ea848df66f3d6a469184458.json",
+          "fetched_at_utc": "2026-10-21T19:59:33.889095+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789603200,
+            "to": 1789689600
+          },
+          "raw_sha256": "416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204.json",
+          "fetched_at_utc": "2026-10-21T19:59:34.720534+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789603200,
+            1789603260
+          ],
+          "last": [
+            1789689540,
+            1789689600
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 87
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789603200,
+            1789606800
+          ],
+          "last": [
+            1789686000,
+            1789689600
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": []
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-18",
+      "start": 1789689600,
+      "end": 1789776000,
+      "previous_status": "ACCEPTED",
+      "replayed_status": "ACCEPTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789689600,
+            "to": 1789776000
+          },
+          "raw_sha256": "505b7781bb8506da28331cc600d58cfd9a8732cf4ed75cc52845beaca92c7f24",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/505b7781bb8506da28331cc600d58cfd9a8732cf4ed75cc52845beaca92c7f24.json",
+          "fetched_at_utc": "2026-10-21T19:59:36.319026+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789689600,
+            "to": 1789776000
+          },
+          "raw_sha256": "b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24.json",
+          "fetched_at_utc": "2026-10-21T19:59:37.104457+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789689600,
+            1789689660
+          ],
+          "last": [
+            1789775940,
+            1789776000
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 119
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789689600,
+            1789693200
+          ],
+          "last": [
+            1789772400,
+            1789776000
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": []
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-19",
+      "start": 1789776000,
+      "end": 1789862400,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1789776000,
+            "to": 1789862400
+          },
+          "raw_sha256": "9694dc24068dd8117f3aea73061937223a36fba10f6ca2ce512bae17b1cdade4",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/9694dc24068dd8117f3aea73061937223a36fba10f6ca2ce512bae17b1cdade4.json",
+          "fetched_at_utc": "2026-10-21T19:59:38.261689+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1789776000,
+            "to": 1789862400
+          },
+          "raw_sha256": "ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45.json",
+          "fetched_at_utc": "2026-10-21T19:59:39.109155+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1789776000,
+            1789776060
+          ],
+          "last": [
+            1789862340,
+            1789862400
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 85
+        },
+        {
+          "rows": 25,
+          "first": [
+            1789776000,
+            1789779600
+          ],
+          "last": [
+            1789858800,
+            1789862400
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1789776000,
+          "hour_utc": "2026-09-19T00:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "226799",
+              "native": "226766"
+            },
+            "high": {
+              "minute_derived": "226799",
+              "native": "226766"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "226766",
+            "high": "226766",
+            "low": "226500",
+            "close": "226550"
+          },
+          "zero_volume_minute_count": 9
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-20",
+      "start": 1789862400,
+      "end": 1789948800,
+      "previous_status": "REJECTED",
+      "replayed_status": "NO_CAPTURE_NETWORK_ERROR",
+      "sources": [],
+      "profiles": [],
+      "differences": []
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-21",
+      "start": 1789948800,
+      "end": 1790035200,
+      "previous_status": "REJECTED",
+      "replayed_status": "NO_CAPTURE_NETWORK_ERROR",
+      "sources": [],
+      "profiles": [],
+      "differences": []
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-22",
+      "start": 1790035200,
+      "end": 1790121600,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1790035200,
+            "to": 1790121600
+          },
+          "raw_sha256": "eebe18e8e7394670aa8f1bca8409fa6890e7f8d3100e060fb7cd060367e29aa7",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/eebe18e8e7394670aa8f1bca8409fa6890e7f8d3100e060fb7cd060367e29aa7.json",
+          "fetched_at_utc": "2026-10-21T19:59:57.807168+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1790035200,
+            "to": 1790121600
+          },
+          "raw_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887.json",
+          "fetched_at_utc": "2026-10-21T19:59:58.723157+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1361,
+          "first": [
+            1790035200,
+            1790035260
+          ],
+          "last": [
+            1790121540,
+            1790121600
+          ],
+          "cadence_counts": {
+            "60": 1359,
+            "4860": 1
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 80,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 55
+        },
+        {
+          "rows": 24,
+          "first": [
+            1790035200,
+            1790038800
+          ],
+          "last": [
+            1790118000,
+            1790121600
+          ],
+          "cadence_counts": {
+            "3600": 22,
+            "7200": 1
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 1,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [],
+      "parse_error": "Missing candles or unexpected cadence; no forward fill"
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-23",
+      "start": 1790121600,
+      "end": 1790208000,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1790121600,
+            "to": 1790208000
+          },
+          "raw_sha256": "fac8ac71057d37a06f000165aeaa310297e9035e4d98830d8dacd03ee39fd3ef",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/fac8ac71057d37a06f000165aeaa310297e9035e4d98830d8dacd03ee39fd3ef.json",
+          "fetched_at_utc": "2026-10-21T20:00:02.146004+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1790121600,
+            "to": 1790208000
+          },
+          "raw_sha256": "e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce.json",
+          "fetched_at_utc": "2026-10-21T20:00:04.202820+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1790121600,
+            1790121660
+          ],
+          "last": [
+            1790207940,
+            1790208000
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 87
+        },
+        {
+          "rows": 25,
+          "first": [
+            1790121600,
+            1790125200
+          ],
+          "last": [
+            1790204400,
+            1790208000
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1790150400,
+          "hour_utc": "2026-09-23T08:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "228252",
+              "native": "228254"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "228254",
+            "high": "228598",
+            "low": "227807",
+            "close": "227942"
+          },
+          "zero_volume_minute_count": 1
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-24",
+      "start": 1790208000,
+      "end": 1790294400,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1790208000,
+            "to": 1790294400
+          },
+          "raw_sha256": "db3e81bb18b3a680197feaed8952cbab4e18be281fcaaac09f378bffb3002c10",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/db3e81bb18b3a680197feaed8952cbab4e18be281fcaaac09f378bffb3002c10.json",
+          "fetched_at_utc": "2026-10-21T20:00:07.133466+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1790208000,
+            "to": 1790294400
+          },
+          "raw_sha256": "396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6.json",
+          "fetched_at_utc": "2026-10-21T20:00:07.929406+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1790208000,
+            1790208060
+          ],
+          "last": [
+            1790294340,
+            1790294400
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 144
+        },
+        {
+          "rows": 25,
+          "first": [
+            1790208000,
+            1790211600
+          ],
+          "last": [
+            1790290800,
+            1790294400
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1790211600,
+          "hour_utc": "2026-09-24T01:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "231499",
+              "native": "231327"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "231327",
+            "high": "231900",
+            "low": "231156",
+            "close": "231605"
+          },
+          "zero_volume_minute_count": 22
+        },
+        {
+          "hour_open_time": 1790218800,
+          "hour_utc": "2026-09-24T03:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "231638",
+              "native": "231648"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "231648",
+            "high": "231650",
+            "low": "231153",
+            "close": "231155"
+          },
+          "zero_volume_minute_count": 12
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-25",
+      "start": 1790294400,
+      "end": 1790380800,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1790294400,
+            "to": 1790380800
+          },
+          "raw_sha256": "613c77fc83e967f214c17766a7a7aebb3623207c02e2bfb4a862f6e08aebeb50",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/613c77fc83e967f214c17766a7a7aebb3623207c02e2bfb4a862f6e08aebeb50.json",
+          "fetched_at_utc": "2026-10-21T20:00:08.948466+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1790294400,
+            "to": 1790380800
+          },
+          "raw_sha256": "fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e.json",
+          "fetched_at_utc": "2026-10-21T20:00:09.707062+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1441,
+          "first": [
+            1790294400,
+            1790294460
+          ],
+          "last": [
+            1790380740,
+            1790380800
+          ],
+          "cadence_counts": {
+            "60": 1440
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 182
+        },
+        {
+          "rows": 25,
+          "first": [
+            1790294400,
+            1790298000
+          ],
+          "last": [
+            1790377200,
+            1790380800
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1790294400,
+          "hour_utc": "2026-09-25T00:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "233945",
+              "native": "233909"
+            },
+            "high": {
+              "minute_derived": "233945",
+              "native": "233929"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "233909",
+            "high": "233929",
+            "low": "233609",
+            "close": "233609"
+          },
+          "zero_volume_minute_count": 15
+        },
+        {
+          "hour_open_time": 1790301600,
+          "hour_utc": "2026-09-25T02:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "233520",
+              "native": "233501"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "233501",
+            "high": "233641",
+            "low": "233200",
+            "close": "233284"
+          },
+          "zero_volume_minute_count": 24
+        },
+        {
+          "hour_open_time": 1790305200,
+          "hour_utc": "2026-09-25T03:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "233284",
+              "native": "233274"
+            },
+            "high": {
+              "minute_derived": "233284",
+              "native": "233274"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "233274",
+            "high": "233274",
+            "low": "233117",
+            "close": "233136"
+          },
+          "zero_volume_minute_count": 16
+        },
+        {
+          "hour_open_time": 1790377200,
+          "hour_utc": "2026-09-25T23:00:00+00:00",
+          "fields": {
+            "open": {
+              "minute_derived": "232495",
+              "native": "232486"
+            },
+            "high": {
+              "minute_derived": "232495",
+              "native": "232486"
+            }
+          },
+          "excluding_zero_diagnostic_only": {
+            "open": "232486",
+            "high": "232486",
+            "low": "232150",
+            "close": "232150"
+          },
+          "zero_volume_minute_count": 28
+        }
+      ]
+    },
+    {
+      "symbol": "USDTTMN",
+      "date_utc": "2026-09-26",
+      "start": 1790380800,
+      "end": 1790467200,
+      "previous_status": "REJECTED",
+      "replayed_status": "REJECTED",
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "1",
+            "from": 1790380800,
+            "to": 1790467200
+          },
+          "raw_sha256": "4ce302d6bcef03c7ecbb1cd9ce3fac2a9170ff14cf4255a3db4d95673b9e6fd4",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/4ce302d6bcef03c7ecbb1cd9ce3fac2a9170ff14cf4255a3db4d95673b9e6fd4.json",
+          "fetched_at_utc": "2026-10-21T20:00:11.369038+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "USDTTMN",
+            "resolution": "60",
+            "from": 1790380800,
+            "to": 1790467200
+          },
+          "raw_sha256": "3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902",
+          "raw_file": "data/validation/20261021T195923Z_4757edf7/3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902.json",
+          "fetched_at_utc": "2026-10-21T20:00:12.171587+00:00"
+        }
+      ],
+      "profiles": [
+        {
+          "rows": 1440,
+          "first": [
+            1790380800,
+            1790380860
+          ],
+          "last": [
+            1790467140,
+            1790467200
+          ],
+          "cadence_counts": {
+            "60": 1438,
+            "120": 1
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 60,
+          "missing_closed": 1,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 113
+        },
+        {
+          "rows": 25,
+          "first": [
+            1790380800,
+            1790384400
+          ],
+          "last": [
+            1790463600,
+            1790467200
+          ],
+          "cadence_counts": {
+            "3600": 24
+          },
+          "duplicate_count": 0,
+          "ordered": true,
+          "expected_interval_seconds": 3600,
+          "missing_closed": 0,
+          "at_to": 1,
+          "outside_window": 0,
+          "zero_volume_count": 0
+        }
+      ],
+      "differences": [],
+      "parse_error": "Missing candles or unexpected cadence; no forward fill"
+    }
+  ],
+  "t02_differences": [
+    {
+      "symbol": "BTCTMN",
+      "start": 1790812800,
+      "end": 1790899200,
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "BTCTMN",
+            "resolution": "1",
+            "from": 1790812800,
+            "to": 1790899200
+          },
+          "raw_sha256": "b894c4247edbd1081ae7e50e322d1e04153434abb1909324bdc1ce1a6758475d",
+          "raw_file": "data/t02/b894c4247edbd1081ae7e50e322d1e04153434abb1909324bdc1ce1a6758475d.json",
+          "fetched_at_utc": "2026-10-21T15:51:38.530430+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "BTCTMN",
+            "resolution": "60",
+            "from": 1790812800,
+            "to": 1790899200
+          },
+          "raw_sha256": "3649a36e582a6e0899b10c5f96ec2b643e4feec57899f2992abb7238f371d080",
+          "raw_file": "data/t02/3649a36e582a6e0899b10c5f96ec2b643e4feec57899f2992abb7238f371d080.json",
+          "fetched_at_utc": "2026-10-21T15:51:44.311829+00:00"
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1790812800,
+          "fields": {
+            "low": {
+              "minute_derived": "21161406132",
+              "native": "21150200134"
+            },
+            "close": {
+              "minute_derived": "21195659230",
+              "native": "21161142121"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790816400,
+          "fields": {
+            "open": {
+              "minute_derived": "21195659230",
+              "native": "21150159130"
+            },
+            "high": {
+              "minute_derived": "21195659230",
+              "native": "21152701740"
+            },
+            "low": {
+              "minute_derived": "20982842716",
+              "native": "21031465281"
+            },
+            "close": {
+              "minute_derived": "21114276059",
+              "native": "21058116036"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790823600,
+          "fields": {
+            "open": {
+              "minute_derived": "21028941850",
+              "native": "21037999999"
+            },
+            "low": {
+              "minute_derived": "21028941850",
+              "native": "21028941851"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790830800,
+          "fields": {
+            "low": {
+              "minute_derived": "20580000001",
+              "native": "21052711000"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790841600,
+          "fields": {
+            "open": {
+              "minute_derived": "21273662857",
+              "native": "21261006346"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790863200,
+          "fields": {
+            "open": {
+              "minute_derived": "21470411095",
+              "native": "21423464332"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790866800,
+          "fields": {
+            "open": {
+              "minute_derived": "21496818863",
+              "native": "21459055632"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "ETHTMN",
+      "start": 1790812800,
+      "end": 1790899200,
+      "sources": [
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "ETHTMN",
+            "resolution": "1",
+            "from": 1790812800,
+            "to": 1790899200
+          },
+          "raw_sha256": "cb7ed537062baa8402c7839d8603bdfdf671fde0d98cc617c4641c89314c5ab5",
+          "raw_file": "data/t02/cb7ed537062baa8402c7839d8603bdfdf671fde0d98cc617c4641c89314c5ab5.json",
+          "fetched_at_utc": "2026-10-21T15:51:49.066461+00:00"
+        },
+        {
+          "source_url": "https://api.wallex.ir/v1/udf/history",
+          "query": {
+            "symbol": "ETHTMN",
+            "resolution": "60",
+            "from": 1790812800,
+            "to": 1790899200
+          },
+          "raw_sha256": "fd443c368ea565dce122b40a4f9f2f671317456ad899042e24afca7dc6a19c9b",
+          "raw_file": "data/t02/fd443c368ea565dce122b40a4f9f2f671317456ad899042e24afca7dc6a19c9b.json",
+          "fetched_at_utc": "2026-10-21T15:51:54.282120+00:00"
+        }
+      ],
+      "differences": [
+        {
+          "hour_open_time": 1790812800,
+          "fields": {
+            "low": {
+              "minute_derived": "680000001",
+              "native": "677035181"
+            },
+            "close": {
+              "minute_derived": "681774000",
+              "native": "677416600"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790816400,
+          "fields": {
+            "open": {
+              "minute_derived": "681774000",
+              "native": "678776920"
+            },
+            "high": {
+              "minute_derived": "681774000",
+              "native": "680663312"
+            },
+            "low": {
+              "minute_derived": "663748910",
+              "native": "677179380"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790820000,
+          "fields": {
+            "open": {
+              "minute_derived": "678776912",
+              "native": "678776918"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790823600,
+          "fields": {
+            "open": {
+              "minute_derived": "678435881",
+              "native": "678094885"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790830800,
+          "fields": {
+            "low": {
+              "minute_derived": "670554720",
+              "native": "680421014"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790845200,
+          "fields": {
+            "open": {
+              "minute_derived": "688670091",
+              "native": "688312998"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790852400,
+          "fields": {
+            "open": {
+              "minute_derived": "694494142",
+              "native": "691932636"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790888400,
+          "fields": {
+            "open": {
+              "minute_derived": "692400194",
+              "native": "692074001"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790892000,
+          "fields": {
+            "open": {
+              "minute_derived": "690138918",
+              "native": "690811208"
+            },
+            "low": {
+              "minute_derived": "690138918",
+              "native": "690811208"
+            }
+          }
+        },
+        {
+          "hour_open_time": 1790895600,
+          "fields": {
+            "open": {
+              "minute_derived": "694999851",
+              "native": "694999464"
+            },
+            "high": {
+              "minute_derived": "694999851",
+              "native": "694999802"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "new_requests": [
+    {
+      "label": "minute",
+      "requested_at_utc": "2026-10-21T21:32:16.740620+00:00",
+      "received_at_utc": "2026-10-21T21:32:17.288666+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789347600,
+        "to": 1789351200
+      },
+      "raw_sha256": "0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1.json",
+      "fetched_at_utc": "2026-10-21T21:32:17.288666+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:16 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 61,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789351200,
+      "cadence_counts": {
+        "60": 60
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "native",
+      "requested_at_utc": "2026-10-21T21:32:18.391981+00:00",
+      "received_at_utc": "2026-10-21T21:32:20.403683+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351200
+      },
+      "raw_sha256": "c51be4f095cf589530af60e20e70a142224962715adb11c537d0d1cfb6797307",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/c51be4f095cf589530af60e20e70a142224962715adb11c537d0d1cfb6797307.json",
+      "fetched_at_utc": "2026-10-21T21:32:20.403683+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:18 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 2,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789351200,
+      "cadence_counts": {
+        "3600": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "minute_repeat",
+      "requested_at_utc": "2026-10-21T21:32:21.506680+00:00",
+      "received_at_utc": "2026-10-21T21:32:22.271322+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789347600,
+        "to": 1789351200
+      },
+      "raw_sha256": "0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1.json",
+      "fetched_at_utc": "2026-10-21T21:32:22.271322+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:16 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 61,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789351200,
+      "cadence_counts": {
+        "60": 60
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "native_repeat",
+      "requested_at_utc": "2026-10-21T21:32:23.374715+00:00",
+      "received_at_utc": "2026-10-21T21:32:24.095012+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351200
+      },
+      "raw_sha256": "c51be4f095cf589530af60e20e70a142224962715adb11c537d0d1cfb6797307",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/c51be4f095cf589530af60e20e70a142224962715adb11c537d0d1cfb6797307.json",
+      "fetched_at_utc": "2026-10-21T21:32:24.095012+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:18 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 2,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789351200,
+      "cadence_counts": {
+        "3600": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "requested15",
+      "requested_at_utc": "2026-10-21T21:32:25.198484+00:00",
+      "received_at_utc": "2026-10-21T21:32:25.758554+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "15",
+        "from": 1789347600,
+        "to": 1789351200
+      },
+      "raw_sha256": "0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/0f0976450a986b30910b37eec4ce3670625d16d6867d342138e87c0e2102c5d1.json",
+      "fetched_at_utc": "2026-10-21T21:32:25.758554+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:25 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 61,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789351200,
+      "cadence_counts": {
+        "60": 60
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "to_minus_one",
+      "requested_at_utc": "2026-10-21T21:32:26.861731+00:00",
+      "received_at_utc": "2026-10-21T21:32:27.547423+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789351199
+      },
+      "raw_sha256": "17cb9e8b1382c40726f0df5eab70c12c27ec154ec94464d1d33fd54a1a613b9b",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/17cb9e8b1382c40726f0df5eab70c12c27ec154ec94464d1d33fd54a1a613b9b.json",
+      "fetched_at_utc": "2026-10-21T21:32:27.547423+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:27 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 1,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789347600,
+      "cadence_counts": {},
+      "to_boundary_rows": 0
+    },
+    {
+      "label": "overlap",
+      "requested_at_utc": "2026-10-21T21:32:28.654085+00:00",
+      "received_at_utc": "2026-10-21T21:32:29.270139+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789347600,
+        "to": 1789354800
+      },
+      "raw_sha256": "fcb5474db5ad478cc99d9412dfacec1e321579d0c9a1c8d490c56e8226ff684c",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/fcb5474db5ad478cc99d9412dfacec1e321579d0c9a1c8d490c56e8226ff684c.json",
+      "fetched_at_utc": "2026-10-21T21:32:29.270139+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:28 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 3,
+      "first_timestamp": 1789347600,
+      "last_timestamp": 1789354800,
+      "cadence_counts": {
+        "3600": 2
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "accepted_minute",
+      "requested_at_utc": "2026-10-21T21:32:30.372951+00:00",
+      "received_at_utc": "2026-10-21T21:32:31.787357+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "1",
+        "from": 1789606800,
+        "to": 1789610400
+      },
+      "raw_sha256": "75c9c94b25c2b45b925f6e580b8ef988407f7160daf13078bf38463c91e1b9e8",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/75c9c94b25c2b45b925f6e580b8ef988407f7160daf13078bf38463c91e1b9e8.json",
+      "fetched_at_utc": "2026-10-21T21:32:31.787357+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:30 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 61,
+      "first_timestamp": 1789606800,
+      "last_timestamp": 1789610400,
+      "cadence_counts": {
+        "60": 60
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "accepted_native",
+      "requested_at_utc": "2026-10-21T21:32:32.894085+00:00",
+      "received_at_utc": "2026-10-21T21:32:33.450317+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789606800,
+        "to": 1789610400
+      },
+      "raw_sha256": "962c88d4a4c157dd46c6bf4a61ecadb3991d0ca173880bd14525a6cc82c31234",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/962c88d4a4c157dd46c6bf4a61ecadb3991d0ca173880bd14525a6cc82c31234.json",
+      "fetched_at_utc": "2026-10-21T21:32:33.450317+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:33 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 2,
+      "first_timestamp": 1789606800,
+      "last_timestamp": 1789610400,
+      "cadence_counts": {
+        "3600": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "gap_repeat",
+      "requested_at_utc": "2026-10-21T21:32:34.554083+00:00",
+      "received_at_utc": "2026-10-21T21:32:35.096209+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790035200,
+        "to": 1790121600
+      },
+      "raw_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887.json",
+      "fetched_at_utc": "2026-10-21T21:32:35.096209+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:34 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 24,
+      "first_timestamp": 1790035200,
+      "last_timestamp": 1790121600,
+      "cadence_counts": {
+        "3600": 22,
+        "7200": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "gap_overlap",
+      "requested_at_utc": "2026-10-21T21:32:36.210773+00:00",
+      "received_at_utc": "2026-10-21T21:32:36.937432+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790031600,
+        "to": 1790125200
+      },
+      "raw_sha256": "64e97538a0dd94e4b9051d97270270b8a38c0842ef2846d2e62a73687a01d7cf",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/64e97538a0dd94e4b9051d97270270b8a38c0842ef2846d2e62a73687a01d7cf.json",
+      "fetched_at_utc": "2026-10-21T21:32:36.937432+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:36 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 26,
+      "first_timestamp": 1790031600,
+      "last_timestamp": 1790125200,
+      "cadence_counts": {
+        "3600": 24,
+        "7200": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "current_a",
+      "requested_at_utc": "2026-10-21T21:32:38.045947+00:00",
+      "received_at_utc": "2026-10-21T21:32:39.493149+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1792609200,
+        "to": 1792618224
+      },
+      "raw_sha256": "01dc947ec63a7d89e551127fe7b37c0ff12ce51808be9ea396d19e2fe9e1fd89",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/01dc947ec63a7d89e551127fe7b37c0ff12ce51808be9ea396d19e2fe9e1fd89.json",
+      "fetched_at_utc": "2026-10-21T21:32:39.493149+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:38 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 3,
+      "first_timestamp": 1792609200,
+      "last_timestamp": 1792616400,
+      "cadence_counts": {
+        "3600": 2
+      },
+      "to_boundary_rows": 0
+    },
+    {
+      "label": "current_b",
+      "requested_at_utc": "2026-10-21T21:32:40.597097+00:00",
+      "received_at_utc": "2026-10-21T21:32:41.177537+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1792609200,
+        "to": 1792618224
+      },
+      "raw_sha256": "01dc947ec63a7d89e551127fe7b37c0ff12ce51808be9ea396d19e2fe9e1fd89",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/01dc947ec63a7d89e551127fe7b37c0ff12ce51808be9ea396d19e2fe9e1fd89.json",
+      "fetched_at_utc": "2026-10-21T21:32:41.177537+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:38 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 3,
+      "first_timestamp": 1792609200,
+      "last_timestamp": 1792616400,
+      "cadence_counts": {
+        "3600": 2
+      },
+      "to_boundary_rows": 0
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:42.284039+00:00",
+      "received_at_utc": "2026-10-21T21:32:42.950427+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788220800,
+        "to": 1788307200
+      },
+      "raw_sha256": "d357bff68a83a2a39a1159a1085302eb49000b60c84d4693944ea076a6bcf62e",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/d357bff68a83a2a39a1159a1085302eb49000b60c84d4693944ea076a6bcf62e.json",
+      "fetched_at_utc": "2026-10-21T21:32:42.950427+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:42 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788220800,
+      "last_timestamp": 1788307200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:44.059928+00:00",
+      "received_at_utc": "2026-10-21T21:32:44.715260+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788307200,
+        "to": 1788393600
+      },
+      "raw_sha256": "a19a6d3fb191e0a3c706b7f017240560d9be676bcfb44803b0b1ba42e026cbef",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/a19a6d3fb191e0a3c706b7f017240560d9be676bcfb44803b0b1ba42e026cbef.json",
+      "fetched_at_utc": "2026-10-21T21:32:44.715260+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:44 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788307200,
+      "last_timestamp": 1788393600,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:45.824565+00:00",
+      "received_at_utc": "2026-10-21T21:32:47.721530+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788393600,
+        "to": 1788480000
+      },
+      "raw_sha256": "221135f8b070b07072fb5c0d6c190c0553bc5f9996d2a2b6647cd0c0f90d2fea",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/221135f8b070b07072fb5c0d6c190c0553bc5f9996d2a2b6647cd0c0f90d2fea.json",
+      "fetched_at_utc": "2026-10-21T21:32:47.721530+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:46 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788393600,
+      "last_timestamp": 1788480000,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:48.830903+00:00",
+      "received_at_utc": "2026-10-21T21:32:49.511057+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788480000,
+        "to": 1788566400
+      },
+      "raw_sha256": "d32623de33cd5f592a68c36f8f02a19845655ed6e6f298897e2bc003fe3658f4",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/d32623de33cd5f592a68c36f8f02a19845655ed6e6f298897e2bc003fe3658f4.json",
+      "fetched_at_utc": "2026-10-21T21:32:49.510544+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:49 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788480000,
+      "last_timestamp": 1788566400,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:50.621295+00:00",
+      "received_at_utc": "2026-10-21T21:32:51.152111+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788566400,
+        "to": 1788652800
+      },
+      "raw_sha256": "e52f9fa0f09bb85ece82868e08a7df8a701a5d5e8d9f021e30598693ef384732",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/e52f9fa0f09bb85ece82868e08a7df8a701a5d5e8d9f021e30598693ef384732.json",
+      "fetched_at_utc": "2026-10-21T21:32:51.152111+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:50 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788566400,
+      "last_timestamp": 1788652800,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:52.264340+00:00",
+      "received_at_utc": "2026-10-21T21:32:52.815303+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788652800,
+        "to": 1788739200
+      },
+      "raw_sha256": "1df98c54345e27a92389b1a6f73676e02c6f50718effd2e645cc9293d610c741",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/1df98c54345e27a92389b1a6f73676e02c6f50718effd2e645cc9293d610c741.json",
+      "fetched_at_utc": "2026-10-21T21:32:52.815303+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:52 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788652800,
+      "last_timestamp": 1788739200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:53.928914+00:00",
+      "received_at_utc": "2026-10-21T21:32:54.532315+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788739200,
+        "to": 1788825600
+      },
+      "raw_sha256": "be38f13ddf12d064c9a7288ca3f5f3f32064806488e1c64f39ae74fdc76df7c8",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/be38f13ddf12d064c9a7288ca3f5f3f32064806488e1c64f39ae74fdc76df7c8.json",
+      "fetched_at_utc": "2026-10-21T21:32:54.532315+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:54 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788739200,
+      "last_timestamp": 1788825600,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:55.644714+00:00",
+      "received_at_utc": "2026-10-21T21:32:56.485383+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788825600,
+        "to": 1788912000
+      },
+      "raw_sha256": "e31a1001165e3af7911b279c33a5b0a696b9985c5cc8e0fcbdac3d76f924d690",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/e31a1001165e3af7911b279c33a5b0a696b9985c5cc8e0fcbdac3d76f924d690.json",
+      "fetched_at_utc": "2026-10-21T21:32:56.485383+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:55 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788825600,
+      "last_timestamp": 1788912000,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:57.595984+00:00",
+      "received_at_utc": "2026-10-21T21:32:58.168630+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788912000,
+        "to": 1788998400
+      },
+      "raw_sha256": "2c804ec0fad02795c486a8b64b066f39ae46fdbb545df6b0916a15b777e779e9",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/2c804ec0fad02795c486a8b64b066f39ae46fdbb545df6b0916a15b777e779e9.json",
+      "fetched_at_utc": "2026-10-21T21:32:58.168630+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:57 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788912000,
+      "last_timestamp": 1788998400,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:32:59.281172+00:00",
+      "received_at_utc": "2026-10-21T21:33:02.104006+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1788998400,
+        "to": 1789084800
+      },
+      "raw_sha256": "d049131f4d3b743f9194a7b8acbb289cb3d9816cb233d217cd010d4f4b342e90",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/d049131f4d3b743f9194a7b8acbb289cb3d9816cb233d217cd010d4f4b342e90.json",
+      "fetched_at_utc": "2026-10-21T21:33:02.104006+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:32:59 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1788998400,
+      "last_timestamp": 1789084800,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:03.216112+00:00",
+      "received_at_utc": "2026-10-21T21:33:04.519985+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789084800,
+        "to": 1789171200
+      },
+      "raw_sha256": "f2d3121958217054874fdfe392f250ffe8f4de9a96c656c4d2d5a6a5392cee65",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/f2d3121958217054874fdfe392f250ffe8f4de9a96c656c4d2d5a6a5392cee65.json",
+      "fetched_at_utc": "2026-10-21T21:33:04.519985+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:03 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789084800,
+      "last_timestamp": 1789171200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:05.632797+00:00",
+      "received_at_utc": "2026-10-21T21:33:06.309131+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789171200,
+        "to": 1789257600
+      },
+      "raw_sha256": "9e1aa9f00176c2d13ecc3b424e97c38886d9b4266fad7fa66306f424404c73a2",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/9e1aa9f00176c2d13ecc3b424e97c38886d9b4266fad7fa66306f424404c73a2.json",
+      "fetched_at_utc": "2026-10-21T21:33:06.309131+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:05 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789171200,
+      "last_timestamp": 1789257600,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:07.419386+00:00",
+      "received_at_utc": "2026-10-21T21:33:08.598627+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789257600,
+        "to": 1789344000
+      },
+      "raw_sha256": "f95e2c882150deffe98c8fff3baef86bcea8b1d3c78c959fada7b9efd3e1e602",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/f95e2c882150deffe98c8fff3baef86bcea8b1d3c78c959fada7b9efd3e1e602.json",
+      "fetched_at_utc": "2026-10-21T21:33:08.598627+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:07 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789257600,
+      "last_timestamp": 1789344000,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:09.711336+00:00",
+      "received_at_utc": "2026-10-21T21:33:10.651769+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789344000,
+        "to": 1789430400
+      },
+      "raw_sha256": "59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae.json",
+      "fetched_at_utc": "2026-10-21T21:33:10.651769+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:09 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789344000,
+      "last_timestamp": 1789430400,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:11.764358+00:00",
+      "received_at_utc": "2026-10-21T21:33:12.560197+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789430400,
+        "to": 1789516800
+      },
+      "raw_sha256": "e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893.json",
+      "fetched_at_utc": "2026-10-21T21:33:12.560197+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:11 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789430400,
+      "last_timestamp": 1789516800,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:13.674312+00:00",
+      "received_at_utc": "2026-10-21T21:33:14.783648+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789516800,
+        "to": 1789603200
+      },
+      "raw_sha256": "ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c.json",
+      "fetched_at_utc": "2026-10-21T21:33:14.783648+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:13 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789516800,
+      "last_timestamp": 1789603200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:15.900074+00:00",
+      "received_at_utc": "2026-10-21T21:33:16.573175+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789603200,
+        "to": 1789689600
+      },
+      "raw_sha256": "416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204.json",
+      "fetched_at_utc": "2026-10-21T21:33:16.573175+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:16 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789603200,
+      "last_timestamp": 1789689600,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:17.685811+00:00",
+      "received_at_utc": "2026-10-21T21:33:19.219264+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789689600,
+        "to": 1789776000
+      },
+      "raw_sha256": "b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24.json",
+      "fetched_at_utc": "2026-10-21T21:33:19.219264+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:17 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789689600,
+      "last_timestamp": 1789776000,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:20.332619+00:00",
+      "received_at_utc": "2026-10-21T21:33:22.086291+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789776000,
+        "to": 1789862400
+      },
+      "raw_sha256": "ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45.json",
+      "fetched_at_utc": "2026-10-21T21:33:22.086291+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:20 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789776000,
+      "last_timestamp": 1789862400,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:23.202597+00:00",
+      "received_at_utc": "2026-10-21T21:33:25.009320+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789862400,
+        "to": 1789948800
+      },
+      "raw_sha256": "82ec405d974e2f1b7b51f6bb88e373f1276f31c962c66c4f5606d2a051df3b25",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/82ec405d974e2f1b7b51f6bb88e373f1276f31c962c66c4f5606d2a051df3b25.json",
+      "fetched_at_utc": "2026-10-21T21:33:25.009320+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:23 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789862400,
+      "last_timestamp": 1789948800,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:26.129247+00:00",
+      "received_at_utc": "2026-10-21T21:33:27.268924+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789948800,
+        "to": 1790035200
+      },
+      "raw_sha256": "def981b80acfdb4d8fc26ff7109c01002bf4ee3bf4000df6cde5a6800d8e0d53",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/def981b80acfdb4d8fc26ff7109c01002bf4ee3bf4000df6cde5a6800d8e0d53.json",
+      "fetched_at_utc": "2026-10-21T21:33:27.268924+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:26 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1789948800,
+      "last_timestamp": 1790035200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:28.384920+00:00",
+      "received_at_utc": "2026-10-21T21:33:29.086532+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790035200,
+        "to": 1790121600
+      },
+      "raw_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887.json",
+      "fetched_at_utc": "2026-10-21T21:33:29.086532+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:28 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 24,
+      "first_timestamp": 1790035200,
+      "last_timestamp": 1790121600,
+      "cadence_counts": {
+        "3600": 22,
+        "7200": 1
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:30.204233+00:00",
+      "received_at_utc": "2026-10-21T21:33:30.750210+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790121600,
+        "to": 1790208000
+      },
+      "raw_sha256": "e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce.json",
+      "fetched_at_utc": "2026-10-21T21:33:30.750210+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:30 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1790121600,
+      "last_timestamp": 1790208000,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:31.864654+00:00",
+      "received_at_utc": "2026-10-21T21:33:33.061920+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790208000,
+        "to": 1790294400
+      },
+      "raw_sha256": "396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6.json",
+      "fetched_at_utc": "2026-10-21T21:33:33.061920+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:32 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1790208000,
+      "last_timestamp": 1790294400,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:34.179201+00:00",
+      "received_at_utc": "2026-10-21T21:33:35.210003+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790294400,
+        "to": 1790380800
+      },
+      "raw_sha256": "fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e.json",
+      "fetched_at_utc": "2026-10-21T21:33:35.210003+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:34 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1790294400,
+      "last_timestamp": 1790380800,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    },
+    {
+      "label": "daily_native",
+      "requested_at_utc": "2026-10-21T21:33:36.331825+00:00",
+      "received_at_utc": "2026-10-21T21:33:36.984987+00:00",
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790380800,
+        "to": 1790467200
+      },
+      "raw_sha256": "3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902",
+      "raw_file": "data/round-2-data/20261021T213210Z_2e0f3a63/3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902.json",
+      "fetched_at_utc": "2026-10-21T21:33:36.984987+00:00",
+      "cache_headers": {
+        "date": "Wed, 21 Oct 2026 21:33:36 GMT",
+        "cache-control": "max-age=15"
+      },
+      "row_count": 25,
+      "first_timestamp": 1790380800,
+      "last_timestamp": 1790467200,
+      "cadence_counts": {
+        "3600": 24
+      },
+      "to_boundary_rows": 1
+    }
+  ],
+  "coverage": [
+    {
+      "start": 1788220800,
+      "end": 1790082000,
+      "start_utc": "2026-09-01T00:00:00+00:00",
+      "end_exclusive_utc": "2026-09-22T13:00:00+00:00",
+      "bars": 517,
+      "hours": 517,
+      "interval_seconds": 3600,
+      "sha256": "8529bd60af259a07bfbc81cf32c16b0352f4e1723311f517c4d525dc9b7e8ffa",
+      "raw_sources": 22,
+      "max_nonoverlapping_72h_windows_after_31h_warmup": 6
+    },
+    {
+      "start": 1790085600,
+      "end": 1790467200,
+      "start_utc": "2026-09-22T14:00:00+00:00",
+      "end_exclusive_utc": "2026-09-27T00:00:00+00:00",
+      "bars": 106,
+      "hours": 106,
+      "interval_seconds": 3600,
+      "sha256": "c533c03aa284fa50aa38554d7700a24e48f0ec9090d2365e09c4a2bd1502ec4f",
+      "raw_sources": 5,
+      "max_nonoverlapping_72h_windows_after_31h_warmup": 1
+    }
+  ],
+  "unknowns": [
+    "Exchange-attested candle timestamp start/end meaning not found; UDF start convention is an inference, not independent exchange proof.",
+    "Volume asset and zero-volume row construction not documented.",
+    "Cache headers are observed, not proof of cause or historical revision policy.",
+    "No trade-time independent price reference or account-specific access verification."
+  ],
+  "source_decision": "Native60 only is a new research contract; no minute substitution, zero removal, shift, forward-fill or prior T02 reclassification. Diagnostic-only until explicit timeframe/source assumptions are accepted in an experiment protocol; no automatic validation/holdout permission.",
+  "missing_hours": [
+    1790082000
+  ],
+  "complete_days": 25,
+  "partial_days": 1,
+  "same_query_older_hash_comparison": [
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789344000,
+        "to": 1789430400
+      },
+      "old_sha256": "59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae",
+      "new_sha256": "59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:28.391175+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:10.651769+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789430400,
+        "to": 1789516800
+      },
+      "old_sha256": "e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893",
+      "new_sha256": "e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:30.662198+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:12.560197+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789516800,
+        "to": 1789603200
+      },
+      "old_sha256": "ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c",
+      "new_sha256": "ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:32.732223+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:14.783648+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789603200,
+        "to": 1789689600
+      },
+      "old_sha256": "416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204",
+      "new_sha256": "416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:34.720534+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:16.573175+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789689600,
+        "to": 1789776000
+      },
+      "old_sha256": "b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24",
+      "new_sha256": "b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:37.104457+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:19.219264+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1789776000,
+        "to": 1789862400
+      },
+      "old_sha256": "ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45",
+      "new_sha256": "ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:39.109155+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:22.086291+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790035200,
+        "to": 1790121600
+      },
+      "old_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "new_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:58.723157+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:32:35.096209+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790035200,
+        "to": 1790121600
+      },
+      "old_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "new_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T19:59:58.723157+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:29.086532+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790121600,
+        "to": 1790208000
+      },
+      "old_sha256": "e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce",
+      "new_sha256": "e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T20:00:04.202820+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:30.750210+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790208000,
+        "to": 1790294400
+      },
+      "old_sha256": "396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6",
+      "new_sha256": "396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T20:00:07.929406+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:33.061920+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790294400,
+        "to": 1790380800
+      },
+      "old_sha256": "fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e",
+      "new_sha256": "fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T20:00:09.707062+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:35.210003+00:00"
+    },
+    {
+      "query": {
+        "symbol": "USDTTMN",
+        "resolution": "60",
+        "from": 1790380800,
+        "to": 1790467200
+      },
+      "old_sha256": "3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902",
+      "new_sha256": "3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902",
+      "equal": true,
+      "old_fetched_at_utc": "2026-10-21T20:00:12.171587+00:00",
+      "new_fetched_at_utc": "2026-10-21T21:33:36.984987+00:00"
+    }
+  ],
+  "offline_replay_check": "PASS: every raw hash, daily full/rejected status, contiguous normalized manifest hash/metadata and 623 native bars"
+}
