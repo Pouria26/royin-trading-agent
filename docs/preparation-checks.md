@@ -1,5 +1,11 @@
 # شواهد واقعی آماده‌سازی
 
+**T01، ۲۰۲۶-۱۰-۲۱:** package/config/CLI ساخته و ۲۸/۲۸ تست در محیط فعلی، نصب پاک از lock و wheel نصب‌شده گذشت؛ صفر fail/skip. Ruff و compileall با اضافه‌شدن src موفق‌اند. این به‌روزرسانی، عبارت‌های تاریخی «Build/CLI نداریم» را فقط برای CLI اعتبارسنجی supersede می‌کند؛ موتور، broker، AI واقعی و سودآوری هنوز تأیید نشده‌اند. همه liveها بسته‌اند. دستورهای دقیق جدید در AGENTS.md و گزارش AC/revision در TASKS.md است.
+
+نصب پاک این گام در پوشه موقت جدا با Python 3.12.15، `uv pip sync --python <clean-python> requirements.lock` و سپس `uv pip install --python <clean-python> --no-deps --editable .` انجام شد. `uv build --wheel` موفق و wheel خروجی با `--no-deps --reinstall` در همان محیط نصب و تست شد. `check-config` روی env نمونه و محلی، `VALID_CONFIG_ONLY` داد؛ هیچ شبکه یا سفارش/SQLite ایجاد نمی‌کند. build backend فقط برای packaging است؛ وابستگی runtime تازه‌ای اضافه نشد. فرمان‌های help هر دو probe هم موفق‌اند.
+
+اجرای عمومی تازه در **۱۵:۲۶:۰۳ UTC / ۱۸:۵۶:۰۳ ایران**: شش نمونه DEGRADED و exit 1؛ hash همه پاسخ‌ها و یافته‌های جدول زیر با دریافت قبلی یکسان بود. smoke `probe_model.py --run` دوباره **BLOCKED و exit 2** بود؛ GOOGLE_API_KEY نبود و هیچ درخواست مدل ارسال نشد. مدل/حساب/استراتژی/live همچنان تأییدنشده‌اند. برای رفع مانع، کلید فقط در .env محلی و سپس دستور بخش اقدام بعدی؛ PASS/WAIT/read_snapshot شاهد compatibility است، نه سود.
+
 **تکمیل بعدی در ۲۰۲۶-۱۰-۲۱:** محدودیت بازار اکنون طبق متن/تصویر تازه پوریا در docs/market-access-policy.md و config/wallex-credit-market-policy.json ثبت است؛ مجهول قبلی «نبود قاعده/فهرست بازار» در گزارش اولیه با این اطلاعات superseded شد. فقط اسپات بدون لوریج؛ تطبیق روز حساب اختصاصی هنوز انجام نشده. بعد از اضافه شدن سه تست snapshot، کل مجموعه فعلی **۱۵/۱۵ passed با صفر fail/skip** و Ruff موفق شد. این اجرای تازه در .venv فعلی است؛ نصب پاک ۱۲ تست جدول پایین مربوط به مرحله قبلی است و برای سه تست جدید ادعا نشده است. داده عمومی، مدل واقعی و حساب خصوصی در این تغییر دوباره آزموده نشدند؛ هیچ سفارش ارسال نشد.
 
 ۲۰۲۶-۱۰-۲۱؛ این گزارش **آمادگی مستندات و ابزار پژوهش** است، نه نتیجه موتور معاملاتی. ابزارها، tests، lock و گزارش JSON در همان commit آماده‌سازی نگه‌داری می‌شوند؛ revision از `git log -1 --oneline` در checkout تحویلی قابل مشاهده است. بعد از تغییر کد، نتیجه قبلی خودکار به نسخه جدید تعمیم نمی‌یابد.
@@ -28,7 +34,7 @@ FunctionModel نشان داد نتیجه ابزار به خروجی typed می�
 
 ## یافته مهم داده تاریخی
 
-اجرای واقعی `scripts/audit_market_data.py`، بدون کلید و فقط GET عمومی؛ [گزارش کامل](../research/market-data-audit.json) شامل query، source URL، fetched_at و SHA256 هر پاسخ است. rawها در data/research محلی ignored هستند. آخرین گزارش: ۲۰۲۶-۱۰-۲۱ ساعت ۱۳:۴۵:۲۴ UTC. بازه‌ها [start,end) و برحسب UTC هستند.
+اجرای واقعی `scripts/audit_market_data.py`، بدون کلید و فقط GET عمومی؛ [گزارش کامل](../research/market-data-audit.json) شامل query، source URL، fetched_at و SHA256 هر پاسخ است. rawها در data/research محلی ignored هستند. آخرین گزارش: ۲۰۲۶-۱۰-۲۱ ساعت ۱۵:۲۶:۰۳ UTC؛ دریافت قبلی ۱۳:۴۵:۲۴ UTC بود و hashها برابرند. بازه‌ها [start,end) و برحسب UTC هستند.
 
 سه نماد عمومی، دو پنجره تاریخی، درخواست resolution=15. **هر شش مورد DEGRADED؛ exit 1**. این نتیجه عمداً سبز نشده است و نمادهای عمومی allowlist چالش نیستند.
 

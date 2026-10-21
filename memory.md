@@ -24,6 +24,14 @@
 
 یادگیری بعدی باید با تست/منبع مشخص اضافه شود؛ گزارش fake را real یا عدد حدسی را measured ننویسید.
 
+## T01 — ۲۰۲۶-۱۰-۲۱
+
+- **User / D، supersedes نقش آماده‌ساز بالا:** این Agent اکنون مالک پیاده‌سازی رویین است؛ فقط تسک محدود آماده را با تست/گزارش/commit پیش می‌برد. T01 تکمیل، قدم بعدی T02 است.
+- **Code + checks / S:** package در src/royin و `python -m royin check-config` فقط اعتبارسنجی‌اند؛ هیچ transport/loop/broker ندارند. تمام liveها تا گیت‌های بعدی رد می‌شوند؛ قبول syntax نماد، eligibility حساب نیست. ۲۸ تست در محیط فعلی، محیط پاک lock و wheel نصب‌شده گذشت؛ این شواهد کیفیت AI یا سود نیست.
+- **Regression / S:** Pydantic timestamp رشته عددی را epoch می‌پذیرفت؛ config اکنون ابتدا ISO را با datetime.fromisoformat می‌خواند و AwareDatetime offset را اجباری می‌کند. offset به UTC تبدیل و FINALIZE_START_AT قبل از CHALLENGE_END_AT بررسی می‌شود.
+- **Config / D:** dotenv strict با parser نسخه قفل‌شده python-dotenv؛ unknown/duplicate/malformed رد، interpolation خاموش، تنظیم فرایند مقدم. خطاهای CLI فقط نام شناخته‌شده تنظیم/پیام ثابت دارند و Secret/account ID از repr/serialization حذف شده است. پس از uv pip sync، نصب دوباره package محلی با --no-deps لازم است.
+- **Probe / S:** دریافت عمومی تازه در ۱۵:۲۶:۰۳ UTC، همان hashها و شش DEGRADED داشت؛ ایراد cadence باقی است. smoke مدل همچنان BLOCKED/exit 2 به علت نبود کلید؛ حساب خصوصی و مسیر معامله بررسی نشده‌اند.
+
 ## به‌روزرسانی محدودیت‌ها — ۲۰۲۶-۱۰-۲۱
 
 - **User / D:** دو commit آماده‌سازی به درخواست صریح پوریا در یک commit تجمیع شوند. برای ادامه، گام‌به‌گام با تست/گزارش هر تسک و commit در سطح فاز منسجم پیش بروید؛ commit برای هر ویرایش کوچک لازم نیست. هیچ نسخه معاملاتی در این تجمیع وجود نداشت.

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "royin"
+version = "0.1.0"
+description = "Wallex challenge runtime; configuration validation only at T01"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic==2.14.1",
+    "python-dotenv==1.2.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

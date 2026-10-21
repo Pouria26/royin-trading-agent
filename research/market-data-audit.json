@@ -1,6 +1,6 @@
 {
   "kind": "PUBLIC_DATA_QUALITY_NOT_STRATEGY_PERFORMANCE",
-  "fetched_at_utc": "2026-10-21T13:45:24.485992+00:00",
+  "fetched_at_utc": "2026-10-21T15:26:03.906124+00:00",
   "scope": "3 public symbols, 2 fixed historical windows, 15-minute candles",
   "caveats": [
     "Public symbols are not the contest account allowlist.",

@@ -1,4 +1,4 @@
-# Direct dependencies for preparation probes, not a completed trading engine.
+# Direct dependencies for runtime configuration, preparation probes and checks.
 # Add a provider extra only after the actual model endpoint is confirmed.
 httpx==0.28.1
 pydantic==2.14.1

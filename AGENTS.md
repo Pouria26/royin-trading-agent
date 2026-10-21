@@ -15,8 +15,8 @@ PowerShell، از ریشه مخزن. نتایج و محدودیت محیط در 
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -m ruff check scripts tests
-.\.venv\Scripts\python.exe -m compileall -q scripts tests
+.\.venv\Scripts\python.exe -m ruff check src scripts tests
+.\.venv\Scripts\python.exe -m compileall -q src scripts tests
 .\.venv\Scripts\python.exe -X utf8 scripts\audit_market_data.py --help
 .\.venv\Scripts\python.exe -X utf8 scripts\audit_market_data.py
 .\.venv\Scripts\python.exe -X utf8 scripts\probe_model.py --help
@@ -37,9 +37,23 @@ audit_market_data فقط GET عمومی می‌زند و گزارش کیفیت �
 ```powershell
 uv venv --python 3.12 .venv
 uv pip sync --python .\.venv\Scripts\python.exe requirements.lock
+uv pip install --python .\.venv\Scripts\python.exe --no-deps --editable .
 ```
 
-روی .venv موجود دستور venv نزن. این‌ها ابزارهای آماده‌سازی‌اند؛ **اکنون Build محصول و دستور اجرای موتور معامله وجود ندارد.** بعد از ساخت واقعی CLI، آن را اجرا و دستور دقیق را اینجا اضافه کن. دستور پیشنهادی را «تأییدشده» ننویس. پس از افزوده شدن src، lint/tests را به آن گسترش بده؛ compileall جای lint/typecheck نیست.
+روی .venv موجود دستور venv نزن. نصب package بعد از sync لازم است؛ sync بعدی package محلی را حذف می‌کند و باید دوباره نصب شود. pyproject فقط وابستگی‌های مصرف‌شده package را دارد؛ requirements.lock محیط کامل probe/test را قفل می‌کند.
+
+دستورهای **اجراشده T01** برای CLI اعتبارسنجی و ساخت wheel:
+
+```powershell
+.\.venv\Scripts\python.exe -m royin --help
+.\.venv\Scripts\python.exe -m royin check-config --env-file .env.example
+.\.venv\Scripts\python.exe -m royin check-config
+uv build --wheel
+```
+
+خروجی سالم `VALID_CONFIG_ONLY` و `network_enabled=false` و `trading_enabled=false` است؛ خطای config، `BLOCKED` و exit 2 است. این CLI **موتور معامله نیست**؛ همه liveها، حتی با کلید/allowlist، تا تکمیل گیت‌های بعدی رد می‌شوند. broker و سیاست ریسک هنوز وجود ندارند؛ موفقیت check-config مجوز بازار یا readiness نیست. compileall جای lint/typecheck نیست.
+
+config از .env پوشه جاری (در صورت وجود) و سپس متغیرهای فرایند خوانده می‌شود؛ `--env-file` صریح باید وجود داشته باشد. کلید ناشناخته فایل و متغیر ناشناخته با پیشوند اختصاصی پروژه رد می‌شود؛ متغیرهای عمومی سیستم نادیده گرفته می‌شوند. dotenv نامعتبر/تکراری رد و interpolation غیرفعال است. بودجه‌های token/cost/currency یا هر سه خالی‌اند یا هر سه معتبر؛ خالی بودن در T01 هیچ درخواست مدلی فعال نمی‌کند. LLM_BASE_URL در runtime فقط خالی و WALLEX_BASE_URL فقط origin رسمی است؛ probe موجود مستقل باقی می‌ماند.
 
 ## قواعد غیرقابل مذاکره
 
