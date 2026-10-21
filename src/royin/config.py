@@ -29,10 +29,10 @@ class RuntimeConfig(BaseModel):
     WALLEX_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     SUB_ACCOUNT_CLIENT_ID: SecretStr | None = Field(default=None, repr=False, exclude=True)
     WALLEX_ALLOWED_MARKETS: tuple[str, ...] = ()
-    LLM_PROVIDER: Literal["google"] = "google"
-    LLM_BASE_URL: Literal[""] = ""
-    LLM_MODEL: str = Field(default="gemini-3.5-flash-lite", min_length=1, max_length=128)
-    GOOGLE_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    LLM_PROVIDER: Literal["boxapi"] = "boxapi"
+    LLM_BASE_URL: Literal["https://ai.boxapi.ir/ai/v1"] = "https://ai.boxapi.ir/ai/v1"
+    LLM_MODEL: Literal["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini"] = "gpt-6-luna"
+    BOXAPI_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     LLM_TOKEN_BUDGET: int | None = Field(default=None, ge=0)
     LLM_COST_BUDGET: Decimal | None = Field(default=None, ge=0)
     LLM_COST_CURRENCY: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
@@ -42,7 +42,7 @@ class RuntimeConfig(BaseModel):
     ARTIFACTS_DIR: Path = Path("artifacts")
 
     @field_validator(
-        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "GOOGLE_API_KEY",
+        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY",
         "LLM_TOKEN_BUDGET", "LLM_COST_BUDGET", "LLM_COST_CURRENCY",
         "CHALLENGE_END_AT", "FINALIZE_START_AT", mode="before",
     )
@@ -144,7 +144,7 @@ def load_config(env_file: Path | None = None, *, environ: Mapping[str, str] | No
     environment = os.environ if environ is None else environ
     for key, value in environment.items():
         if key in RuntimeConfig.model_fields or key.startswith(
-            ("RUN_", "ENABLE_LIVE_", "WALLEX_", "SUB_ACCOUNT_", "LLM_", "GOOGLE_API_")
+            ("RUN_", "ENABLE_LIVE_", "WALLEX_", "SUB_ACCOUNT_", "LLM_", "BOXAPI_", "GOOGLE_API_")
         ):
             values[key] = value.strip()
     return RuntimeConfig.model_validate(values)

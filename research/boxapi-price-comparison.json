@@ -1,0 +1,57 @@
+{
+  "source_url": "https://ai.boxapi.ir/ai/v1/models",
+  "source_sha256": "1a3e722c4019c4db7ea9dbeab7637fc2a20726e24f48d61259972158f85dda65",
+  "checked_on": "2026-10-21",
+  "published_tariff_url": "https://boxapi.ir/docs/ai/models/",
+  "catalog_metadata": [
+    {
+      "id": "openai/gpt-6-luna",
+      "pricing": {
+        "prompt": "0.0000001",
+        "completion": "0.0000005",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000001",
+        "input_cache_write": "0.000000125",
+        "overrides": [
+          {
+            "min_prompt_tokens": 272000,
+            "prompt": "0.0000002",
+            "completion": "0.00000075",
+            "input_cache_read": "0.00000002",
+            "input_cache_write": "0.00000025"
+          }
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-5.6-luna",
+      "pricing": {
+        "prompt": "0.0000002",
+        "completion": "0.0000012",
+        "web_search": "0.01",
+        "input_cache_read": "0.00000002",
+        "input_cache_write": "0.00000025",
+        "overrides": [
+          {
+            "min_prompt_tokens": 272000,
+            "prompt": "0.0000004",
+            "completion": "0.0000018",
+            "input_cache_read": "0.00000004",
+            "input_cache_write": "0.0000005"
+          }
+        ]
+      }
+    },
+    {
+      "id": "openai/gpt-5.4-mini",
+      "pricing": {
+        "prompt": "0.00000075",
+        "completion": "0.0000045",
+        "web_search": "0.01",
+        "input_cache_read": "0.000000075"
+      }
+    }
+  ],
+  "budget_rates": "Published tariff, 15 percent above metadata; not the catalog base price",
+  "account_balance": "NOT_VERIFIED"
+}

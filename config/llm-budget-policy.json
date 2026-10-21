@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "source_url": "https://boxapi.ir/docs/ai/models/",
+  "verified_on": "2026-10-21",
+  "currency": "USD",
+  "credit_reported_by_user": "3.00",
+  "reserve_usd": "0.60",
+  "total_limit_usd": "2.40",
+  "daily_limit_usd": "0.80",
+  "max_requests_total": 600,
+  "max_requests_daily": 200,
+  "max_input_tokens": 8192,
+  "max_output_tokens": 512,
+  "rates_per_million": {
+    "gpt-6-luna": {"input": "0.115", "output": "0.575"},
+    "gpt-5.6-luna": {"input": "0.230", "output": "1.380"},
+    "gpt-5.4-mini": {"input": "0.8625", "output": "5.1750"}
+  }
+}

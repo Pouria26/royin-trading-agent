@@ -24,13 +24,24 @@ PowerShell، از ریشه مخزن. نتایج و محدودیت محیط در 
 
 audit_market_data فقط GET عمومی می‌زند و گزارش کیفیت داده می‌سازد؛ هیچ معامله‌ای نمی‌کند. اجرای مجدد ممکن است داده تازه‌ای بدهد؛ hash و زمان در خروجی ثبت می‌شود.
 
-پس از قرار دادن کلید توسط پوریا در .env، smoke پولی کوچک و بدون سفارش:
+کلید BoxAPI در BOXAPI_API_KEY داخل .env محلی است. smoke کوچک و eval چهار سناریوی ثابت، بدون سفارش:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts\probe_model.py --run
+.\.venv\Scripts\python.exe -X utf8 scripts\probe_model.py --eval
 ```
 
 این دستور در نبود کلید باید با خروجی `BLOCKED` و exit 2 متوقف شود؛ آن را pass حساب نکن. این probe کیفیت استراتژی را ثابت نمی‌کند. خطا/تأخیر/token usage و پاسخ‌ها را بدون Secret ثبت کن. درخواست `--run` فعال کردن live نیست.
+
+BoxAPI جایگزین Gemini شد؛ fallback به Google یا OpenAI مستقیم نداریم. مدل پیش‌فرض gpt-6-luna با reasoning=none، فقط Chat Completions، حداکثر دو درخواست/یک ابزار/۵۱۲ output token و deadline سی ثانیه برای هر سناریو است. config/llm-budget-policy.json قیمت و سقف‌ها را نسخه‌دار می‌کند. data/llm-budget.sqlite3 پیش از هر HTTP حداکثر هزینه/توکن را با تراکنش durable رزرو می‌کند؛ خطا/timeout/refund خودکار ندارد. این فایل را برای restart یا انتقال میزبان حذف/صفر نکنید و مصرف همین کلید در اپ دیگر خارج از این سقف است. صورتحساب provider و تغییر تعرفه با رزرو محلی یکی نیست.
+
+دستور خواندنی **اجراشده** برای شناسه حساب اعتباری:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m scripts.probe_wallex_account --run
+```
+
+فقط GET به فهرست sub-account و، پس از تشخیص یکتای حساب فعال prop، balances-detail دارد؛ حساب اصلی/فعال‌سازی/سفارش ممنوع‌اند. شناسه کشف‌شده فقط در .env ذخیره می‌شود. نتیجه فعلی HTTP موفق با result=[] و BLOCKED/exit 2 است؛ حساب یا اعتبار تخصیص داده نشده را فعال نکنید. جزئیات در docs/wallex-read-only-setup.md.
 
 برای نصب آماده‌سازی در محیط تازه با uv (lock پس از حل وابستگی‌ها):
 
@@ -62,7 +73,7 @@ rawهای content-addressed و گزارش در `data/t02` ذخیره می‌شو
 
 خروجی سالم `VALID_CONFIG_ONLY` و `network_enabled=false` و `trading_enabled=false` است؛ خطای config، `BLOCKED` و exit 2 است. این CLI **موتور معامله نیست**؛ همه liveها، حتی با کلید/allowlist، تا تکمیل گیت‌های بعدی رد می‌شوند. broker و سیاست ریسک هنوز وجود ندارند؛ موفقیت check-config مجوز بازار یا readiness نیست. compileall جای lint/typecheck نیست.
 
-config از .env پوشه جاری (در صورت وجود) و سپس متغیرهای فرایند خوانده می‌شود؛ `--env-file` صریح باید وجود داشته باشد. کلید ناشناخته فایل و متغیر ناشناخته با پیشوند اختصاصی پروژه رد می‌شود؛ متغیرهای عمومی سیستم نادیده گرفته می‌شوند. dotenv نامعتبر/تکراری رد و interpolation غیرفعال است. بودجه‌های token/cost/currency یا هر سه خالی‌اند یا هر سه معتبر؛ خالی بودن در T01 هیچ درخواست مدلی فعال نمی‌کند. LLM_BASE_URL در runtime فقط خالی و WALLEX_BASE_URL فقط origin رسمی است؛ probe موجود مستقل باقی می‌ماند.
+config از .env پوشه جاری (در صورت وجود) و سپس متغیرهای فرایند خوانده می‌شود؛ `--env-file` صریح باید وجود داشته باشد. کلید ناشناخته فایل و متغیر ناشناخته با پیشوند اختصاصی پروژه رد می‌شود؛ متغیرهای عمومی سیستم نادیده گرفته می‌شوند. dotenv نامعتبر/تکراری رد و interpolation غیرفعال است. بودجه مدل صریح USD/token برای درخواست پولی اجباری است. LLM_BASE_URL فقط https://ai.boxapi.ir/ai/v1 و WALLEX_BASE_URL فقط origin رسمی است. legacy GOOGLE_API_KEY پذیرفته نیست؛ کلید محلی آن حذف شد.
 
 ## قواعد غیرقابل مذاکره
 

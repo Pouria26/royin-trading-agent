@@ -78,9 +78,9 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_process_precedence_without_mutating_environment_or_interpolation(self):
         environment = {"RUN_MODE": "historical", "PATH": "ignored", "OTHER_SECRET": "ignored"}
         original = dict(environment)
-        config = self.load("RUN_MODE=shadow\nGOOGLE_API_KEY='${OTHER_SECRET}'", environment)
+        config = self.load("RUN_MODE=shadow\nBOXAPI_API_KEY='${OTHER_SECRET}'", environment)
         self.assertEqual(config.RUN_MODE, "historical")
-        self.assertEqual(config.GOOGLE_API_KEY.get_secret_value(), "${OTHER_SECRET}")
+        self.assertEqual(config.BOXAPI_API_KEY.get_secret_value(), "${OTHER_SECRET}")
         self.assertEqual(environment, original)
 
     def test_malformed_bare_or_duplicate_assignment_is_not_silently_ignored(self):
@@ -132,7 +132,7 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_secrets_are_excluded_from_repr_and_serialization(self):
         secret = "synthetic-sensitive-value"
         config = self.load(
-            f"WALLEX_API_KEY={secret}\nSUB_ACCOUNT_CLIENT_ID={secret}\nGOOGLE_API_KEY={secret}"
+            f"WALLEX_API_KEY={secret}\nSUB_ACCOUNT_CLIENT_ID={secret}\nBOXAPI_API_KEY={secret}"
         )
         self.assertNotIn(secret, repr(config))
         self.assertNotIn(secret, config.model_dump_json())
@@ -141,7 +141,7 @@ class RuntimeConfigTests(unittest.TestCase):
         for mode in ("historical", "shadow"):
             self.path.write_text(
                 f"RUN_MODE={mode}\nSTATE_DB_PATH={self.temp.name}/must-not-exist.sqlite3\n"
-                "WALLEX_API_KEY=synthetic-sensitive-value\nGOOGLE_API_KEY=synthetic-sensitive-value",
+                "WALLEX_API_KEY=synthetic-sensitive-value\nBOXAPI_API_KEY=synthetic-sensitive-value",
                 encoding="utf-8",
             )
             with (

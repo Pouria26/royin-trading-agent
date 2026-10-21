@@ -17,3 +17,5 @@ artifacts/
 *.mp4
 *.wav
 *.mp3
+
+/MASTER_PROMPT.md

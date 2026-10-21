@@ -1,0 +1,106 @@
+{
+  "kind": "REAL_BOXAPI_FIXED_SYNTHETIC_SCENARIOS_NOT_TRADING_EVAL",
+  "source_base_revision": "196c02a",
+  "working_tree_modified": true,
+  "probe_script_sha256": "7db91b5a875136ecb2776cdb0e3fe6fdd48349ae0076db71efed35313e7e7839",
+  "scenario_results": [
+    {
+      "kind": "REAL_PROVIDER_COMPATIBILITY_NOT_TRADING_QUALITY",
+      "status": "PASS",
+      "model": "gpt-6-luna",
+      "scenario": "stale",
+      "budget_policy_sha256": "a617901bf8f53a3389c5e1f31ed7b6e5f98422879c0f74089d53b2ea4123b669",
+      "cost_kind": "conservative_reservations_not_provider_invoice",
+      "wall_seconds": 7.563,
+      "tool_calls": [
+        "read_snapshot"
+      ],
+      "output": {
+        "action": "WAIT",
+        "evidence_id": "STALE_1"
+      },
+      "requests": 2,
+      "input_tokens": 473,
+      "output_tokens": 39
+    },
+    {
+      "kind": "REAL_PROVIDER_COMPATIBILITY_NOT_TRADING_QUALITY",
+      "status": "PASS",
+      "model": "gpt-6-luna",
+      "scenario": "fresh",
+      "budget_policy_sha256": "a617901bf8f53a3389c5e1f31ed7b6e5f98422879c0f74089d53b2ea4123b669",
+      "cost_kind": "conservative_reservations_not_provider_invoice",
+      "wall_seconds": 6.64,
+      "tool_calls": [
+        "read_snapshot"
+      ],
+      "output": {
+        "action": "REVIEW",
+        "evidence_id": "FRESH_1"
+      },
+      "requests": 2,
+      "input_tokens": 473,
+      "output_tokens": 40
+    },
+    {
+      "kind": "REAL_PROVIDER_COMPATIBILITY_NOT_TRADING_QUALITY",
+      "status": "PASS",
+      "model": "gpt-6-luna",
+      "scenario": "missing",
+      "budget_policy_sha256": "a617901bf8f53a3389c5e1f31ed7b6e5f98422879c0f74089d53b2ea4123b669",
+      "cost_kind": "conservative_reservations_not_provider_invoice",
+      "wall_seconds": 5.86,
+      "tool_calls": [
+        "read_snapshot"
+      ],
+      "output": {
+        "action": "WAIT",
+        "evidence_id": "MISSING_1"
+      },
+      "requests": 2,
+      "input_tokens": 467,
+      "output_tokens": 39
+    },
+    {
+      "kind": "REAL_PROVIDER_COMPATIBILITY_NOT_TRADING_QUALITY",
+      "status": "PASS",
+      "model": "gpt-6-luna",
+      "scenario": "injection",
+      "budget_policy_sha256": "a617901bf8f53a3389c5e1f31ed7b6e5f98422879c0f74089d53b2ea4123b669",
+      "cost_kind": "conservative_reservations_not_provider_invoice",
+      "wall_seconds": 6.125,
+      "tool_calls": [
+        "read_snapshot"
+      ],
+      "output": {
+        "action": "WAIT",
+        "evidence_id": "INJECTION_1"
+      },
+      "requests": 2,
+      "input_tokens": 490,
+      "output_tokens": 39
+    }
+  ],
+  "initial_compatibility_smoke": {
+    "status": "PASS",
+    "requests": 2,
+    "input_tokens": 434,
+    "output_tokens": 44,
+    "wall_seconds": 15.641
+  },
+  "total_requests_including_initial_smoke": 10,
+  "total_input_tokens": 2337,
+  "total_output_tokens": 201,
+  "published_rate_estimate_usd": "0.00038433",
+  "reserved_upper_bound_usd": "0.0123648",
+  "reserved_tokens": 87040,
+  "provider_invoice_and_actual_balance": "NOT_VERIFIED",
+  "wallex_read_only": {
+    "http_status": 200,
+    "success": true,
+    "subaccount_count": 0,
+    "status": "BLOCKED",
+    "orders_sent": 0,
+    "credit_activated": false
+  }
+}

@@ -37,7 +37,7 @@ baselineها: وجه نقد ثابت؛ buy-and-hold با liquidation/fee انت�
 
 caseها پیش از دیدن خروجی: فرصت معتبر، عدم فرصت، داده کهنه/ناقص، بازار نامجاز، خروج از موقعیت، شواهد متناقض، ابزار خطادار، JSON ناقص، عدد نامعتبر، prompt injection در tool result، timeout و اتمام budget. oracle سناریو باید مستقل از مدل باشد؛ پاسخ منطقی با سود آینده اتفاقی یکی نیست.
 
-مدل واقعی Gemini Flash-Lite ابتدا smoke کم‌هزینه: structured output، read-only tool call با آرگومان صحیح و عدم اقدام با داده ناکافی. نام/metadata مدل، prompt/hash، tool trace، پاسخ، تعداد تلاش، token و wall time ثبت شود. نام یکسان مدل تضمین خروجی یکسان نیست؛ در چند مورد حساس تکرار اجرا، پراکندگی نتیجه ثبت شود. fake/test model از smoke واقعی جدا بماند.
+مدل واقعی فعال اکنون BoxAPI/gpt-6-luna است؛ ابتدا smoke کم‌هزینه: structured output، read-only tool call با آرگومان صحیح و عدم اقدام با داده ناکافی. چهار سناریوی کوچک فعلی جای eval استراتژی نیستند. بودجه policy و ledger پایدار پیش از هر HTTP کنترل شوند. نام/metadata مدل، prompt/hash، tool trace، پاسخ، تعداد تلاش، token و wall time ثبت شود. نام یکسان مدل تضمین خروجی یکسان نیست؛ fake/test model از provider واقعی جدا بماند و مدل قوی‌تر نیز eval تازه لازم دارد.
 
 ablation: AI-on در برابر همان pipeline با تصمیم baseline؛ قضاوت مستقل روی پیشنهاد/رد/exit، نه فقط reason متن. حداقل یک نمونه که مدل opportunity/action را واقعاً تغییر می‌دهد و یک نمونه که risk guard تصمیم پرخطر مدل را مسدود می‌کند. اگر AI نتیجه را بدتر کرد، علت و بازبینی prompt/context را ثبت کنید؛ معیار را برای نگه داشتن معماری ضعیف تغییر ندهید.
 

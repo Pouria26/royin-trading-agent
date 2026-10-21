@@ -7,8 +7,8 @@
 | گزینه | مزیت برای این چالش | هزینه/محدودیت | تصمیم |
 |---|---|---|---|
 | Python 3.12 + asyncio + Decimal + sqlite3 + logging | داده/تست و I/O با یک زبان؛ پول و وضعیت در کد قابل بررسی | سرویس و restart باید درست طراحی شود | D01: انتخاب پایه؛ محیط موجود همین خانواده است |
-| Pydantic AI slim + Google provider | خروجی typed، dependency/tool scope، ابزار آزمون مدل و محدودیت درخواست؛ مناسب AI با ابزار خواندنی محدود | اعتبارسنجی schema سودآوری یا صحت سفارش نیست؛ provider واقعی هنوز آزمایش نشده | D02: انتخاب اولیه لایه AI، مشروط به smoke واقعی؛ فقط extra گوگل |
-| SDK مستقیم google-genai + Pydantic | کنترل کمترواسطه برای یک فراخوانی ساختاریافته | tool loop، ثبت پیام‌ها و حدود اجرا را خودمان باید نگه داریم | جایگزین اگر در سناریوی برابر، Pydantic AI مشکل سازگاری/هزینه اثبات‌شده ایجاد کرد |
+| Pydantic AI slim + OpenAI-compatible BoxAPI | خروجی typed، tool scope و usage limits با Chat Completions | schema جای risk نیست؛ قیمت واسطه باید جدا بررسی شود | D02 به‌روز: extra openai و gpt-6-luna؛ Google حذف، smoke و چهار سناریوی واقعی PASS |
+| SDK مستقیم OpenAI + Pydantic روی BoxAPI | کنترل کمترواسطه برای یک فراخوانی ساختاریافته | tool loop و ثبت/بودجه را باید خودمان نگه داریم | فقط در صورت مشکل اندازه‌گیری‌شده framework؛ فعلاً همان Agent موجود مصرف می‌شود |
 | LangGraph | مدیریت گردش حالت و persistence برای graph پیچیده | state machine سفارش به‌هرحال لازم است؛ graph اضافی فعلاً منفعت اثبات‌شده ندارد | فعلاً انتخاب نشد؛ با نیاز واقعی به workflow چندمرحله‌ای بازبینی شود |
 | Bull/Bear چندایجنتی، AutoGen/CrewAI | فرضیه کاهش خطای تحلیل از چند دیدگاه | درخواست/تأخیر و عدم قطعیت بیشتر؛ شواهد مزیت برای این بازار نداریم | فعلاً حذف؛ فقط با ablation بهتر روی همان داده/بودجه اضافه شود |
 | Wallex REST مستقیم با httpx | مرز روشن سفارش، حساب و reconciliation؛ قرارداد مستند | نگهداری adapter کوچک بر عهده ما | D03: مسیر اجرا؛ MCP الزام رسمی گزارش نشده |
@@ -17,7 +17,7 @@
 | pandas/NumPy یا ابزار بک‌تست موجود | پردازش/تحلیل تاریخی | نیازهای execution خاص والکس و نشت زمانی باید کنترل شود | فعلاً اضافه نشده؛ T07 کمترین ابزار مناسب را بعد از دیدن داده انتخاب کند |
 | SQLite محلی و گزارش فایل | تک‌فرایند، پایدار، قابل تحویل و بدون سرویس اضافه | نیازمند دیسک پایدار و single writer | D04؛ Postgres/Redis/Prisma/Drizzle فعلاً توجیه ندارند |
 
-منابع: [Pydantic AI testing](https://ai.pydantic.dev/testing/)، [خروجی typed](https://ai.pydantic.dev/output/)، [حدود usage](https://ai.pydantic.dev/agents/)، [Google provider](https://ai.pydantic.dev/models/google/)، [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview). انتخاب از روی قابلیت‌ها و تناسب بریف است؛ ادعای بهتر بودن مدل در معامله نیست. حدود framework جای deadline، retry transport و بودجه تجمعی کل سرویس را نمی‌گیرد.
+منابع: [Pydantic AI testing](https://ai.pydantic.dev/testing/)، [خروجی typed](https://ai.pydantic.dev/output/)، [حدود usage](https://ai.pydantic.dev/agents/)، [OpenAI-compatible provider](https://ai.pydantic.dev/models/openai/)، [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview). انتخاب از روی قابلیت‌ها و تناسب بریف است؛ ادعای بهتر بودن مدل در معامله نیست. حدود framework جای deadline، retry transport و بودجه تجمعی کل سرویس را نمی‌گیرد.
 
 ## نقد Blueprint و فرضیه‌هایی که پذیرفته نشدند
 
@@ -30,7 +30,7 @@
 
 ## مدل و آزمایش مقایسه‌ای
 
-به درخواست پوریا، نام مدل تست `gemini-3.5-flash-lite` است؛ در [صفحه رسمی گوگل](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) همین ID و قابلیت structured output/function calling دیده شد. مدل بعدی مسابقه هنوز مشخص نیست. Secret در `GOOGLE_API_KEY` داخل .env محلی قرار می‌گیرد. کد باید `LLM_MODEL` را بخواند و نام مدل را در تصمیم‌ها ثبت کند؛ تغییر مدل بدون اجرای مجدد smoke/مجموعه ثابت مجاز نیست.
+به درخواست تازه پوریا، BoxAPI کاملاً جای Gemini را در runtime گرفت: BOXAPI_API_KEY و LLM_BASE_URL=https://ai.boxapi.ir/ai/v1، فقط Chat Completions، مدل gpt-6-luna. انتخاب بر اساس تعرفه BoxAPI، نه قیمت مستقیم OpenAI است؛ docs/boxapi-budget.md مقایسه و سناریوی سه‌روزه را دارد. Google provider/dependency/key فعال حذف شد؛ شواهد تاریخی Gemini حفظ می‌شوند. تغییر مدل بدون smoke و مجموعه ثابت مجاز نیست و قوی‌تر بودن مدل، سود یا دقت بالاتر را تضمین نمی‌کند.
 
 بدون کلید، تست FunctionModel فقط سیم‌کشی قرارداد و توقف روی خطا را نشان می‌دهد. مقایسه واقعی: ورودی عددی و snapshot یکسان، سیاست ریسک ثابت، بودجه درخواست برابر؛ نرخ پاسخ معتبر، خطای دامنه، ابزارخوانی صحیح، تصمیم در شرایط بدون فرصت، زمان و token usage ثبت شود. سپس AI-on در برابر baseline بدون AI روی همان مسیر execution ارزیابی شود. latency کمتر به‌تنهایی معیار انتخاب نیست؛ خطای تصمیم هم سنجیده شود. قیمت/سقف مصرف فعلاً تأیید نشده؛ تعرفه ورودی/خروجی/تفکر و واحد پول پیش از مصرف عمده ثبت شود.
 
@@ -124,6 +124,6 @@ SQLite روی دیسک پایدار؛ intent پیش از side effect و fill و 
 
 ## محل اجرا
 
-**D06:** توسعه و replay روی لپ‌تاپ؛ worker روی لیارا اگر probe شبکه والکس و Gemini، timezone/NTP، دیسک پایدار، restart، log export و یک نمونه فعال تأیید شد. مستندات رسمی [disk](https://docs.liara.ir/paas/python/how-tos/use-disk/) و [supervisord](https://docs.liara.ir/paas/python/how-tos/use-supervisord/) بررسی شدند؛ deployment هنوز انجام نشده است. برای loop مداوم cron نسازید. Secrets از تنظیمات میزبان، SQLite/manifest روی volume، health شامل age داده/آخرین چرخه و خطا؛ موفقیت deploy برابر readiness نیست.
+**D06:** توسعه و replay روی لپ‌تاپ؛ worker روی لیارا اگر probe شبکه والکس و BoxAPI، timezone/NTP، دیسک پایدار، restart، log export و یک نمونه فعال تأیید شد. مستندات رسمی [disk](https://docs.liara.ir/paas/python/how-tos/use-disk/) و [supervisord](https://docs.liara.ir/paas/python/how-tos/use-supervisord/) بررسی شدند؛ deployment هنوز انجام نشده است. برای loop مداوم cron نسازید. Secrets از تنظیمات میزبان، SQLite/manifest روی volume، health شامل age داده/آخرین چرخه و خطا؛ موفقیت deploy برابر readiness نیست.
 
 اگر زمان راه‌اندازی/محدودیت شبکه سرور حل نشد، لپ‌تاپ برق‌دار، Sleep/Hibernate خاموش، اینترنت آزموده و supervisor/بازیابی معتبر می‌تواند موقتاً worker یگانه باشد؛ این محدودیت پایداری در شواهد ذکر شود. انتقال مالکیت اجرا فقط پس از توقف worker قبلی و reconcile حساب انجام شود.

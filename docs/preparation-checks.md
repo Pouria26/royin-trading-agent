@@ -1,5 +1,11 @@
 # شواهد واقعی آماده‌سازی
 
+**مهاجرت BoxAPI، supersedes تنظیم فعال Gemini:** BoxAPI با gpt-6-luna، reasoning=none و guard SQLite پایدار جای Google را گرفت؛ lock جدید extra openai دارد. کلیدها فقط .env محلی‌اند. [گزارش واقعی](evidence/boxapi-read-only-2026-10-21.json): smoke اولیه و چهار سناریوی ثابت PASS، ۱۰ HTTP و ۲۳۳۷/۲۰۱ token؛ تخمین هزینه0.00038433 دلار، رزرو محافظه‌کارانه0.0123648 دلار. provider واقعی، ورودی synthetic؛ دقت معاملاتی اثبات نشده. [سقف سه‌روزه و قیمت‌ها](boxapi-budget.md)؛ balance سرور/invoice هنوز تأیید نشده‌اند.
+
+آزمون احرازشده خواندنی Wallex: GET /sub-accounts با HTTP200/success=true و result=[]؛ **BLOCKED/exit2** برای ادامه حساب. هیچ main balance، سفارش، فعال‌سازی اعتبار یا انتقال انجام نشد؛ clientId حدس زده نشد. [روش شناسه و دستور تکرار](wallex-read-only-setup.md). تست کامل فعلی **۵۸ passed، صفر failed/skip**؛ Ruff/compileall و check-config/helpها موفق‌اند. شواهد قدیمی پایین تاریخی‌اند و به provider/نسخه جدید تعمیم داده نمی‌شوند.
+
+نصب پاک از lock جدید در محیط موقت جدا با Python 3.12.15 هم انجام شد: uv pip sync، سپس نصب package با --no-deps --editable؛ همان **۵۸ تست** و check-config از env نمونه گذشتند. این اجرا با OpenAI SDK 3.36.0 و Pydantic AI slim 2.59.0 است و SDK گوگل در lock جدید وجود ندارد.
+
 **T02، ۲۰۲۶-۱۰-۲۱:** ۴۹/۴۹ تست با صفر fail/skip در محیط فعلی؛ Ruff/compileall/wheel و CLI/help موفق. قرارداد عمومی داده و fixture schema خصوصی ساخته شد؛ نصب پاک این گام تکرار نشد، lock عوض نشد. [گزارش T02](../research/t02-data-contract.json) **DEGRADED/exit 1** است: از شش پنجره، فقط USDTTMN هفته اول از parser و reference ساعتی روز اول گذشت؛ BTC/ETH هفته اول اختلاف OHLCV و سه پنجره هفته دوم gap داشتند. درخواست هفت‌روزه resolution=1 نیز پیش‌تر فقط boundary داده بود؛ [شکست اولیه](../research/t02-seven-day-request-rejected.json) حفظ شد. علت این اختلاف‌ها هنوز U و داده جامع برای بک‌تست تأیید نشده است.
 
 **مدل واقعی، supersedes مانع no-key قبلی:** GOOGLE_API_KEY در .env محلی ثبت و smoke واقعی PASS/exit 0 شد: WAIT، یک read_snapshot، دو درخواست، ۳۳۴ input و ۴۱ output token، ۱۶٫۶۲۵ ثانیه. [شاهد](evidence/google-smoke-2026-10-21.json) از probe بدون تغییر revision d10e456 است؛ ورودی synthetic بوده و این موفقیت نشان‌دهنده دقت یا سود نیست. هزینه پولی اندازه‌گیری نشد. حساب خصوصی/fee واقعی و min-order هنوز تأیید نشده؛ همه liveها بسته‌اند.

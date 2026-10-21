@@ -24,6 +24,15 @@
 
 یادگیری بعدی باید با تست/منبع مشخص اضافه شود؛ گزارش fake را real یا عدد حدسی را measured ننویسید.
 
+## BoxAPI و حساب — ۲۰۲۶-۱۰-۲۱
+
+- **User / D، supersedes مدل/کلید فعال Google:** فقط BoxAPI در https://ai.boxapi.ir/ai/v1 با Chat Completions؛ gpt-6-luna بر مبنای قیمت منتشرشده انتخاب و واقعاً آزموده شد. Google provider، dependency و key فعال حذف شدند؛ کلیدهای BoxAPI/Wallex در .env محلی‌اند و دوباره از پوریا درخواست نشوند. key/شناسه هرگز در memory یا Git نیاید.
+- **Price / S:** صفحه BoxAPI، Luna6 به ازای ۱M input/output برابر 0.115/0.575 دلار؛ Luna5.6 برابر 0.230/1.380 و Mini5.4 برابر 0.8625/5.1750. models metadata ۱۵٪ کمتر بود؛ guard نرخ بالاتر صفحه را می‌گیرد. قیمت proxy با OpenAI مستقیم یکی فرض نشود؛ balance ۳ دلار فقط گفته کاربر است، نه مشاهده سرور.
+- **Budget / D+tests:** policy کل۲٫۴/روز۰٫۸ دلار، ذخیره۰٫۶، ۶۰۰/۲۰۰ HTTP و ۶M token. SQLite integer nano-USD و BEGIN IMMEDIATE قبل از HTTP؛ خطا/timeout refund ندارد. data/llm-budget.sqlite3 را حذف/reset نکنید و هنگام انتقال worker منتقل کنید. مصرف بیرون پروژه و تغییر تعرفه تحت این guard نیستند.
+- **Real model / S:** یک smoke و چهار سناریوی ثابت همگی PASS؛ ۱۰ درخواست، ۲۳۳۷/۲۰۱ token، هزینه تخمینی 0.00038433 و رزرو0.0123648 دلار. این‌ها semantic smoke محدود روی ورودی synthetic هستند؛ نه AI trading quality یا profitability. قوی‌تر شدن نام مدل تضمین بهتر شدن نتیجه نیست.
+- **Real account / S:** GET احرازشده /sub-accounts با کلید جدید، HTTP200/success=true ولی result=[]؛ هیچ clientId موجود نبود. شناسه همان clientId حساب prop است، از key قبل از | استخراج نمی‌شود. credit activation و main wallet fallback ممنوع؛ تا تخصیص حساب توسط برگزارکننده و احراز دامنه، live بسته است.
+- **User / D:** MASTER_PROMPT.md شخصی و نباید commit شود؛ rule موجود .gitignore حفظ و فایل از tracking خارج شد، محلی باقی است. تاریخچه حذف/بازنویسی نمی‌شود. تغییرها یک checkpoint منسجم دارند، نه commitهای ریز.
+
 ## T02 — ۲۰۲۶-۱۰-۲۱
 
 - **User / D:** commit کمتر و تمرکز بر بهبود دقت؛ یک checkpoint منسجم به جای commitهای ریز. ارجاع «چهار منبع» با متن تکمیلی شامل هفت repository شد؛ دامنه خوانده‌شده و blobها در research/source-review-manifest.json و تصمیم‌ها در docs/source-review.md ثبت است. برتری مناظره/MCP و اعداد دقت/latency متن منبع آزموده و پذیرفته نشده‌اند.
