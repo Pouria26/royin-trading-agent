@@ -1,6 +1,6 @@
 # اتصال MCP والکس
 
-**S، ۲۰۲۶-۱۰-۲۱:** [endpoint ارسالی پوریا](https://api.wallex.ir/mcp) بدون کلید به initialize و tools/list پاسخ HTTP 200 داد: protocolVersion=2024-11-05، serverInfo=api.wallex.ir/1.0.0، تعداد ۵۲ ابزار. فراخوان واقعی wallex_basic_get_markets نیز HTTP 200، بدون خطای JSON-RPC و isError=false، با result.markets بود. این آزمون کیفیت داده را ثابت نمی‌کند. [شاهد sanitized](evidence/wallex-mcp-2026-10-21.json)؛ catalog کامل در data/wallex-mcp-tools.json محلی و ignored است.
+**S، ۲۰۲۶-۱۰-۲۱:** [endpoint ارسالی کاربر](https://api.wallex.ir/mcp) بدون کلید به initialize و tools/list پاسخ HTTP 200 داد: protocolVersion=2024-11-05، serverInfo=api.wallex.ir/1.0.0، تعداد ۵۲ ابزار. فراخوان واقعی wallex_basic_get_markets نیز HTTP 200، بدون خطای JSON-RPC و isError=false، با result.markets بود. این آزمون کیفیت داده را ثابت نمی‌کند. [شاهد sanitized](evidence/wallex-mcp-2026-10-21.json)؛ catalog کامل در data/wallex-mcp-tools.json محلی و ignored است.
 
 **D:** در `C:\Users\Pouria\.codex\config.toml` اتصال Streamable HTTP با نام wallex ثبت شد. مطابق [تنظیمات رسمی Codex](https://developers.openai.com/codex/mcp)، enabled_tools تنها این پنج ابزار عمومی را در اختیار Codex قرار می‌دهد:
 
