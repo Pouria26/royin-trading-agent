@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "source_report": "research/t02-data-contract.json",
+  "source_report_sha256": "88c255c7cf6405a61c35c495dfcef612c8d44c67a3eb2ad90bdf3457dc3c8c30",
+  "datasets": [
+    {
+      "status": "REJECTED",
+      "symbol": "BTCTMN",
+      "start": 1790812800,
+      "end": 1791417600,
+      "reason": "T02 rejected; excluded from ranking"
+    },
+    {
+      "status": "REJECTED",
+      "symbol": "BTCTMN",
+      "start": 1791417600,
+      "end": 1792022400,
+      "reason": "T02 rejected; excluded from ranking"
+    },
+    {
+      "status": "REJECTED",
+      "symbol": "ETHTMN",
+      "start": 1790812800,
+      "end": 1791417600,
+      "reason": "T02 rejected; excluded from ranking"
+    },
+    {
+      "status": "REJECTED",
+      "symbol": "ETHTMN",
+      "start": 1791417600,
+      "end": 1792022400,
+      "reason": "T02 rejected; excluded from ranking"
+    },
+    {
+      "path": "../data/t02/normalized-c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1.json",
+      "sha256": "c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1",
+      "symbol": "USDTTMN",
+      "start": 1790812800,
+      "end": 1791417600,
+      "interval_seconds": 900,
+      "status": "ACCEPTED",
+      "purpose": "DEVELOPMENT_ONLY",
+      "source_status": "PASS_DATA_ONLY; not account permission"
+    },
+    {
+      "status": "REJECTED",
+      "symbol": "USDTTMN",
+      "start": 1791417600,
+      "end": 1792022400,
+      "reason": "T02 rejected; excluded from ranking"
+    }
+  ]
+}

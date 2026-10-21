@@ -7,6 +7,40 @@ from royin.risk import MarketRules, RiskPolicy, evaluate_risk
 
 
 class RiskRegressionTests(unittest.TestCase):
+    def test_pending_entry_blocks_stacking_and_self_cross(self):
+        self.ledger.record_intent(
+            client_id="pending",
+            symbol="USDTTMN",
+            side="BUY",
+            order_type="LIMIT",
+            price=Decimal("60000"),
+            quantity=Decimal("1"),
+            timestamp=1700000000,
+        )
+        decision = Decision(
+            decision_id="new",
+            symbol="USDTTMN",
+            action="ENTER",
+            cutoff=1700000000,
+            snapshot_sha256=self.snapshot_hash,
+            evidence_ids=("ev1",),
+            reason="test",
+            invalidation="next",
+        )
+        result = evaluate_risk(
+            decision,
+            market_rules=self.rules,
+            policy=self.policy,
+            ledger=self.ledger,
+            current_time=1700000030,
+            snapshot_sha256=self.snapshot_hash,
+            candle_close_time=1700000000,
+            current_price=Decimal("60000"),
+            denied_markets=self.denied,
+        )
+        self.assertFalse(result.approved)
+        self.assertIn("pending", result.reason.lower())
+
     def setUp(self):
         self.ledger = Ledger(":memory:")
         self.ledger.set_balance("TMN", free=Decimal("5000000"))

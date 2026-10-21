@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "frozen_at_utc": "2026-10-21T19:58:47.598019+00:00",
+  "frozen_at_tehran": "2026-10-21T23:28:47.598019+03:30",
+  "source_revision": "f4970f342a884192d0a5c63bc255597c78dcfee9",
+  "source_dirty": true,
+  "competition_deadline": "2026-10-23T23:50:00+03:30",
+  "scope": "HISTORICAL_ONLY; no live readiness",
+  "symbols": [
+    "USDTTMN"
+  ],
+  "selection_reason": "Only prior T02 accepted market; selected by data quality before new returns, not winners. Account-specific market access remains unverified.",
+  "public_get_estimate": 27,
+  "public_get_cap": 27,
+  "retry": 0,
+  "timeout_seconds": 20,
+  "rate_spacing_seconds": 0.4,
+  "source_interval_seconds": 60,
+  "evaluation_interval_seconds": 900,
+  "native_reference_seconds": 3600,
+  "first_day_including_warmup": "2026-09-14",
+  "end_exclusive": "2026-09-27",
+  "splits": [
+    {
+      "name": "development",
+      "start": "2026-09-15",
+      "end": "2026-09-21",
+      "windows_72h": 2
+    },
+    {
+      "name": "validation",
+      "start": "2026-09-21",
+      "end": "2026-09-24",
+      "windows_72h": 1
+    },
+    {
+      "name": "final_holdout",
+      "start": "2026-09-24",
+      "end": "2026-09-27",
+      "windows_72h": 1
+    }
+  ],
+  "old_october_1_8": "DEVELOPMENT_ONLY; prior scorecards superseded",
+  "acceptance": "Exact minute coverage, positive consistent OHLC, no gaps/duplicates/future, all hourly native OHLCV equal; mismatch rejects day and any containing window; no weaker oracle",
+  "warmup_bars": 31,
+  "boundary": "flat initial state each 72h window; warmup only preceding bars; no train outcomes past boundary; end liquidation with taker fee + adverse slippage, no entry last 3600s",
+  "configurations": [
+    {
+      "id": "trend_0",
+      "family": "trend",
+      "sma_spread": "0"
+    },
+    {
+      "id": "trend_0_003",
+      "family": "trend",
+      "sma_spread": "0.003"
+    },
+    {
+      "id": "trend_0_006",
+      "family": "trend",
+      "sma_spread": "0.006"
+    },
+    {
+      "id": "reversion_30",
+      "family": "mean_reversion",
+      "rsi_entry": 30,
+      "rsi_exit": 70
+    },
+    {
+      "id": "reversion_35",
+      "family": "mean_reversion",
+      "rsi_entry": 35,
+      "rsi_exit": 65
+    },
+    {
+      "id": "reversion_40",
+      "family": "mean_reversion",
+      "rsi_entry": 40,
+      "rsi_exit": 60
+    }
+  ],
+  "fees": {
+    "taker_per_side": "0.003",
+    "source": "USER_ACCOUNT_REPORT",
+    "maker_used": false,
+    "fee_asset": "SYNTHETIC_QUOTE_UNVERIFIED"
+  },
+  "execution": {
+    "base_adverse_slippage": "0.0005",
+    "base_penetration": "0",
+    "latency_seconds": 10,
+    "volume": "full fill only if candle base volume >= order qty; queue assumption not proven",
+    "stop": "low of touch candle minus adverse slippage; stop before target when order unknown"
+  },
+  "stress": [
+    {
+      "id": "extra_bar_delay",
+      "extra_latency_seconds": 900
+    },
+    {
+      "id": "pessimistic_cost",
+      "adverse_slippage": "0.002",
+      "limit_penetration": "0.001"
+    },
+    {
+      "id": "no_limit_fill",
+      "no_fill": true
+    }
+  ],
+  "risk": {
+    "initial_capital_tmn": "5000000",
+    "max_order_tmn": "1500000",
+    "max_exposure_tmn": "3000000",
+    "stop_loss_pct": "0.02",
+    "max_drawdown_pct": "0.05",
+    "status": "INTERNAL_RESEARCH_NOT_APPROVED_LIVE"
+  },
+  "cost_hurdle": "(1+fee_buy)*(1+adverse_buy)/( (1-fee_sell)*(1-adverse_sell) ) - 1 + spread_buffer + internal_buffer; trend/ATR are not forecasts; quote-fee scenario; buffers .001 and .001",
+  "selection": "development highest worst-window net then aggregate net, lower DD, config id tie; freeze one before validation; any change after holdout consumes holdout",
+  "gate": "correctness + accepted data + documented real AI + positive net validation AND holdout + DD <= internal5% + no single-trade/window dependence + no cost stress collapse; insufficient sample always INSUFFICIENT_EVIDENCE",
+  "sample_limit": "One market and one validation/holdout window cannot establish persistence or independent samples; no statistical confidence claimed",
+  "ai_slice": {
+    "max_decisions": 12,
+    "max_http": 24,
+    "max_new_reserved_usd": "0.04",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "none",
+    "cases": [
+      "entry",
+      "exit",
+      "WAIT",
+      "conflict",
+      "failure"
+    ],
+    "cache": "exact snapshot including own cash/position + prompt/model/config/data hashes only"
+  },
+  "source_hashes": {
+    "src\\royin\\__init__.py": "4b0c0e9db6c80ac2341912f91b25f3ee31f4126abb8f3c5937ac39e94e6e10ff",
+    "src\\royin\\__main__.py": "c19ba2ddeadd568f17dce600f730630194f88eb856cab60fc7ca276168acdee3",
+    "src\\royin\\agent.py": "a269bbdedd1044e4e4f8d11412e4d444986c78028762f7bb4d2af9dfe2fd4ecd",
+    "src\\royin\\broker.py": "48dcb13363bf0394170bedc25b01a9561cb6d8f5f82c470fb3c5563bd0798802",
+    "src\\royin\\config.py": "4b148135f1fa3fddefe94f203dd98d60630a004dc21db45e646affcf9b4e75fb",
+    "src\\royin\\datasets.py": "14692554bff257406a2cb48f5a66570599300a0ac7a186e8efe489e83cfadef7",
+    "src\\royin\\decision.py": "aed057a720a1a180a3cd46fab1a35f9f870ec97f96932ce83d23c6f20cc2ae60",
+    "src\\royin\\evaluation.py": "16f11c2179299065fb45a9db51ff2c4e6ae37f68648056c5104d5dc6f2814e97",
+    "src\\royin\\features.py": "8e124759849229627b19dbf1727ad83179eba065c7e483a1b9a4d184a0053cca",
+    "src\\royin\\ledger.py": "d595de3c4df33cfad877696a8b875f6f60033cb8e11b6652db6c79e067cf82cd",
+    "src\\royin\\logger.py": "cae78f51320e08dd4c40d253acc00c8b865d40a77d12f63e7b2ec318cac78e7d",
+    "src\\royin\\market_data.py": "60e8d85de8827203aaf969e0ef715fa5a46471e16b1baac17f453388cabcfa19",
+    "src\\royin\\markets.py": "32992da6212250ad8e717c9c2056ae32e3013883de50b00107f4f5ea869ceaf9",
+    "src\\royin\\model_budget.py": "d45b47020d35293b44bb89eaba5027ae4787ec09a3e0bbe9eea80bbe1cdd708c",
+    "src\\royin\\risk.py": "8b4a9d5937ee727c20e19594cfa207d5d23e1a159242a07ae19c17724acfd441"
+  }
+}

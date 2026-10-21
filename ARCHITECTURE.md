@@ -1,6 +1,6 @@
 # معماری پیشنهادی و دفتر تصمیم‌ها
 
-وضعیت: **T02 قراردادها/collector عمومی ساخته شد؛ کیفیت جامع داده و دسترسی خصوصی تأییدنشده‌اند. موتور هنوز پیاده‌سازی نشده است.** برچسب R/S/D/U طبق docs/challenge-brief.md. بخش‌های بعدی قرارداد پیشنهادی‌اند؛ دستورهای موجود در AGENTS.md هستند.
+وضعیت جاری ۲۰۲۶-۱۰-۲۱: اجزای paper/ledger/risk/features/Agent و ارزیاب موجودند؛ ادعای کامل بودن با بررسی مستقل superseded شد. نتیجه تاریخی INSUFFICIENT_EVIDENCE و داده تازه BLOCKED_DATA است؛ هیچ نامزد Shadow واقعی/Live تأیید نشده. [شاهد و قرارداد اصلاح‌شده](docs/historical-validation.md).
 
 ## انتخاب ابزار با دلیل
 
@@ -129,3 +129,13 @@ SQLite روی دیسک پایدار؛ intent پیش از side effect و fill و 
 **D06:** توسعه و replay روی لپ‌تاپ؛ worker روی لیارا اگر probe شبکه والکس و BoxAPI، timezone/NTP، دیسک پایدار، restart، log export و یک نمونه فعال تأیید شد. مستندات رسمی [disk](https://docs.liara.ir/paas/python/how-tos/use-disk/) و [supervisord](https://docs.liara.ir/paas/python/how-tos/use-supervisord/) بررسی شدند؛ deployment هنوز انجام نشده است. برای loop مداوم cron نسازید. Secrets از تنظیمات میزبان، SQLite/manifest روی volume، health شامل age داده/آخرین چرخه و خطا؛ موفقیت deploy برابر readiness نیست.
 
 اگر زمان راه‌اندازی/محدودیت شبکه سرور حل نشد، لپ‌تاپ برق‌دار، Sleep/Hibernate خاموش، اینترنت آزموده و supervisor/بازیابی معتبر می‌تواند موقتاً worker یگانه باشد؛ این محدودیت پایداری در شواهد ذکر شود. انتقال مالکیت اجرا فقط پس از توقف worker قبلی و reconcile حساب انجام شود.
+
+## قرارداد اصلاح‌شده ارزیابی و audit
+
+ارزیابی از manifest پذیرشِ hash-bound استفاده می‌کند، نه glob؛ policy موجود بازار بدون استخراج دوباره مصرف می‌شود. state/ledger هر baseline مستقل است. passive buy-once بدون stop جدا از hold با risk مشترک است؛ صرف limit، maker fee را اثبات نمی‌کند. tick/step/minimum/feeAsset سناریویی هستند و درصد بازده روی کل حساب است. پنجره تاریخی deadline خودش را دارد، با توقف ورود در یک ساعت آخر؛ این قاعده داخلی سناریو است، نه شبیه‌سازی قطعی انقضای حساب مسابقه.
+
+OHLC-only فقط کندل کاملاً پس از زمان اقدام را match می‌کند. LIMIT در خود limit، با volume شرطی و penetration/no-fill stress؛ slippage فقط خروج market/stop را نامساعد می‌کند. ترتیب مبهم stop/exit بدبینانه است. episode inventory صفر تا صفر برای round-trip؛ realized، cash، residual basis و MTM جدا، DD فقط close/final settlement.
+
+Audit موجود در مرز داده/تصمیم/ریسک/intent/fill/ledger/stop/finalization وصل شده؛ run و sequence و snapshot/decision/client/fill/position ID، زمان با offset و hashes ثبت می‌شوند. JSONL با fsync و خطای صریح از گزارش انسانی جداست. payload allowlist و redaction صرفاً دفاع چندلایه‌اند؛ raw header/response مجاز نیست. تزریق شبکه production ممنوع، مسیر owned HTTP هوک ModelBudget پیش از ارسال دارد؛ mockهای آفلاین از REAL_MODEL تفکیک‌اند. رزرو محافظه‌کارانه و usage گزارش‌شده provider و invoice سه چیز متفاوت‌اند.
+
+مسیر recorded REAL_MODEL فقط با انطباق snapshot نقد/position همان شاخه و prompt/model/config/data قابل replay است؛ بدون record دقیق fail closed می‌شود. اجرای آن روی منحنی کامل در این مأموریت به علت BLOCKED_DATA انجام نشد؛ prompt فعلی هنوز نقش افزوده فراتر از قواعد را اثبات نمی‌کند.

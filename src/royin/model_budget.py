@@ -18,15 +18,18 @@ class BudgetBlocked(ValueError):
 
 
 class ModelBudget:
-    def __init__(self, config, path=Path("data/llm-budget.sqlite3")):
+    def __init__(self, config, path=Path("data/llm-budget.sqlite3"), *, audit=None):
+        self.audit = audit
         self.config = config
         self.path = path
         raw = POLICY_PATH.read_bytes()
         self.policy = json.loads(raw)
         self.policy_hash = hashlib.sha256(raw).hexdigest()
         p = self.policy
-        if p["currency"] != "USD" or config.LLM_COST_CURRENCY != "USD" or (
-            config.LLM_COST_BUDGET is None or config.LLM_TOKEN_BUDGET is None
+        if (
+            p["currency"] != "USD"
+            or config.LLM_COST_CURRENCY != "USD"
+            or (config.LLM_COST_BUDGET is None or config.LLM_TOKEN_BUDGET is None)
         ):
             raise BudgetBlocked("Explicit USD and token budgets are required")
         self.total_limit = min(decimal_number(p["total_limit_usd"]), config.LLM_COST_BUDGET)
@@ -42,8 +45,9 @@ class ModelBudget:
     def reserve(self, *, now=None):
         p = self.policy
         tokens = p["max_input_tokens"] + p["max_output_tokens"]
-        cost = (p["max_input_tokens"] * self.input_rate
-                + p["max_output_tokens"] * self.output_rate) / Decimal(1_000_000)
+        cost = (
+            p["max_input_tokens"] * self.input_rate + p["max_output_tokens"] * self.output_rate
+        ) / Decimal(1_000_000)
         nano_usd = int((cost * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING))
         now = now or datetime.now(UTC)
         # The competition's Tehran dates use +03:30; no host timezone or optional tz database.
@@ -67,7 +71,8 @@ class ModelBudget:
                 Decimal(total + nano_usd) > self.total_limit * 1_000_000_000
                 or Decimal(daily + nano_usd) > self.daily_limit * 1_000_000_000
                 or total_tokens + tokens > self.config.LLM_TOKEN_BUDGET
-                or count >= p["max_requests_total"] or daily_count >= p["max_requests_daily"]
+                or count >= p["max_requests_total"]
+                or daily_count >= p["max_requests_daily"]
             ):
                 raise BudgetBlocked("Persistent model budget exhausted; no request sent")
             db.execute(
@@ -86,11 +91,26 @@ class ModelBudget:
         raw = request.content
         payload = json.loads(raw)
         limit = payload.get("max_completion_tokens", payload.get("max_tokens"))
-        if len(raw) + 1024 > self.policy["max_input_tokens"] or (
-            type(limit) is not int or not 0 < limit <= self.policy["max_output_tokens"]
-        ) or payload.get("stream") or payload.get("n", 1) != 1 or (
-            payload.get("model") != self.config.LLM_MODEL
-            or any(tool.get("type") != "function" for tool in payload.get("tools", []))
+        if (
+            len(raw) + 1024 > self.policy["max_input_tokens"]
+            or (type(limit) is not int or not 0 < limit <= self.policy["max_output_tokens"])
+            or payload.get("stream")
+            or payload.get("n", 1) != 1
+            or (
+                payload.get("model") != self.config.LLM_MODEL
+                or any(tool.get("type") != "function" for tool in payload.get("tools", []))
+            )
         ):
             raise BudgetBlocked("Request exceeds the reserved token/model contract")
-        self.reserve()
+        cost = self.reserve()
+        if self.audit:
+            self.audit.record_event(
+                "MODEL_RESERVATION",
+                "BUDGET",
+                {
+                    "reserved_input_tokens": self.policy["max_input_tokens"],
+                    "reserved_output_tokens": self.policy["max_output_tokens"],
+                    "reserved_cost_usd": str(cost),
+                    "provider_reported_usage": None,
+                },
+            )

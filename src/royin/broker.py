@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
 
-from royin.ledger import Ledger
+from royin.ledger import Ledger, validate_decimal
 from royin.market_data import Candle
 from royin.risk import MarketRules, RiskResult
 
@@ -66,8 +66,12 @@ class PaperBroker:
     def _restore_from_db(self):
         with self.ledger.connection() as db:
             order_rows = db.execute(
-                "SELECT client_id, symbol, side, price, quantity, stop_price, status, created_at "
-                "FROM broker_orders"
+                "SELECT b.client_id, b.symbol, b.side, "
+                "COALESCE((SELECT f.price FROM fills f WHERE f.client_id=b.client_id ORDER BY f.rowid DESC LIMIT 1),b.price), "
+                "b.quantity, b.stop_price, "
+                "CASE WHEN i.status IN ('FILLED','PARTIALLY_FILLED','CANCELED','PARTIALLY_FILLED_CANCELED') "
+                "THEN i.status ELSE b.status END, b.created_at FROM broker_orders b "
+                "JOIN order_intents i ON i.client_id=b.client_id"
             ).fetchall()
             for r in order_rows:
                 sp = Decimal(r[5]) if r[5] else None
@@ -83,9 +87,19 @@ class PaperBroker:
                 )
                 self.orders[r[0]] = order
 
+            # Recover full filled buys whose stop write was interrupted, but never resurrect a sold position.
+            if self.ledger.get_balance(self.rules.base_asset).total > 0:
+                for order in self.orders.values():
+                    if (
+                        order.side == "BUY"
+                        and order.status in ("FILLED", "PARTIALLY_FILLED")
+                        and order.stop_price
+                    ):
+                        self.active_stop_prices[order.symbol] = order.stop_price
             stop_rows = db.execute("SELECT symbol, stop_price FROM broker_stops").fetchall()
             for r in stop_rows:
-                self.active_stop_prices[r[0]] = Decimal(r[1])
+                if self.ledger.get_balance(self.rules.base_asset).total > 0:
+                    self.active_stop_prices[r[0]] = Decimal(r[1])
 
     def submit_order(
         self,
@@ -145,14 +159,17 @@ class PaperBroker:
                     timestamp,
                 ),
             )
-            if risk_result.stop_price and side == "BUY":
-                self.active_stop_prices[self.rules.symbol] = risk_result.stop_price
-                db.execute(
-                    "INSERT INTO broker_stops (symbol, stop_price) VALUES (?, ?) "
-                    "ON CONFLICT(symbol) DO UPDATE SET stop_price = excluded.stop_price",
-                    (self.rules.symbol, str(risk_result.stop_price)),
-                )
 
+        if self.ledger.audit:
+            self.ledger.audit.record_event(
+                "STATE_TRANSITION",
+                "BROKER",
+                {
+                    "client_id": cid,
+                    "status": status,
+                    "timestamp": timestamp,
+                },
+            )
         return order
 
     def reconcile_order(
@@ -168,6 +185,10 @@ class PaperBroker:
             raise ValueError(f"Unknown client_id: {client_id}")
 
         order = self.orders[client_id]
+        if order.status == "FILLED":
+            if simulated_state != "FILLED":
+                raise ValueError("Cannot transition a filled order to a non-filled state")
+            return order
 
         if simulated_state == "CANCELED":
             self.ledger.cancel_intent(client_id)
@@ -182,13 +203,32 @@ class PaperBroker:
                 created_at=order.created_at,
             )
         elif simulated_state == "FILLED":
+            with self.ledger.connection() as db:
+                executed = sum(
+                    (
+                        Decimal(r[0])
+                        for r in db.execute(
+                            "SELECT quantity FROM fills WHERE client_id=?", (client_id,)
+                        )
+                    ),
+                    Decimal(0),
+                )
+            remaining = order.quantity - executed
+            if remaining == 0:
+                self._restore_from_db()
+                return self.orders[client_id]
             fill_price = executed_price or order.price
-            fee = order.quantity * fill_price * self.rules.taker_fee_rate
+            validate_decimal(fill_price, "executed_price", strictly_positive=True)
+            if (order.side == "BUY" and fill_price > order.price) or (
+                order.side == "SELL" and fill_price < order.price
+            ):
+                raise ValueError("Reconciled LIMIT fill violates its limit")
+            fee = remaining * fill_price * self.rules.taker_fee_rate
             self.ledger.record_fill(
                 fill_id=f"fill_{client_id}",
                 client_id=client_id,
                 price=fill_price,
-                quantity=order.quantity,
+                quantity=remaining,
                 fee=fee,
                 fee_asset=self.rules.quote_asset,
                 timestamp=timestamp,
@@ -233,6 +273,23 @@ class PaperBroker:
                 "UPDATE broker_orders SET status = ?, price = ? WHERE client_id = ?",
                 (reconciled.status, str(reconciled.price), client_id),
             )
+            if reconciled.status == "FILLED" and order.side == "BUY" and order.stop_price:
+                self.active_stop_prices[order.symbol] = order.stop_price
+                db.execute(
+                    "INSERT INTO broker_stops(symbol,stop_price) VALUES (?,?) "
+                    "ON CONFLICT(symbol) DO UPDATE SET stop_price=excluded.stop_price",
+                    (order.symbol, str(order.stop_price)),
+                )
+        if self.ledger.audit:
+            self.ledger.audit.record_event(
+                "STATE_TRANSITION",
+                "BROKER",
+                {
+                    "client_id": client_id,
+                    "status": reconciled.status,
+                    "timestamp": timestamp,
+                },
+            )
         return reconciled
 
     def process_candle(
@@ -241,30 +298,60 @@ class PaperBroker:
         *,
         slippage_pct: Decimal = Decimal("0.0005"),
         candle_interval: int = 900,
+        limit_penetration_pct: Decimal = Decimal(0),
+        no_fill: bool = False,
     ) -> list[str]:
         """Match open orders and check stop-losses strictly without lookahead or limit violations."""
+        validate_decimal(slippage_pct, "slippage_pct")
+        validate_decimal(limit_penetration_pct, "limit_penetration_pct")
+        if (
+            limit_penetration_pct >= 1
+            or slippage_pct >= 1
+            or type(candle_interval) is not int
+            or candle_interval <= 0
+        ):
+            raise ValueError("Invalid execution assumptions")
         filled_order_ids = []
         candle_close_time = candle.open_time + candle_interval
 
+        stop_at_open = self.active_stop_prices.get(self.rules.symbol)
+        if stop_at_open and candle.low <= stop_at_open:
+            for cid, order in list(self.orders.items()):
+                if order.side == "SELL" and order.status in ("OPEN", "UNKNOWN", "PARTIALLY_FILLED"):
+                    self.reconcile_order(
+                        cid, simulated_state="CANCELED", timestamp=candle_close_time
+                    )
+
         # 1. Match OPEN limit orders
         for cid, order in list(self.orders.items()):
-            if order.status != "OPEN":
+            if order.status not in ("OPEN", "PARTIALLY_FILLED"):
                 continue
 
             # Causality guard: cannot match orders created in the future
-            if candle_close_time <= order.created_at:
+            if candle.open_time < order.created_at:
                 continue
 
-            if order.side == "BUY" and candle.low <= order.price:
+            with self.ledger.connection() as db:
+                executed = sum(
+                    (
+                        Decimal(r[0])
+                        for r in db.execute("SELECT quantity FROM fills WHERE client_id=?", (cid,))
+                    ),
+                    Decimal(0),
+                )
+            fill_quantity = order.quantity - executed
+            if no_fill or candle.volume < fill_quantity:
+                continue
+            if order.side == "BUY" and candle.low <= order.price * (1 - limit_penetration_pct):
                 # LIMIT BUY cannot fill above order.price
                 # Slippage can at best fill at order.price, never higher
-                exec_price = min(order.price, max(candle.low, order.price * (Decimal(1) - slippage_pct)))
-                fee = order.quantity * exec_price * self.rules.taker_fee_rate
+                exec_price = order.price
+                fee = fill_quantity * exec_price * self.rules.taker_fee_rate
                 self.ledger.record_fill(
                     fill_id=f"fill_{cid}",
                     client_id=cid,
                     price=exec_price,
-                    quantity=order.quantity,
+                    quantity=fill_quantity,
                     fee=fee,
                     fee_asset=self.rules.quote_asset,
                     timestamp=candle_close_time,
@@ -284,17 +371,25 @@ class PaperBroker:
                         "UPDATE broker_orders SET status = 'FILLED', price = ? WHERE client_id = ?",
                         (str(exec_price), cid),
                     )
+                if order.stop_price:
+                    self.active_stop_prices[order.symbol] = order.stop_price
+                    with self.ledger.connection() as db, db:
+                        db.execute(
+                            "INSERT INTO broker_stops(symbol,stop_price) VALUES (?,?) "
+                            "ON CONFLICT(symbol) DO UPDATE SET stop_price=excluded.stop_price",
+                            (order.symbol, str(order.stop_price)),
+                        )
                 filled_order_ids.append(cid)
 
-            elif order.side == "SELL" and candle.high >= order.price:
+            elif order.side == "SELL" and candle.high >= order.price * (1 + limit_penetration_pct):
                 # LIMIT SELL cannot fill below order.price
-                exec_price = max(order.price, min(candle.high, order.price * (Decimal(1) + slippage_pct)))
-                fee = order.quantity * exec_price * self.rules.taker_fee_rate
+                exec_price = order.price
+                fee = fill_quantity * exec_price * self.rules.taker_fee_rate
                 self.ledger.record_fill(
                     fill_id=f"fill_{cid}",
                     client_id=cid,
                     price=exec_price,
-                    quantity=order.quantity,
+                    quantity=fill_quantity,
                     fee=fee,
                     fee_asset=self.rules.quote_asset,
                     timestamp=candle_close_time,
@@ -322,11 +417,25 @@ class PaperBroker:
         # 2. Check Stop Loss (Independent of AI)
         stop_price = self.active_stop_prices.get(self.rules.symbol)
         if stop_price and candle.low <= stop_price:
+            if self.ledger.audit:
+                self.ledger.audit.record_event(
+                    "STOP",
+                    "BROKER",
+                    {
+                        "symbol": self.rules.symbol,
+                        "stop_price": stop_price,
+                        "timestamp": candle_close_time,
+                    },
+                )
             base_bal = self.ledger.get_balance(self.rules.base_asset).free
             sellable_qty = self.rules.quantize_quantity(base_bal, round_down=True)
-            if sellable_qty >= self.rules.min_quantity:
+            if (
+                sellable_qty >= self.rules.min_quantity
+                and sellable_qty * min(stop_price, candle.low) * (1 - slippage_pct)
+                >= self.rules.min_notional
+            ):
                 stop_cid = f"stop_{candle_close_time}"
-                exec_price = max(Decimal(1), min(stop_price, candle.low) * (Decimal(1) - slippage_pct))
+                exec_price = min(stop_price, candle.low) * (Decimal(1) - slippage_pct)
                 self.ledger.record_intent(
                     client_id=stop_cid,
                     symbol=self.rules.symbol,
@@ -362,14 +471,20 @@ class PaperBroker:
                     db.execute(
                         "INSERT INTO broker_orders (client_id, symbol, side, price, quantity, status, created_at) "
                         "VALUES (?, ?, 'SELL', ?, ?, 'FILLED', ?)",
-                        (stop_cid, self.rules.symbol, str(exec_price), str(sellable_qty), candle_close_time),
+                        (
+                            stop_cid,
+                            self.rules.symbol,
+                            str(exec_price),
+                            str(sellable_qty),
+                            candle_close_time,
+                        ),
                     )
                 filled_order_ids.append(stop_cid)
 
-            if self.rules.symbol in self.active_stop_prices:
-                del self.active_stop_prices[self.rules.symbol]
-            with self.ledger.connection() as db, db:
-                db.execute("DELETE FROM broker_stops WHERE symbol = ?", (self.rules.symbol,))
+            if self.ledger.get_balance(self.rules.base_asset).total == 0:
+                self.active_stop_prices.pop(self.rules.symbol, None)
+                with self.ledger.connection() as db, db:
+                    db.execute("DELETE FROM broker_stops WHERE symbol = ?", (self.rules.symbol,))
 
         return filled_order_ids
 
@@ -379,11 +494,17 @@ class PaperBroker:
         *,
         timestamp: int,
         initial_capital: Decimal = Decimal("5000000"),
+        slippage_pct: Decimal = Decimal(0),
     ) -> dict:
         """Idempotently cancel open orders, liquidate base assets, and produce settlement report."""
+        validate_decimal(current_price, "current_price", strictly_positive=True)
+        validate_decimal(slippage_pct, "slippage_pct")
+        if slippage_pct >= 1:
+            raise ValueError("Invalid slippage")
+        current_price *= Decimal(1) - slippage_pct
         # Cancel all open or unknown orders
         for cid, order in list(self.orders.items()):
-            if order.status in ("OPEN", "UNKNOWN"):
+            if order.status in ("OPEN", "UNKNOWN", "PARTIALLY_FILLED"):
                 self.reconcile_order(cid, simulated_state="CANCELED", timestamp=timestamp)
 
         # Clear stops
@@ -441,8 +562,26 @@ class PaperBroker:
         realized_pnl = self.ledger.get_realized_pnl(self.rules.symbol)
         net_return_pct = ((final_tmn / initial_capital) - Decimal(1)) * Decimal(100)
 
+        if self.ledger.audit:
+            self.ledger.audit.record_event(
+                "FINALIZATION",
+                "BROKER",
+                {
+                    "timestamp": timestamp,
+                    "final_tmn_cash": final_tmn,
+                    "total_realized_pnl": realized_pnl,
+                },
+            )
+            self.ledger.audit.record_event(
+                "RESIDUAL",
+                "BROKER",
+                {
+                    "timestamp": timestamp,
+                    "residual_dust_base": residual_base,
+                },
+            )
         return {
-            "status": "FINALIZED",
+            "status": "FINALIZED_WITH_RESIDUAL" if residual_base else "FINALIZED",
             "final_tmn_cash": str(final_tmn),
             "liquidated_base_quantity": str(liquidated_qty),
             "liquidation_cash_received": str(liquidation_cash),

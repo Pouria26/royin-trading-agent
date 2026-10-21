@@ -1,19 +1,23 @@
 """Evaluation, replay, benchmarking, and causal ablation harnesses for AI decisions."""
 
+import hashlib
+import json
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
-from royin.agent import decide
+from royin.agent import SYSTEM_INSTRUCTIONS, decide
 from royin.broker import PaperBroker
 from royin.config import RuntimeConfig
 from royin.decision import Decision, DecisionProposal, bind_decision
 from royin.features import FeatureSnapshot, extract_features
-from royin.ledger import Ledger
-from royin.logger import get_audit_logger
+from royin.ledger import Ledger, validate_decimal
+from royin.logger import AuditLogger
 from royin.market_data import Candle, CandleSeries
+from royin.markets import load_restrictions
 from royin.risk import MarketRules, RiskPolicy, evaluate_risk
 
 
@@ -117,7 +121,10 @@ def baseline_rule_decision(
     else:
         proposal = DecisionProposal(
             action="WAIT",
-            evidence_ids=("EV_DATA_FRESH", "EV_POSITION_LONG" if has_position else "EV_POSITION_FLAT"),
+            evidence_ids=(
+                "EV_DATA_FRESH",
+                "EV_POSITION_LONG" if has_position else "EV_POSITION_FLAT",
+            ),
             reason="Baseline rule WAIT: No breakout or exit signal triggered",
             invalidation="Next candle close",
         )
@@ -139,7 +146,7 @@ def conviction_fee_aware_decision(
     decision_id: str | None = None,
     allowed_symbols: Sequence[str] = ("USDTTMN",),
     min_spread_pct: Decimal = Decimal("0.005"),  # 0.5% SMA spread hurdle
-    min_atr_pct: Decimal = Decimal("0.006"),     # 0.6% ATR volatility hurdle
+    min_atr_pct: Decimal = Decimal("0.006"),  # 0.6% ATR volatility hurdle
 ) -> Decision:
     """Conviction-filtered strategy: Only enters when trend and volatility comfortably exceed round-trip fees (0.60%)."""
     did = decision_id or f"conv_{snapshot.cutoff}"
@@ -155,9 +162,7 @@ def conviction_fee_aware_decision(
         else Decimal(0)
     )
     atr_pct = (
-        snapshot.atr_14 / snapshot.last_close
-        if snapshot.last_close > Decimal(0)
-        else Decimal(0)
+        snapshot.atr_14 / snapshot.last_close if snapshot.last_close > Decimal(0) else Decimal(0)
     )
 
     if not has_position:
@@ -175,7 +180,7 @@ def conviction_fee_aware_decision(
             proposal = DecisionProposal(
                 action="ENTER",
                 evidence_ids=("EV_TREND_BULLISH", "EV_POSITION_FLAT"),
-                reason=f"Conviction ENTER: SMA spread {sma_spread*100:.2f}% and ATR {atr_pct*100:.2f}% clear 0.6% fee hurdle",
+                reason=f"Conviction ENTER: SMA spread {sma_spread * 100:.2f}% and ATR {atr_pct * 100:.2f}% clear 0.6% fee hurdle",
                 invalidation=f"Price drops below Fast SMA {snapshot.trend_sma_fast}",
             )
         else:
@@ -192,7 +197,10 @@ def conviction_fee_aware_decision(
         if is_reversal or is_overbought:
             proposal = DecisionProposal(
                 action="EXIT",
-                evidence_ids=("EV_TREND_BEARISH" if is_reversal else "EV_RSI_OVERBOUGHT", "EV_POSITION_LONG"),
+                evidence_ids=(
+                    "EV_TREND_BEARISH" if is_reversal else "EV_RSI_OVERBOUGHT",
+                    "EV_POSITION_LONG",
+                ),
                 reason="Conviction EXIT: Trend momentum exhausted or RSI overbought",
                 invalidation="New high breakout",
             )
@@ -236,12 +244,14 @@ async def replay_snapshots(
             decision_id=f"rep_{snap.cutoff}_{i:04d}",
         )
         elapsed = round(time.monotonic() - started, 4)
-        traces.append(EvaluationTrace(
-            decision=decision,
-            snapshot=snap,
-            wall_seconds=elapsed,
-            is_ai=True,
-        ))
+        traces.append(
+            EvaluationTrace(
+                decision=decision,
+                snapshot=snap,
+                wall_seconds=elapsed,
+                is_ai=client is None,
+            )
+        )
     return traces
 
 
@@ -260,6 +270,12 @@ def run_ablation_comparison(
     divergences = []
 
     for snap, ai_dec in zip(snapshots, ai_decisions, strict=True):
+        if (ai_dec.snapshot_sha256, ai_dec.symbol, ai_dec.cutoff) != (
+            snap.snapshot_sha256,
+            snap.symbol,
+            snap.cutoff,
+        ):
+            raise ValueError("Ablation decision/snapshot state mismatch")
         base_dec = baseline_rule_decision(
             snap,
             decision_id=f"base_{snap.cutoff}",
@@ -268,14 +284,16 @@ def run_ablation_comparison(
         if ai_dec.action == base_dec.action:
             agreements += 1
         else:
-            divergences.append({
-                "cutoff": snap.cutoff,
-                "symbol": snap.symbol,
-                "ai_action": ai_dec.action,
-                "ai_reason": ai_dec.reason,
-                "baseline_action": base_dec.action,
-                "baseline_reason": base_dec.reason,
-            })
+            divergences.append(
+                {
+                    "cutoff": snap.cutoff,
+                    "symbol": snap.symbol,
+                    "ai_action": ai_dec.action,
+                    "ai_reason": ai_dec.reason,
+                    "baseline_action": base_dec.action,
+                    "baseline_reason": base_dec.reason,
+                }
+            )
 
     return {
         "total_evaluations": total,
@@ -323,6 +341,56 @@ def verify_decision_causality(
     return is_identical, dec_full, dec_prefix
 
 
+def position_metrics(ledger: Ledger, rules: MarketRules) -> dict:
+    """One trade is a flat-to-flat inventory episode, including all partial exits and fees."""
+    quantity = cost = episode_pnl = Decimal(0)
+    completed = []
+    buys = sells = 0
+    with ledger.connection() as db:
+        rows = db.execute(
+            "SELECT i.side,f.price,f.quantity,f.fee,f.fee_asset FROM fills f "
+            "JOIN order_intents i ON i.client_id=f.client_id ORDER BY f.rowid"
+        ).fetchall()
+    for side, price, qty, fee, asset in rows:
+        price, qty, fee = Decimal(price), Decimal(qty), Decimal(fee)
+        if side == "BUY":
+            buys += 1
+            quantity += qty - (fee if asset == rules.base_asset else 0)
+            cost += price * qty + (fee if asset == rules.quote_asset else 0)
+        else:
+            sells += 1
+            consumed = qty + (fee if asset == rules.base_asset else 0)
+            allocated = cost if consumed == quantity else cost * consumed / quantity
+            episode_pnl += price * qty - (fee if asset == rules.quote_asset else 0) - allocated
+            quantity -= consumed
+            cost -= allocated
+            if quantity == 0:
+                completed.append(episode_pnl)
+                episode_pnl = Decimal(0)
+    wins = [p for p in completed if p > 0]
+    losses = [p for p in completed if p < 0]
+    profit, loss = sum(wins, Decimal(0)), -sum(losses, Decimal(0))
+    return {
+        "closed_round_trips": len(completed),
+        "metric_sample_n": len(completed),
+        "buy_fills": buys,
+        "sell_fills": sells,
+        "round_trip_pnls": [str(p) for p in completed],
+        "winning_round_trips": len(wins),
+        "losing_round_trips": len(losses),
+        "win_rate_pct": 100 * len(wins) / len(completed) if completed else None,
+        "profit_factor": str(profit / loss) if loss else None,
+        "profit_factor_status": "DEFINED"
+        if loss
+        else ("NO_LOSSES" if wins else "NO_TRADES_OR_ZERO_PNL"),
+        "payoff_ratio": str((profit / len(wins)) / (loss / len(losses)))
+        if wins and losses
+        else None,
+        "residual_basis_tmn": str(cost),
+        "open_episode_realized_pnl_tmn": str(episode_pnl),
+    }
+
+
 def run_simulation(
     candles: Sequence[Candle],
     decision_producer: Callable[[FeatureSnapshot], Decision],
@@ -333,27 +401,112 @@ def run_simulation(
     interval_seconds: int = 900,
     slippage_pct: Decimal = Decimal("0.0005"),
     slow_period: int = 30,
-    enable_logging: bool = False,
+    enable_logging: bool = True,
+    audit: AuditLogger | None = None,
+    decision_latency_seconds: int = 10,
+    limit_penetration_pct: Decimal = Decimal(0),
+    no_fill: bool = False,
+    passive: bool = False,
+    decision_source: str = "HOST_BASELINE",
 ) -> dict[str, Any]:
     """Run an end-to-end historical simulation over candles using production Ledger, Risk, and PaperBroker."""
+    validate_decimal(initial_capital, "initial_capital", strictly_positive=True)
     if len(candles) < slow_period + 2:
         raise ValueError(f"Need at least {slow_period + 2} candles for simulation")
 
+    if type(decision_latency_seconds) is not int or decision_latency_seconds < 0:
+        raise ValueError("Invalid decision latency")
+    from royin.datasets import validate_candles
+
+    validate_candles(candles, interval_seconds)
     for i in range(1, len(candles)):
         if candles[i].open_time != candles[i - 1].open_time + interval_seconds:
             raise ValueError(f"Candle sequence has gap at index {i}")
 
-    logger = get_audit_logger() if enable_logging else None
+    import hashlib
+    import json
+    from dataclasses import asdict
 
-    ledger = Ledger(":memory:")
+    data_hash = hashlib.sha256(
+        json.dumps([asdict(c) for c in candles], default=str, sort_keys=True).encode()
+    ).hexdigest()
+    own_logger = enable_logging and audit is None
+    logger = audit or (
+        AuditLogger(
+            enable_console=False,
+            hashes={
+                "code": hashlib.sha256(
+                    b"".join(
+                        p.name.encode() + p.read_bytes()
+                        for p in sorted(Path(__file__).parent.glob("*.py"))
+                    )
+                ).hexdigest(),
+                "config": hashlib.sha256(
+                    repr(
+                        (
+                            rules,
+                            policy,
+                            interval_seconds,
+                            slippage_pct,
+                            decision_latency_seconds,
+                            limit_penetration_pct,
+                            no_fill,
+                            passive,
+                        )
+                    ).encode()
+                ).hexdigest(),
+                "data": data_hash,
+                "prompt": None,
+                "model": None,
+            },
+        )
+        if enable_logging
+        else None
+    )
+    if logger:
+        logger.hashes["data"] = data_hash
+        logger.hashes["config"] = hashlib.sha256(
+            repr(
+                (
+                    rules,
+                    policy,
+                    initial_capital,
+                    interval_seconds,
+                    slippage_pct,
+                    decision_latency_seconds,
+                    limit_penetration_pct,
+                    no_fill,
+                    passive,
+                )
+            ).encode()
+        ).hexdigest()
+        logger.record_event(
+            "DATA_ACCEPTED",
+            "EVAL",
+            {
+                "symbol": rules.symbol,
+                "data_sha256": data_hash,
+                "count": len(candles),
+                "interval_seconds": interval_seconds,
+                "source": "PAPER",
+            },
+        )
+    ledger = Ledger(":memory:", audit=logger)
     ledger.set_balance(rules.quote_asset, free=initial_capital)
     broker = PaperBroker(ledger, rules)
-    denied_markets = frozenset({"PAXGTMN", "OPTMN"})
+    denied_markets = load_restrictions(
+        Path(__file__).resolve().parents[2] / "config/wallex-credit-market-policy.json"
+    )
+    if f"{rules.base_asset}/{rules.quote_asset}" in denied_markets:
+        raise ValueError("Research market is denied by policy")
 
     decisions_count = 0
     orders_submitted = 0
     fills_count = 0
     peak_equity = initial_capital
+    peak_exposure = Decimal(0)
+    exposed_seconds = 0
+    passive_submitted = False
     max_drawdown = Decimal(0)
 
     for i, candle in enumerate(candles):
@@ -362,9 +515,15 @@ def run_simulation(
             candle,
             slippage_pct=slippage_pct,
             candle_interval=interval_seconds,
+            limit_penetration_pct=limit_penetration_pct,
+            no_fill=no_fill,
         )
         fills_count += len(filled)
 
+        exposure = ledger.get_balance(rules.base_asset).total * candle.close
+        peak_exposure = max(peak_exposure, exposure)
+        if exposure > 0:
+            exposed_seconds += interval_seconds
         # 2. Check current equity and track max drawdown
         eq = ledger.get_equity({rules.symbol: candle.close}, quote_currency=rules.quote_asset)
         if eq > peak_equity:
@@ -376,9 +535,11 @@ def run_simulation(
 
         # 3. If closed bars count is sufficient, evaluate decision for candle close
         candle_close_time = candle.open_time + interval_seconds
-        if i >= slow_period:
-            series_slice = CandleSeries(candles=tuple(candles[: i + 1]), interval_seconds=interval_seconds)
-            pos = ledger.get_balance(rules.base_asset).free
+        if i >= slow_period and i < len(candles) - 1:
+            series_slice = CandleSeries(
+                candles=tuple(candles[: i + 1]), interval_seconds=interval_seconds
+            )
+            pos = ledger.get_balance(rules.base_asset).total
             cash = ledger.get_balance(rules.quote_asset).free
 
             snap = extract_features(
@@ -389,10 +550,30 @@ def run_simulation(
                 available_tmn_cash=cash,
                 slow_period=slow_period,
             )
+            if logger:
+                logger.context = {
+                    "symbol": rules.symbol,
+                    "cutoff": snap.cutoff,
+                    "snapshot_sha256": snap.snapshot_sha256,
+                }
+                logger.record_event("SNAPSHOT", "EVAL", {"snapshot": snap.to_canonical_dict()})
             decision = decision_producer(snap)
+            if logger:
+                logger.context["decision_id"] = decision.decision_id
+                logger.record_event(
+                    "HOST_DECISION",
+                    "EVAL",
+                    {
+                        "decision_id": decision.decision_id,
+                        "action": decision.action,
+                        "reason": decision.reason,
+                        "source": decision_source,
+                        "evidence_ids": decision.evidence_ids,
+                    },
+                )
             decisions_count += 1
 
-            current_time = candle_close_time + 10
+            current_time = candle_close_time + decision_latency_seconds
             risk_res = evaluate_risk(
                 decision,
                 market_rules=rules,
@@ -406,7 +587,22 @@ def run_simulation(
                 peak_equity=peak_equity,
             )
 
+            if logger:
+                logger.record_event(
+                    "RISK_APPROVED" if risk_res.approved else "RISK_REJECTED",
+                    "RISK",
+                    {
+                        "approved": risk_res.approved,
+                        "action": risk_res.action,
+                        "reason": risk_res.reason,
+                        "event_time": current_time,
+                    },
+                )
+            if passive and passive_submitted:
+                continue
             if risk_res.approved and risk_res.action != "WAIT":
+                if passive:
+                    risk_res = replace(risk_res, stop_price=None)
                 order = broker.submit_order(
                     risk_res,
                     client_id=f"ord_{candle_close_time}_{i}",
@@ -414,13 +610,18 @@ def run_simulation(
                 )
                 if order:
                     orders_submitted += 1
+                    passive_submitted = passive_submitted or passive
                     if logger:
-                        logger.record_event("SIM_ORDER_SUBMITTED", "EVAL", {
-                            "client_id": order.client_id,
-                            "action": risk_res.action,
-                            "price": str(order.price),
-                            "quantity": str(order.quantity),
-                        })
+                        logger.record_event(
+                            "SIM_ORDER_SUBMITTED",
+                            "EVAL",
+                            {
+                                "client_id": order.client_id,
+                                "action": risk_res.action,
+                                "price": str(order.price),
+                                "quantity": str(order.quantity),
+                            },
+                        )
 
     # 4. Finalize portfolio
     final_candle = candles[-1]
@@ -429,48 +630,61 @@ def run_simulation(
         current_price=final_candle.close,
         timestamp=final_time,
         initial_capital=initial_capital,
+        slippage_pct=slippage_pct,
     )
 
     # 5. Extract realized PnL rows and fee audit
     with ledger.connection() as db:
-        pnl_rows = db.execute("SELECT pnl FROM realized_pnl WHERE symbol = ?", (rules.symbol,)).fetchall()
-        pnls = [Decimal(r[0]) for r in pnl_rows]
+        fills_count = db.execute("SELECT COUNT(*) FROM fills").fetchone()[0]
+        total_orders = db.execute("SELECT COUNT(*) FROM order_intents").fetchone()[0]
+        filled_orders = db.execute("SELECT COUNT(DISTINCT client_id) FROM fills").fetchone()[0]
+        turnover = sum(
+            (Decimal(p) * Decimal(q) for p, q in db.execute("SELECT price,quantity FROM fills")),
+            Decimal(0),
+        )
 
         # Total fees paid
         fee_rows = db.execute("SELECT fee, fee_asset FROM fills").fetchall()
         total_fees_tmn = sum(Decimal(r[0]) for r in fee_rows if r[1] == "TMN")
         total_fees_base = sum(Decimal(r[0]) for r in fee_rows if r[1] == rules.base_asset)
 
-    wins = [p for p in pnls if p > Decimal(0)]
-    losses = [p for p in pnls if p < Decimal(0)]
-    win_rate = (len(wins) / len(pnls) * 100) if pnls else 0.0
-
-    gross_profit = sum(wins, Decimal(0))
-    gross_loss = abs(sum(losses, Decimal(0)))
-    profit_factor = (gross_profit / gross_loss) if gross_loss > Decimal(0) else (Decimal("999.9") if gross_profit > Decimal(0) else Decimal("1.0"))
-
-    avg_win = (gross_profit / Decimal(len(wins))) if wins else Decimal(0)
-    avg_loss = (gross_loss / Decimal(len(losses))) if losses else Decimal(0)
-    payoff_ratio = (avg_win / avg_loss) if avg_loss > Decimal(0) else (Decimal("999.9") if avg_win > Decimal(0) else Decimal("1.0"))
-
+    metrics = position_metrics(ledger, rules)
+    final_equity = ledger.get_equity({rules.symbol: final_candle.close}, rules.quote_asset)
+    peak_equity = max(peak_equity, final_equity)
+    max_drawdown = max(max_drawdown, (peak_equity - final_equity) / peak_equity)
+    if own_logger:
+        logger.close()
     return {
+        "run_id": logger.run_id if logger else None,
         "symbol": rules.symbol,
         "initial_capital_tmn": str(initial_capital),
         "final_cash_tmn": fin_report["final_tmn_cash"],
         "total_realized_pnl": fin_report["total_realized_pnl"],
-        "net_return_pct": fin_report["net_return_pct"],
         "residual_dust_base": fin_report["residual_dust_base"],
         "decisions_count": decisions_count,
         "orders_submitted": orders_submitted,
+        "total_orders_including_stop_finalization": total_orders,
+        "orders_with_any_fill": filled_orders,
         "fills_count": fills_count,
-        "closed_round_trips": len(pnls),
-        "winning_round_trips": len(wins),
-        "losing_round_trips": len(losses),
-        "win_rate_pct": round(win_rate, 2),
-        "profit_factor": str(round(profit_factor, 2)),
-        "payoff_ratio": str(round(payoff_ratio, 2)),
-        "total_fees_paid_tmn": str(round(total_fees_tmn, 2)),
-        "total_fees_paid_base": str(round(total_fees_base, 6)),
+        **metrics,
+        "evidence_kind": "REAL_MODEL_DECISIONS_PAPER_EXECUTION"
+        if decision_source == "REAL_MODEL_REPLAY"
+        else "PAPER_BASELINE_NO_AI",
+        "execution_model": "OHLC conservative LIMIT at limit; stop at low; taker fee; no queue proof",
+        "final_equity_mtm_tmn": str(final_equity),
+        "net_return_pct": str((final_equity / initial_capital - 1) * 100),
+        "cash_return_pct": fin_report["net_return_pct"],
+        "gross_pnl_before_quote_fees_tmn": str(final_equity - initial_capital + total_fees_tmn),
+        "net_pnl_mtm_tmn": str(final_equity - initial_capital),
+        "pnl_contract": "weighted average basis includes buy quote fee; realized sells net of sell fee; fees informational, not subtracted twice; gross only for this quote-fee simulation",
+        "return_denominator": "whole initial account; not position return",
+        "drawdown_basis": "closed-candle MTM plus final exit fee; not intrabar",
+        "peak_exposure_tmn": str(peak_exposure),
+        "time_exposed_seconds": exposed_seconds,
+        "turnover_tmn": str(turnover),
+        "latency_seconds": decision_latency_seconds,
+        "total_fees_paid_tmn": str(total_fees_tmn),
+        "total_fees_paid_base": str(total_fees_base),
         "max_drawdown_pct": str(round(max_drawdown * Decimal(100), 4)),
     }
 
@@ -482,13 +696,31 @@ def evaluate_strategy_suite(
     *,
     initial_capital: Decimal = Decimal("5000000"),
     interval_seconds: int = 900,
+    ai_records: Sequence[dict] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Evaluate full comparative scorecard across all 4 strategy baselines."""
+    """Baselines without AI; optional REAL_MODEL replay must bind the entire own-state manifest."""
+    if ai_records is not None:
+        expected = {
+            "prompt_sha256": hashlib.sha256(SYSTEM_INSTRUCTIONS.encode()).hexdigest(),
+            "model": "gpt-6-luna",
+            "data_sha256": hashlib.sha256(
+                json.dumps([asdict(c) for c in candles], default=str, sort_keys=True).encode()
+            ).hexdigest(),
+            "config_sha256": hashlib.sha256(
+                repr((rules, policy, initial_capital, interval_seconds)).encode()
+            ).hexdigest(),
+        }
+        if any(
+            r.get("manifest") != expected or r.get("source") != "REAL_MODEL" for r in ai_records
+        ):
+            raise ValueError("Recorded AI prompt/model/config/data manifest mismatch")
     strategies = {
         "1_Cash_Baseline": lambda s: always_wait_decision(s),
         "2_Buy_and_Hold": lambda s: buy_and_hold_decision(s),
-        "3_Naive_Crossover": lambda s: baseline_rule_decision(s),
-        "4_Fee_Aware_Conviction": lambda s: conviction_fee_aware_decision(s),
+        "3_Naive_Crossover": lambda s: baseline_rule_decision(s, allowed_symbols=(rules.symbol,)),
+        "4_Fee_Aware_Conviction": lambda s: conviction_fee_aware_decision(
+            s, allowed_symbols=(rules.symbol,)
+        ),
     }
 
     results = {}
@@ -501,11 +733,60 @@ def evaluate_strategy_suite(
             initial_capital=initial_capital,
             interval_seconds=interval_seconds,
         )
+        res["benchmark_contract"] = (
+            "shared risk, may stop and reenter; same initial cash/max order/exposure"
+        )
         results[name] = res
+    results["2b_Passive_Buy_Once"] = run_simulation(
+        candles,
+        buy_and_hold_decision,
+        rules,
+        policy,
+        initial_capital=initial_capital,
+        interval_seconds=interval_seconds,
+        passive=True,
+    )
+    results["2b_Passive_Buy_Once"]["benchmark_contract"] = (
+        "buy once, no stop/reentry; same max initial allocation; not identical risk"
+    )
+    if ai_records is not None:
+        records = {r["snapshot_sha256"]: r for r in ai_records}
+        if len(records) != len(ai_records) or any(
+            r.get("source") != "REAL_MODEL" for r in ai_records
+        ):
+            raise ValueError("AI records must be unique real model decisions")
+
+        def recorded_ai(snap):
+            r = records.get(snap.snapshot_sha256)
+            if not r or r.get("snapshot") != snap.to_canonical_dict():
+                raise ValueError(
+                    "No REAL_MODEL decision for this strategy's exact position/cash snapshot"
+                )
+            dec = Decision.model_validate(r["decision"])
+            if (
+                dec.snapshot_sha256 != snap.snapshot_sha256
+                or dec.cutoff != snap.cutoff
+                or dec.symbol != snap.symbol
+            ):
+                raise ValueError("Recorded decision state mismatch")
+            return dec
+
+        results["5_Recorded_REAL_MODEL"] = run_simulation(
+            candles,
+            recorded_ai,
+            rules,
+            policy,
+            initial_capital=initial_capital,
+            interval_seconds=interval_seconds,
+            decision_source="REAL_MODEL_REPLAY",
+        )
+        results["5_Recorded_REAL_MODEL"]["evidence_kind"] = "REAL_MODEL_DECISIONS_PAPER_EXECUTION"
     return results
 
 
-def format_scorecard_markdown(scorecard: dict[str, dict[str, Any]], title: str = "Strategy Comparative Evaluation Scorecard") -> str:
+def format_scorecard_markdown(
+    scorecard: dict[str, dict[str, Any]], title: str = "Strategy Comparative Evaluation Scorecard"
+) -> str:
     """Format comparative scorecard into clean GitHub Markdown table."""
     lines = [
         f"### {title}",
@@ -519,7 +800,7 @@ def format_scorecard_markdown(scorecard: dict[str, dict[str, Any]], title: str =
         pnl = f"{float(r['total_realized_pnl']):+,.0f}"
         mdd = f"{float(r['max_drawdown_pct']):.2f}%"
         trades = r["closed_round_trips"]
-        wr = f"{r['win_rate_pct']:.1f}%"
+        wr = "undefined" if r["win_rate_pct"] is None else f"{r['win_rate_pct']:.1f}%"
         pf = r["profit_factor"]
         fees = f"{float(r['total_fees_paid_tmn']):,.0f}"
         lines.append(f"| **{name}** | {ret} | {pnl} | {mdd} | {trades} | {wr} | {pf} | {fees} |")

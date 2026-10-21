@@ -68,7 +68,8 @@ class FillRecord:
 class Ledger:
     """Atomic SQLite-backed ledger using Decimal arithmetic for all currency amounts."""
 
-    def __init__(self, db_path: Path | str = ":memory:"):
+    def __init__(self, db_path: Path | str = ":memory:", *, audit=None):
+        self.audit = audit
         self.db_path = str(db_path)
         self._memory_conn = None
         if self.db_path == ":memory:":
@@ -190,8 +191,7 @@ class Ledger:
         with self.connection() as db:
             rows = db.execute("SELECT asset, free, locked FROM balances").fetchall()
             return {
-                r[0]: Balance(asset=r[0], free=Decimal(r[1]), locked=Decimal(r[2]))
-                for r in rows
+                r[0]: Balance(asset=r[0], free=Decimal(r[1]), locked=Decimal(r[2])) for r in rows
             }
 
     def record_intent(
@@ -285,6 +285,20 @@ class Ledger:
                 ),
             )
 
+        if self.audit:
+            self.audit.record_event(
+                "INTENT",
+                "LEDGER",
+                {
+                    "client_id": client_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "price": price,
+                    "quantity": quantity,
+                    "timestamp": timestamp,
+                    "order_type": order_type,
+                },
+            )
         return OrderIntent(
             client_id=client_id,
             symbol=symbol,
@@ -388,7 +402,13 @@ class Ledger:
                     Decimal(existing[4]),
                     existing[5],
                 )
-                if (ex_cid, ex_p, ex_q, ex_f, ex_fa) != (client_id, price, quantity, fee, fee_asset):
+                if (ex_cid, ex_p, ex_q, ex_f, ex_fa) != (
+                    client_id,
+                    price,
+                    quantity,
+                    fee,
+                    fee_asset,
+                ):
                     raise ValueError(
                         f"Conflicting payload for existing fill_id: {fill_id} "
                         f"(stored: {(ex_cid, ex_p, ex_q, ex_f, ex_fa)}, incoming: {(client_id, price, quantity, fee, fee_asset)})"
@@ -411,7 +431,20 @@ class Ledger:
             if not intent:
                 raise ValueError(f"Order intent not found for client_id: {client_id}")
 
-            symbol, side, intent_price_str, intent_qty_str, fee_res_str, quote_asset, base_asset, _ = intent
+            (
+                symbol,
+                side,
+                intent_price_str,
+                intent_qty_str,
+                fee_res_str,
+                quote_asset,
+                base_asset,
+                _,
+            ) = intent
+            position_row = db.execute(
+                "SELECT value FROM metadata WHERE key=?", (f"position_origin_{base_asset}",)
+            ).fetchone()
+            position_id = position_row[0] if position_row else client_id
             intent_price = Decimal(intent_price_str)
             intent_qty = Decimal(intent_qty_str)
             fee_reserve = Decimal(fee_res_str)
@@ -443,7 +476,9 @@ class Ledger:
                 quote_locked_to_release = (intent_price * quantity) + (fee_reserve * proportion)
                 quote_cost = price * quantity
 
-                q_bal = db.execute("SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)).fetchone()
+                q_bal = db.execute(
+                    "SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)
+                ).fetchone()
                 q_free, q_locked = Decimal(q_bal[0]), Decimal(q_bal[1])
 
                 effective_release = min(q_locked, quote_locked_to_release)
@@ -458,7 +493,11 @@ class Ledger:
                     new_q_free = q_free + savings
                     net_base_received = quantity - fee
 
-                if new_q_free < Decimal(0) or new_q_locked < Decimal(0) or net_base_received < Decimal(0):
+                if (
+                    new_q_free < Decimal(0)
+                    or new_q_locked < Decimal(0)
+                    or net_base_received < Decimal(0)
+                ):
                     raise ValueError(
                         f"Settlement resulted in negative balance: free={new_q_free}, locked={new_q_locked}, net_base={net_base_received}"
                     )
@@ -468,30 +507,61 @@ class Ledger:
                     (str(new_q_free), str(new_q_locked), quote_asset),
                 )
 
-                b_bal = db.execute("SELECT free, locked FROM balances WHERE asset = ?", (base_asset,)).fetchone()
-                b_free, b_locked = (Decimal(b_bal[0]), Decimal(b_bal[1])) if b_bal else (Decimal(0), Decimal(0))
+                b_bal = db.execute(
+                    "SELECT free, locked FROM balances WHERE asset = ?", (base_asset,)
+                ).fetchone()
+                b_free, b_locked = (
+                    (Decimal(b_bal[0]), Decimal(b_bal[1])) if b_bal else (Decimal(0), Decimal(0))
+                )
                 db.execute(
                     "INSERT INTO balances (asset, free, locked) VALUES (?, ?, ?) "
                     "ON CONFLICT(asset) DO UPDATE SET free = ?, locked = ?",
-                    (base_asset, str(b_free + net_base_received), str(b_locked),
-                     str(b_free + net_base_received), str(b_locked)),
+                    (
+                        base_asset,
+                        str(b_free + net_base_received),
+                        str(b_locked),
+                        str(b_free + net_base_received),
+                        str(b_locked),
+                    ),
                 )
 
                 basis_row = db.execute(
-                    "SELECT total_quantity, total_cost_quote FROM cost_basis WHERE asset = ?", (base_asset,)
+                    "SELECT total_quantity, total_cost_quote FROM cost_basis WHERE asset = ?",
+                    (base_asset,),
                 ).fetchone()
-                old_qty, old_cost = (Decimal(basis_row[0]), Decimal(basis_row[1])) if basis_row else (Decimal(0), Decimal(0))
+                old_qty, old_cost = (
+                    (Decimal(basis_row[0]), Decimal(basis_row[1]))
+                    if basis_row
+                    else (Decimal(0), Decimal(0))
+                )
+                if old_qty == 0:
+                    position_id = client_id
+                    db.execute(
+                        "INSERT INTO metadata(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                        (f"position_origin_{base_asset}", position_id),
+                    )
                 total_buy_cost = quote_cost + (fee if fee_asset == quote_asset else Decimal(0))
                 db.execute(
                     "INSERT INTO cost_basis (asset, total_quantity, total_cost_quote) VALUES (?, ?, ?) "
                     "ON CONFLICT(asset) DO UPDATE SET total_quantity = ?, total_cost_quote = ?",
-                    (base_asset, str(old_qty + net_base_received), str(old_cost + total_buy_cost),
-                     str(old_qty + net_base_received), str(old_cost + total_buy_cost)),
+                    (
+                        base_asset,
+                        str(old_qty + net_base_received),
+                        str(old_cost + total_buy_cost),
+                        str(old_qty + net_base_received),
+                        str(old_cost + total_buy_cost),
+                    ),
                 )
 
             else:  # SELL
-                b_bal = db.execute("SELECT free, locked FROM balances WHERE asset = ?", (base_asset,)).fetchone()
+                b_bal = db.execute(
+                    "SELECT free, locked FROM balances WHERE asset = ?", (base_asset,)
+                ).fetchone()
                 b_free, b_locked = Decimal(b_bal[0]), Decimal(b_bal[1])
+                extra_base_fee = fee if fee_asset == base_asset else Decimal(0)
+                b_free -= extra_base_fee
+                if b_free < 0:
+                    raise ValueError("Insufficient free base balance for SELL fee")
                 new_b_locked = b_locked - quantity
                 if new_b_locked < Decimal(0):
                     raise ValueError("Base locked balance cannot be negative")
@@ -503,7 +573,9 @@ class Ledger:
                 gross_quote = price * quantity
                 net_quote_received = gross_quote - (fee if fee_asset == quote_asset else Decimal(0))
 
-                q_bal = db.execute("SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)).fetchone()
+                q_bal = db.execute(
+                    "SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)
+                ).fetchone()
                 q_free, q_locked = Decimal(q_bal[0]), Decimal(q_bal[1])
                 db.execute(
                     "UPDATE balances SET free = ?, locked = ? WHERE asset = ?",
@@ -511,18 +583,23 @@ class Ledger:
                 )
 
                 basis_row = db.execute(
-                    "SELECT total_quantity, total_cost_quote FROM cost_basis WHERE asset = ?", (base_asset,)
+                    "SELECT total_quantity, total_cost_quote FROM cost_basis WHERE asset = ?",
+                    (base_asset,),
                 ).fetchone()
-                old_qty, old_cost = (Decimal(basis_row[0]), Decimal(basis_row[1])) if basis_row else (Decimal(0), Decimal(0))
+                old_qty, old_cost = (
+                    (Decimal(basis_row[0]), Decimal(basis_row[1]))
+                    if basis_row
+                    else (Decimal(0), Decimal(0))
+                )
 
                 if old_qty > Decimal(0):
                     with localcontext() as ctx:
                         ctx.prec = 36
                         ctx.traps[Inexact] = False
                         cost_per_unit = old_cost / old_qty
-                        cost_of_sold = cost_per_unit * quantity
+                        cost_of_sold = cost_per_unit * (quantity + extra_base_fee)
                         realized_pnl = net_quote_received - cost_of_sold
-                        new_remaining_qty = max(Decimal(0), old_qty - quantity)
+                        new_remaining_qty = max(Decimal(0), old_qty - quantity - extra_base_fee)
                         new_remaining_cost = max(Decimal(0), old_cost - cost_of_sold)
                 else:
                     realized_pnl = net_quote_received
@@ -535,15 +612,65 @@ class Ledger:
                 db.execute(
                     "INSERT INTO cost_basis (asset, total_quantity, total_cost_quote) VALUES (?, ?, ?) "
                     "ON CONFLICT(asset) DO UPDATE SET total_quantity = ?, total_cost_quote = ?",
-                    (base_asset, str(new_remaining_qty), str(new_remaining_cost),
-                     str(new_remaining_qty), str(new_remaining_cost)),
+                    (
+                        base_asset,
+                        str(new_remaining_qty),
+                        str(new_remaining_cost),
+                        str(new_remaining_qty),
+                        str(new_remaining_cost),
+                    ),
                 )
 
             if curr_filled + quantity == intent_qty:
-                db.execute("UPDATE order_intents SET status = 'FILLED' WHERE client_id = ?", (client_id,))
+                db.execute(
+                    "UPDATE order_intents SET status = 'FILLED' WHERE client_id = ?", (client_id,)
+                )
             else:
-                db.execute("UPDATE order_intents SET status = 'PARTIALLY_FILLED' WHERE client_id = ?", (client_id,))
+                db.execute(
+                    "UPDATE order_intents SET status = 'PARTIALLY_FILLED' WHERE client_id = ?",
+                    (client_id,),
+                )
 
+            if db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='broker_orders'"
+            ).fetchone():
+                db.execute(
+                    "UPDATE broker_orders SET status=(SELECT status FROM order_intents WHERE client_id=?) "
+                    "WHERE client_id=?",
+                    (client_id, client_id),
+                )
+
+        if self.audit:
+            self.audit.record_event(
+                "FILL",
+                "LEDGER",
+                {
+                    "fill_id": fill_id,
+                    "position_id": position_id,
+                    "client_id": client_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "price": price,
+                    "quantity": quantity,
+                    "fee": fee,
+                    "fee_asset": fee_asset,
+                    "timestamp": timestamp,
+                },
+            )
+            self.audit.record_event(
+                "LEDGER_RECONCILIATION",
+                "LEDGER",
+                {
+                    "client_id": client_id,
+                    "fill_id": fill_id,
+                    "realized_pnl_tmn": self.get_realized_pnl(symbol),
+                    "position_id": position_id,
+                    "balance": {
+                        k: {"free": v.free, "locked": v.locked}
+                        for k, v in self.get_all_balances().items()
+                    },
+                },
+            )
         return FillRecord(
             fill_id=fill_id,
             client_id=client_id,
@@ -557,7 +684,9 @@ class Ledger:
     def get_realized_pnl(self, symbol: str | None = None) -> Decimal:
         with self.connection() as db:
             if symbol:
-                rows = db.execute("SELECT pnl FROM realized_pnl WHERE symbol = ?", (symbol,)).fetchall()
+                rows = db.execute(
+                    "SELECT pnl FROM realized_pnl WHERE symbol = ?", (symbol,)
+                ).fetchall()
             else:
                 rows = db.execute("SELECT pnl FROM realized_pnl").fetchall()
             return sum((Decimal(r[0]) for r in rows), Decimal(0))

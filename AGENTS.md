@@ -71,7 +71,7 @@ uv build --wheel
 
 rawهای content-addressed و گزارش در `data/t02` ذخیره می‌شوند؛ snapshot دارای hash/query/زمان است. خروجی `PASS_DATA_ONLY` فقط قرارداد/کیفیت محدود داده است؛ وضعیت جاری **DEGRADED و exit 1** است، نه pass. gap، پاسخ مرزی بدون داده و اختلاف OHLCV نمونه ساعتی dataset خروجی را برای همان پنجره می‌بندد. این ابزار backtest، shadow یا تأیید حساب نیست؛ private transport ندارد.
 
-خروجی سالم `VALID_CONFIG_ONLY` و `network_enabled=false` و `trading_enabled=false` است؛ خطای config، `BLOCKED` و exit 2 است. این CLI **موتور معامله نیست**؛ همه liveها، حتی با کلید/allowlist، تا تکمیل گیت‌های بعدی رد می‌شوند. broker و سیاست ریسک هنوز وجود ندارند؛ موفقیت check-config مجوز بازار یا readiness نیست. compileall جای lint/typecheck نیست.
+خروجی سالم `VALID_CONFIG_ONLY` و `network_enabled=false` و `trading_enabled=false` است؛ خطای config، `BLOCKED` و exit 2 است. این CLI **موتور معامله نیست**؛ همه liveها، حتی با کلید/allowlist، تا تکمیل گیت‌های بعدی رد می‌شوند. اجزای PaperBroker و ریسک موجودند؛ موفقیت check-config مجوز بازار یا readiness نیست. compileall جای lint/typecheck نیست.
 
 config از .env پوشه جاری (در صورت وجود) و سپس متغیرهای فرایند خوانده می‌شود؛ `--env-file` صریح باید وجود داشته باشد. کلید ناشناخته فایل و متغیر ناشناخته با پیشوند اختصاصی پروژه رد می‌شود؛ متغیرهای عمومی سیستم نادیده گرفته می‌شوند. dotenv نامعتبر/تکراری رد و interpolation غیرفعال است. بودجه مدل صریح USD/token برای درخواست پولی اجباری است. LLM_BASE_URL فقط https://ai.boxapi.ir/ai/v1 و WALLEX_BASE_URL فقط origin رسمی است. legacy GOOGLE_API_KEY پذیرفته نیست؛ کلید محلی آن حذف شد.
 
@@ -107,6 +107,7 @@ docs/evaluation-plan.md قرارداد آزمون است. ترتیب زمانی 
 - .env محلی، رسانه، داده/لاگ حساب و artifacts خام ignored. قبل از stage، diff و secret leakage را بررسی کن؛ کلید واقعی را در خروجی ابزار، خط فرمان، exception، ویدئو و memory ننویس. PII اعضا لازم نیست.
 - فایل‌های مرتبط را صریح stage کن؛ `git add .` کورکورانه نزن. بعد از هر فاز قابل تأیید و گذر checks، `git add` و commit انجام بده؛ فایل‌های کاربر را بدون نیاز وارد commit نکن.
 - مطابق ترجیح کاربر، commit در پایان فاز منسجم و آزموده‌شده باشد، نه برای هر ویرایش کوچک. تجمیع commit فقط با درخواست صریح او؛ نسخه‌های ایجادکننده معامله و manifest آن‌ها حفظ شوند.
+- پیام هر commit یک عنوان کوتاه، سپس یک خط خالی و بدنه چندخطی داشته باشد: مسئله/دلیل تغییر، تغییرات اصلی، آزمون و نتیجه واقعی، و محدودیت یا گیت بازمانده در صورت وجود. پیام تک‌خطی و ادعای آزمون‌نشده ممنوع؛ برای متن چندخطی از فایل UTF-8 و `git commit --file <path>` استفاده کن. این قاعده به‌تنهایی مجوز amend یا بازنویسی تاریخچه نیست.
 - اگر تست واقعی به کلید/سرور/عمل کاربر نیاز دارد، دقیق بگو کدام متغیر، کدام دستور و چه خروجی سالم/خراب انتظار می‌رود. تا آن چک انجام نشده، فاز مربوطه verified نیست؛ commit کار مستقل مجاز است با ذکر چک مسدود.
 - قبل از live revision تمیز و commit شده باشد. manifest هر run با همان commit/config/prompt/dataset/model ثبت شود؛ تغییر کد باید run جدید داشته باشد. شواهد نسخه‌های مختلف را به یک نتیجه ساختگی ترکیب نکن.
 
@@ -115,3 +116,12 @@ docs/evaluation-plan.md قرارداد آزمون است. ترتیب زمانی 
 memory.md حافظه واحد پروژه است؛ فایل agent.md موازی نساز. نکته پایدار، خطای تکرارشونده، قرارداد تأییدشده و دلیل تصمیم را با تاریخ، منبع و اثر تست اضافه کن؛ فرضیه را واقعیت ننویس و با تصحیح، یادداشت قبلی را superseded کن.
 
 TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیجه تست/مانع و قدم بعدی به‌روز کن. گزارش فاز: تغییر → معیار داوری/AC → دستور و نتیجه واقعی → real/simulated → محدودیت → درخواست دقیق کار انسانی در صورت نیاز → commit. پایان پاسخ یک یا دو خط: چه چیزی چک نشد/کنار گذاشته شد و خطر باقیمانده. رتبه اول یا سود تضمینی ادعا نکن.
+
+## فرمان ارزیابی اصلاح‌شده — اجراشده، نه گیت سود
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts\run_eval.py --manifest config\evaluation-datasets.json --all
+.\.venv\Scripts\python.exe -X utf8 -m scripts.collect_validation_data --protocol config\historical-validation-protocol.json
+```
+
+فرمان اول فقط داده پذیرفته manifest و baseline بدون AI می‌گیرد؛ هر run مسیر تازه دارد. فرمان دوم در این مأموریت با ۲۵ GET از سقف۲۷، BLOCKED_DATA شد؛ برای اجرای دوباره پروتکل/بودجه تازه صریح لازم است و retry برای عبور از محدودیت مجاز نیست. نتیجه/شواهد و محدودیت در docs/historical-validation.md؛ چهار کندل shadow_cycle تست synthetic است، نه Shadow جاری. رزرو مدل usage/invoice نیست و ledger آن پاک/صفر نمی‌شود.

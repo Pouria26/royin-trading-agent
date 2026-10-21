@@ -115,6 +115,7 @@ class PaperBrokerTests(unittest.TestCase):
         self.assertEqual(reconciled.status, "FILLED")
         self.assertEqual(reconciled.client_id, "cid_unk")
         self.assertEqual(self.ledger.get_balance("USDT").free, Decimal("10.0"))
+        self.assertEqual(self.broker.active_stop_prices["USDTTMN"], Decimal("58200"))
 
     def test_finalize_portfolio_is_idempotent(self):
         # Buy 10 USDT and keep 10 USDT open

@@ -4,8 +4,8 @@
 
 ## وضعیت و مرز اجرای واقعی
 
-- CLI فعلی `python -m royin check-config` اعتبارسنجی را ارائه می‌کند. اجزای اصلی شامل Ledger اتمیک (با جمع دقیق پایتون و مانده‌های سه‌گانه)، گیت‌های ریسک مستقل (با کلید افت سرمایه پایدار در اس‌کیولایت)، PaperBroker (با تطبیق محافظه‌کارانه و استاپ‌لاس خودکار)، ایجنت تصمیم‌گیر AI (با مدل gpt-6-luna از BoxAPI، ابزار کانتکست وابستگی‌ها، و هوک بودجه)، و موتور شبیه‌سازی علّی سرتاسری پیاده‌سازی و با ۱۲۵ تست واحد و رگرسیون تایید شدند.
-- حساب اختصاصی هکاتون با دستور فقط‌خواندنی `probe_wallex_account` تایید و هویت prop فعال آن احراز شد؛ ۵٬۰۰۰٬۰۰۰ تومان آزاد و کارمزد پایه تومانی Maker=0.0025 و Taker=0.0030 با گزارش کاربر انطباق ۱۰۰٪ دارند.
+- CLI فعلی check-config و ارزیابی تاریخیِ manifest-gated دارد؛ ledger/risk/PaperBroker/features/Agent موجودند. تعداد تست یا schema-valid بودن، اعتبار مالی/آمادگی live نیست. یافته‌های این مأموریت و شواهد قبلی در docs/historical-validation.md تفکیک شده‌اند؛ هیچ نامزد تاریخی به Shadow واقعی منتقل نشد.
+- R/S: گزارش کاربر و probe قبلی برای حساب ۵٬۰۰۰٬۰۰۰ TMN و TMN maker/taker=0.0025/0.0030 موجود است؛ در این مأموریت probe خصوصی تکرار نشد. feeAsset/minimum/step/expiry تأیید حسابی ندارند؛ fee اعتبار صفر با معامله بدون fee متفاوت است.
 - حالت اجرای زنده (live) همچنان مسدود است (`ENABLE_LIVE_TRADING=false`) و هیچ کلاینت ارسالی به بازار زنده وجود ندارد (Fail-Closed).
 - فقط اسپات بدون لوریج/borrow/short؛ SELL از موجودی قابل فروش است. فعال‌سازی اعتبار، برداشت/انتقال، حساب اصلی و سفارش واقعی در دامنه فعلی مجاز نیستند. پایان ثبت‌شده ۲۰۲۶-۱۰-۲۳ ساعت ۲۳:۵۰ ایران؛ سرمایه مبنا ۵٬۰۰۰٬۰۰۰ TMN است. کیفیت ویدئو/دلیل معاملات/نسخه سودساز الزامات تحویل‌اند؛ سود تنها کافی نیست.
 - تعداد یا شکل درست پاسخ‌های مدل، HTTP 200 و موفقیت parser اثبات سودآوری، fill یا آمادگی live نیستند. fake، بک‌تست، سایه و حساب واقعی جدا گزارش شوند. Blueprint قدیمی منبع حقیقت نیست.
@@ -51,3 +51,13 @@
 - **User/S:** endpoint https://api.wallex.ir/mcp؛ initialize/tools/list واقعی بدون احراز موفق، ۵۲ ابزار شامل عملیات مالی؛ get_markets عمومی موفق. شاهد: docs/evidence/wallex-mcp-2026-10-21.json.
 - **D:** اتصال محلی Codex با پنج ابزار عمومی allowlist و بدون Secret ثبت و CLI get تأیید شد؛ ابزارهای حساب/سفارش/مارجین/انتقال/اعتبار مجاز نیستند. بارگذاری نشست جدید U است؛ یادداشت قدیمی مجهول بودن URL superseded شد.
 - **D/U:** Agent رویین متصل نشده؛ بهبود دقت/سود از MCP اثبات نشده و REST قطعی اجرا حفظ می‌شود. docs/wallex-mcp.md دامنه و محدودیت را ثبت می‌کند؛ T03 هنوز کامل نیست.
+
+## اعتبار تاریخی — ۲۰۲۶-۱۰-۲۱، اصلاح و supersession
+
+- D/S: حد limit به‌عنوان قیمت fill محافظه‌کارانه، بدون بهبود قیمت از slippage؛ OHLC تنها اگر candle.open_time >= created_at قابل match است. latency +10s عمداً شروع کندل مجاور را از دست می‌دهد؛ timestamp عقب نمی‌رود. stop در low منهای friction، پیش از خروج limit در intrabar مبهم فرض می‌شود؛ تضمین fill واقعی نیست.
+- D/S: فقط config/evaluation-datasets.json با hash و metadata پذیرش؛ REJECTED/duplicate از نتایج اصلی حذف. هفته اکتبر۱–۸ فقط development است. min/tick/step و feeAsset شبیه‌سازی synthetic، taker .003 سناریوی گزارش حساب است.
+- D/S: trade یک episode از inventory صفر تا صفر است؛ partial exits یک trade نیستند. PF/win rate برای N=0 یا بدون ضرر null/status دارند؛ finalization fee در close-only MTM DD دیده می‌شود، نه intrabar DD. SELL fee پایه موجودی و basis را مصرف می‌کند؛ fill/status مالی در تراکنش و بازیابی با client_id پایدار است.
+- D/S: Audit schema_version/run/sequence/decision/snapshot/order/fill/position ID، fsync و payload allowlist دارد؛ redaction best-effort است، نه ماسک صددرصد. failure نوشتن audit propagate می‌شود. injected network client/production agent ممنوع؛ فقط MockTransport بدون mount و TestModel/FunctionModel برای تزریق آزمون. production ModelBudget واقعی و همان config لازم دارد.
+- D/S: protocol c69b427581ebd640122cc7d327f04d356671270e01e8f156e42ba03b53d3eb83 پیش از داده تازه freeze؛ ۲۵ GET از سقف۲۷، فقط سپتامبر۱۷/۱۸ پذیرفته، هیچ پنجره۷۲ساعته کامل نیست: BLOCKED_DATA. شش configuration برنامه‌ریزی‌شده جست‌وجو نشدند، holdout برای بازده باز نشد و مدل پولی جدید صفر بود.
+- U: ارزش افزوده AI و منحنی AI هم‌حالت هنوز اثبات نشده؛ recorded replay باید prompt/model/config/data و cash/position snapshot خودش را دقیق تطبیق دهد. آمار ۸ smoke تجمیعی بدون دو manifest معتبر نیست؛ رزرو دفتر actual usage/invoice نیست. shadow_cycle چهار کندل synthetic است و T09 را verified نمی‌کند.
+- بعدی: علت اختلاف source minute/native را با مرجع رسمی تعیین کن؛ oracle را ضعیف نکن و با داده development قدیمی holdout نساز. منبع/معنای timestamps حل‌نشده، نمونه کم، queue/volume فرضی و مشخصات سفارش تأییدنشده، گیت Shadow/Live را بسته نگه می‌دارند.

@@ -5,6 +5,7 @@ import json
 import sqlite3
 import sys
 import time
+import uuid
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,12 +17,16 @@ from royin.model_budget import ModelBudget
 from royin.risk import MarketRules, RiskPolicy, evaluate_risk
 
 
-def run_smoke_test(max_snapshots: int = 8) -> dict:
+def run_smoke_test(max_snapshots: int = 7) -> dict:
+    if not 1 <= max_snapshots <= 12:
+        raise ValueError("Bounded smoke requires 1..12 snapshots")
     config = load_config()
     budget = ModelBudget(config)
 
     # Load validated USDTTMN dataset
-    dataset_path = Path("data/t02/normalized-c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1.json")
+    dataset_path = Path(
+        "data/t02/normalized-c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1.json"
+    )
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset not found: {dataset_path}")
 
@@ -63,11 +68,15 @@ def run_smoke_test(max_snapshots: int = 8) -> dict:
 
     db_path = Path("data/llm-budget.sqlite3")
     conn = sqlite3.connect(db_path)
-    res_before = conn.execute("SELECT COUNT(*), COALESCE(SUM(nano_usd), 0), COALESCE(SUM(tokens), 0) FROM model_reservations").fetchone()
+    res_before = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(nano_usd), 0), COALESCE(SUM(tokens), 0) FROM model_reservations"
+    ).fetchone()
     conn.close()
 
     results = []
-    print(f"Executing real AI smoke test on {len(sample_indices)} snapshots with BoxAPI gpt-6-luna...")
+    print(
+        f"Executing real AI smoke test on {len(sample_indices)} snapshots with BoxAPI gpt-6-luna..."
+    )
 
     async def _evaluate_all():
         for idx in sample_indices:
@@ -82,6 +91,7 @@ def run_smoke_test(max_snapshots: int = 8) -> dict:
 
             # Evaluate through Risk gate
             from royin.ledger import Ledger
+
             temp_ledger = Ledger(":memory:")
             temp_ledger.set_balance("TMN", free=Decimal("5000000"))
 
@@ -97,24 +107,30 @@ def run_smoke_test(max_snapshots: int = 8) -> dict:
                 denied_markets=denied,
             )
 
-            results.append({
-                "index": idx,
-                "cutoff": close_time,
-                "decision_id": decision.decision_id,
-                "action": decision.action,
-                "evidence_ids": list(decision.evidence_ids),
-                "reason": decision.reason,
-                "invalidation": decision.invalidation,
-                "latency_seconds": elapsed,
-                "risk_approved": risk_res.approved,
-                "risk_reason": risk_res.reason,
-            })
-            print(f"  [{idx:03d}] action={decision.action} latency={elapsed}s risk_approved={risk_res.approved}")
+            results.append(
+                {
+                    "index": idx,
+                    "cutoff": close_time,
+                    "decision_id": decision.decision_id,
+                    "action": decision.action,
+                    "evidence_ids": list(decision.evidence_ids),
+                    "reason": decision.reason,
+                    "invalidation": decision.invalidation,
+                    "latency_seconds": elapsed,
+                    "risk_approved": risk_res.approved,
+                    "risk_reason": risk_res.reason,
+                }
+            )
+            print(
+                f"  [{idx:03d}] action={decision.action} latency={elapsed}s risk_approved={risk_res.approved}"
+            )
 
     asyncio.run(_evaluate_all())
 
     conn = sqlite3.connect(db_path)
-    res_after = conn.execute("SELECT COUNT(*), COALESCE(SUM(nano_usd), 0), COALESCE(SUM(tokens), 0) FROM model_reservations").fetchone()
+    res_after = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(nano_usd), 0), COALESCE(SUM(tokens), 0) FROM model_reservations"
+    ).fetchone()
     conn.close()
 
     count_diff = res_after[0] - res_before[0]
@@ -128,19 +144,27 @@ def run_smoke_test(max_snapshots: int = 8) -> dict:
         "provider": config.LLM_PROVIDER,
         "snapshots_tested": len(results),
         "reservations_added": count_diff,
-        "tokens_consumed": tokens_diff,
-        "cost_usd": str(cost_usd),
+        "reserved_tokens": tokens_diff,
+        "reserved_input_tokens": count_diff * budget.policy["max_input_tokens"],
+        "reserved_output_tokens": count_diff * budget.policy["max_output_tokens"],
+        "provider_reported_usage": None,
+        "cost_estimate_usd": None,
+        "reserved_cost_usd": str(cost_usd),
         "results": results,
     }
 
-    out_file = Path("artifacts/ai_smoke_test_manifest.json")
+    out_file = Path("artifacts") / ("ai_smoke_" + uuid.uuid4().hex) / "manifest.json"
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"\nSmoke test complete. Manifest saved to {out_file}")
-    print(f"Tokens consumed: {tokens_diff}, Cost: ${cost_usd} USD ({count_diff} reservations)")
+    print(
+        f"Reserved tokens: {tokens_diff}, Reserved cost: ${cost_usd} USD ({count_diff} reservations)"
+    )
     return manifest
 
 
 if __name__ == "__main__":
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else 7  # 7 additional + 1 run earlier = 8 total
+    count = (
+        int(sys.argv[1]) if len(sys.argv) > 1 else 7
+    )  # Each run is independent; never infer a cumulative sample count.
     run_smoke_test(count)

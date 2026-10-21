@@ -36,12 +36,16 @@ class MarketRules:
 
     def quantize_price(self, price: Decimal) -> Decimal:
         validate_decimal(price, "price", strictly_positive=True)
-        return (price / self.tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * self.tick_size
+        return (price / self.tick_size).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        ) * self.tick_size
 
     def quantize_quantity(self, quantity: Decimal, round_down: bool = True) -> Decimal:
         validate_decimal(quantity, "quantity", allow_zero=True)
         rounding = ROUND_DOWN if round_down else ROUND_HALF_UP
-        return (quantity / self.step_size).quantize(Decimal("1"), rounding=rounding) * self.step_size
+        return (quantity / self.step_size).quantize(
+            Decimal("1"), rounding=rounding
+        ) * self.step_size
 
 
 @dataclass(frozen=True)
@@ -197,7 +201,9 @@ def evaluate_risk(
         )
 
     # 8. Deadline check
-    if (current_time >= policy.deadline_utc - policy.min_seconds_before_deadline) and decision.action == "ENTER":
+    if (
+        current_time >= policy.deadline_utc - policy.min_seconds_before_deadline
+    ) and decision.action == "ENTER":
         return RiskResult(
             approved=False,
             reason="Rejected: Competition deadline approaching; new entries closed",
@@ -210,7 +216,9 @@ def evaluate_risk(
         )
 
     # 9. Portfolio drawdown kill-switch with durable metadata persistence
-    current_equity = ledger.get_equity({symbol: current_price}, quote_currency=market_rules.quote_asset)
+    current_equity = ledger.get_equity(
+        {symbol: current_price}, quote_currency=market_rules.quote_asset
+    )
     if peak_equity is None:
         saved_peak = ledger.get_meta(f"peak_equity_{market_rules.quote_asset}")
         if saved_peak:
@@ -233,6 +241,23 @@ def evaluate_risk(
                 stop_price=None,
                 estimated_fee_quote=zero,
             )
+
+    with ledger.connection() as db:
+        pending = db.execute(
+            "SELECT 1 FROM order_intents WHERE symbol=? AND status IN ('OPEN','PARTIALLY_FILLED') LIMIT 1",
+            (symbol,),
+        ).fetchone()
+    if pending:
+        return RiskResult(
+            False,
+            "Rejected: pending order requires reconciliation before another intent",
+            "WAIT",
+            symbol,
+            zero,
+            zero,
+            None,
+            zero,
+        )
 
     # 10. Action ENTER (Spot Buy)
     if decision.action == "ENTER":

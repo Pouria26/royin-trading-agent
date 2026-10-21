@@ -1,0 +1,1625 @@
+{
+  "schema_version": 1,
+  "status": "INSUFFICIENT_EVIDENCE",
+  "data_status": "BLOCKED_DATA",
+  "created_at_utc": "2026-10-21T20:37:43.052471+00:00",
+  "source_revision": "f4970f342a884192d0a5c63bc255597c78dcfee9",
+  "tested_on_dirty_tree": true,
+  "source_hashes": {
+    "config\\evaluation-datasets.json": "cff995fdcf3667216d9889abc1ff360de10d018301233b06b5325343f5a6d03e",
+    "config\\historical-validation-protocol.json": "c69b427581ebd640122cc7d327f04d356671270e01e8f156e42ba03b53d3eb83",
+    "requirements.lock": "ff00f35e745d2e42792fea61c5430c6d7d4721d8ea07c166da759699f5f6c9de",
+    "requirements.txt": "5a92939b329079ca3d26d2e8dd15cb2e1025a878c0633877747d1540fe738b2f",
+    "scripts\\audit_market_data.py": "f01afbd9582b27368754c119dc3166e330092c050ffa027398874bbe8ae29251",
+    "scripts\\collect_validation_data.py": "e76f98e36387b8b484c9de92da72682dbd75b5422d654b6b69faefd212ccd269",
+    "scripts\\prepare_market_data.py": "4601e70d87340be3dcf00c127d025d41da1bf2b75f3f76a2e58314273d74a5e9",
+    "scripts\\probe_model.py": "7db91b5a875136ecb2776cdb0e3fe6fdd48349ae0076db71efed35313e7e7839",
+    "scripts\\probe_wallex_account.py": "0887b657073fa29c78e12ffb78eb060f13855e242bdc6287281dc6967f10422c",
+    "scripts\\replay_paper.py": "a975f68dfe11baf0a2ba2b6d7bde5638da696ce15bf3adb9f55a00078f7c6c22",
+    "scripts\\run_eval.py": "28592ae933dbd3d88846cf8ce8fdbe113d5883a54af42b82b83a5323f93f9fcc",
+    "scripts\\shadow_cycle.py": "5910dbcefcd62f609db374c0d53ad15175272516c2c53cae03e0d71d87d8d424",
+    "scripts\\smoke_trading_agent.py": "d99b90b1bccc8c3b2f7fbee04169b33aae8f3c632ada2f83d5d72bee6defa6d4",
+    "src\\royin\\__init__.py": "4b0c0e9db6c80ac2341912f91b25f3ee31f4126abb8f3c5937ac39e94e6e10ff",
+    "src\\royin\\__main__.py": "c19ba2ddeadd568f17dce600f730630194f88eb856cab60fc7ca276168acdee3",
+    "src\\royin\\agent.py": "9d2f2e757e879aafef5bb977ee4b75579b08e6831e5ba3bc06ecdc0f406a0ec9",
+    "src\\royin\\broker.py": "89a877f85a8c260ef3341fe8107610cc91f8dc5014538c5f7b14b64ea782bb67",
+    "src\\royin\\config.py": "4b148135f1fa3fddefe94f203dd98d60630a004dc21db45e646affcf9b4e75fb",
+    "src\\royin\\datasets.py": "289fa34b7c9dedcc0bbb9814a20c3792dedae541c25ee10a8a92eb00976d4b53",
+    "src\\royin\\decision.py": "aed057a720a1a180a3cd46fab1a35f9f870ec97f96932ce83d23c6f20cc2ae60",
+    "src\\royin\\evaluation.py": "5d781cf90bb8d712003a57106e4892d056ef29c731be4430fee51eeafee325f1",
+    "src\\royin\\features.py": "8e124759849229627b19dbf1727ad83179eba065c7e483a1b9a4d184a0053cca",
+    "src\\royin\\ledger.py": "c40f7c8e807a367b6e9b5af6585e9e9ca932d2c0f4f3decd836156a9821bfc24",
+    "src\\royin\\logger.py": "018d76ecf96fa5bb51ce16322b026a9d94da31e63dad14765c0d500a1df99d33",
+    "src\\royin\\market_data.py": "60e8d85de8827203aaf969e0ef715fa5a46471e16b1baac17f453388cabcfa19",
+    "src\\royin\\markets.py": "32992da6212250ad8e717c9c2056ae32e3013883de50b00107f4f5ea869ceaf9",
+    "src\\royin\\model_budget.py": "93e527b4aa3afa69656a731bd046e2af9d312ee240d219dc00d3f16f30126937",
+    "src\\royin\\risk.py": "3c988e2ea2cb44f0e4c71129cdc8fb78f15a90886ef1e39560b311eec4c8340f",
+    "tests\\test_agent_contract.py": "528788c20a2c0c1343b0843f91558040e62d92aceb5c1b34bc654220cdd3596a",
+    "tests\\test_agent_decision.py": "9d595a7b9e6f9e768cb098bf2d0808ebe938ab2fb512ef26a409d5d87467a666",
+    "tests\\test_agent_regressions.py": "5f4a68aad5bb7e1745b429e53b1a5afb4ca199745ff44acf0987224016333fba",
+    "tests\\test_broker_regressions.py": "3356f47536ddc34205456c882c2eafa61f263f3035c1b7cad1a23d777bdef73f",
+    "tests\\test_decision.py": "86221c74aaa14da12f2c6e6bf48da71768f09cf3bffbb21f2dda0c68b45286cb",
+    "tests\\test_evaluation_metrics.py": "cb16a5088794a3f021a39dca61f602a2e4aa449df93c8ef781e040c3262aaf14",
+    "tests\\test_feature_regressions.py": "3f37f6fa72dba4ac92f629179ca0e7c9d436f4d7ca840a8113c15be20c009ba2",
+    "tests\\test_features.py": "afe7f44ff2e18742c803dc277d01fea426afce58ff9175850191bb71c1859b9f",
+    "tests\\test_historical_validation.py": "54600f05eb51adc2842a6b87e54872e25d205c11a423099db041c61b0b940d8c",
+    "tests\\test_ledger.py": "cf8541872fa06170d0aef44d2da585f0d97c28ca184289a58a25bdb8d0c98681",
+    "tests\\test_ledger_regressions.py": "cfcc4fa6f4b187cf16f08eb2e251cc31e72904e3bcdc72a46f982a4a43040fcf",
+    "tests\\test_logger.py": "3f82bb4d8b68e3397000da5a080fd29c77c6586158d1b7ac310181e0a44e33ca",
+    "tests\\test_market_contracts.py": "38412249e5850410b1cb72eb5f5389154488a4c9a99c18f330fcb7e4cf540400",
+    "tests\\test_market_data_audit.py": "8a81e2dee158d07e3498daf6eaf9d17f943c24251aa38ef39ede034d0b3e3546",
+    "tests\\test_market_policy_snapshot.py": "4696b140df9087bc5507447161197f44a2d4967e36c52f3fcad415e63aa14b3e",
+    "tests\\test_model_budget.py": "0b0401fc664a89a6e0cf587cad4e6e549f3b2876309e8b26c8f3edc514ad40a6",
+    "tests\\test_model_probe_safety.py": "0ecf033844d57eaa96921184afd0500834a03aeffdf312802669992067aa3959",
+    "tests\\test_paper_broker.py": "90fb3393af001ec65d7cfdb614ccf3a646b04657d2e3d8b9ea7349151e109c4f",
+    "tests\\test_prepare_market_data.py": "da376389a414a579c8272eafb0303bd3e9785aafac38a6d1af1f83166d878f74",
+    "tests\\test_replay_paper.py": "a5b7e1bba1cdc67b7cddfd52b1d242b5d98cb753d7b10008a4043d5eb67bb579",
+    "tests\\test_risk.py": "a265915781a1a2384473707267941d3bd1aa877b100f8d8741cb45094f00adee",
+    "tests\\test_risk_regressions.py": "c2f674452f76b03e8eedf06f5d3c624c120b47039c72d86d523fa4370d7c7b3b",
+    "tests\\test_runtime_config.py": "04122af907049188978d236d7fa5f8ca27d6fe54457941120c42c67562fec629",
+    "tests\\test_shadow_cycle.py": "a5db6b3cbceb39aa694927c81286cb41a6ab64eada733fcc177392d4e51ad936",
+    "tests\\test_simulation_engine.py": "344caa04b158feaa3ff95893eb319198a78b155e812763df1f1da173b54777be",
+    "tests\\test_validation_collector.py": "36343bb2ae1585c16f3680d3d9d2543140ab39e0f99ec4f4ca860526529f0a9c",
+    "tests\\test_wallex_account_probe.py": "481d8e1c6cfcb41a73214efe2158ae74543089be37cc2243320adf863402c72e"
+  },
+  "protocol_sha256": "c69b427581ebd640122cc7d327f04d356671270e01e8f156e42ba03b53d3eb83",
+  "offline_run_id": "20261021T203348Z_2cc77f81",
+  "offline_manifest_sha256": "91697c9aecb0a6fe964fce8fbff31682ee415cd6d9ea4554351a2be32d2e08d8",
+  "old_data_role": "DEVELOPMENT_ONLY; T02 limited native comparison first day only; no validation/holdout ranking",
+  "accepted_old_dataset_sha256": "c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1",
+  "data_quality": {
+    "protocol_sha256": "c69b427581ebd640122cc7d327f04d356671270e01e8f156e42ba03b53d3eb83",
+    "source": "Wallex public; no account permission",
+    "actual_gets": 25,
+    "status": "BLOCKED_DATA",
+    "days": [
+      {
+        "symbol": "USDTTMN",
+        "start": 1789344000,
+        "end": 1789430400,
+        "status": "REJECTED",
+        "date_utc": "2026-09-14",
+        "hourly_mismatches": 4,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789344000,
+              "to": 1789430400
+            },
+            "raw_sha256": "58f41e380fe89847a76f7768724044195cbe8f0d8becb4e890f17380f45461a1",
+            "fetched_at_utc": "2026-10-21T19:59:27.571672+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789344000,
+              "to": 1789430400
+            },
+            "raw_sha256": "59292e259efa8e3c0836bd4bcde55d18a619a89a7c38dc3f9ed308e1665472ae",
+            "fetched_at_utc": "2026-10-21T19:59:28.391175+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789430400,
+        "end": 1789516800,
+        "status": "REJECTED",
+        "date_utc": "2026-09-15",
+        "hourly_mismatches": 1,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789430400,
+              "to": 1789516800
+            },
+            "raw_sha256": "f778add0a2cbe403286051cad15b24274c275bd8933b6e033a7c1b8df1ca6a08",
+            "fetched_at_utc": "2026-10-21T19:59:29.642210+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789430400,
+              "to": 1789516800
+            },
+            "raw_sha256": "e3c644abb2ae1d310a4e15d40ef4e6f8191720c94f01962d37b1c0dbb97e4893",
+            "fetched_at_utc": "2026-10-21T19:59:30.662198+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789516800,
+        "end": 1789603200,
+        "status": "REJECTED",
+        "date_utc": "2026-09-16",
+        "hourly_mismatches": 2,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789516800,
+              "to": 1789603200
+            },
+            "raw_sha256": "d8260a271200e29f365fbaa183fe065c1c0244457342852ac97f181c3a3be511",
+            "fetched_at_utc": "2026-10-21T19:59:31.944255+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789516800,
+              "to": 1789603200
+            },
+            "raw_sha256": "ba72417ddb21617811791e7c4016d53089d69dfeeb6f20831b0299e3245d6b9c",
+            "fetched_at_utc": "2026-10-21T19:59:32.732223+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789603200,
+        "end": 1789689600,
+        "status": "ACCEPTED",
+        "date_utc": "2026-09-17",
+        "hourly_mismatches": 0,
+        "error_type": null,
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789603200,
+              "to": 1789689600
+            },
+            "raw_sha256": "f5dfbaa6883189192648d21b472bb35f9792d9507ea848df66f3d6a469184458",
+            "fetched_at_utc": "2026-10-21T19:59:33.889095+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789603200,
+              "to": 1789689600
+            },
+            "raw_sha256": "416a463096413596db94eef560611ebee397eff01be4c2f00842555addab7204",
+            "fetched_at_utc": "2026-10-21T19:59:34.720534+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789689600,
+        "end": 1789776000,
+        "status": "ACCEPTED",
+        "date_utc": "2026-09-18",
+        "hourly_mismatches": 0,
+        "error_type": null,
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789689600,
+              "to": 1789776000
+            },
+            "raw_sha256": "505b7781bb8506da28331cc600d58cfd9a8732cf4ed75cc52845beaca92c7f24",
+            "fetched_at_utc": "2026-10-21T19:59:36.319026+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789689600,
+              "to": 1789776000
+            },
+            "raw_sha256": "b7d277d3802af61d7f614063fe843fbd774359af3bf49fd6aeafa707c6eb4d24",
+            "fetched_at_utc": "2026-10-21T19:59:37.104457+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789776000,
+        "end": 1789862400,
+        "status": "REJECTED",
+        "date_utc": "2026-09-19",
+        "hourly_mismatches": 1,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1789776000,
+              "to": 1789862400
+            },
+            "raw_sha256": "9694dc24068dd8117f3aea73061937223a36fba10f6ca2ce512bae17b1cdade4",
+            "fetched_at_utc": "2026-10-21T19:59:38.261689+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1789776000,
+              "to": 1789862400
+            },
+            "raw_sha256": "ac05bce8b23329cc58d7b457e5d47eb79263711d766ae6acdff29659bb151d45",
+            "fetched_at_utc": "2026-10-21T19:59:39.109155+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789862400,
+        "end": 1789948800,
+        "status": "REJECTED",
+        "date_utc": "2026-09-20",
+        "hourly_mismatches": null,
+        "error_type": "RemoteProtocolError",
+        "sources": []
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1789948800,
+        "end": 1790035200,
+        "status": "REJECTED",
+        "date_utc": "2026-09-21",
+        "hourly_mismatches": null,
+        "error_type": "ConnectError",
+        "sources": []
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1790035200,
+        "end": 1790121600,
+        "status": "REJECTED",
+        "date_utc": "2026-09-22",
+        "hourly_mismatches": null,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1790035200,
+              "to": 1790121600
+            },
+            "raw_sha256": "eebe18e8e7394670aa8f1bca8409fa6890e7f8d3100e060fb7cd060367e29aa7",
+            "fetched_at_utc": "2026-10-21T19:59:57.807168+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1790035200,
+              "to": 1790121600
+            },
+            "raw_sha256": "56e133b2b0c592eaf644597527d54d346776fd2ba275a8e1a41f96b4ad449887",
+            "fetched_at_utc": "2026-10-21T19:59:58.723157+00:00"
+          }
+        ],
+        "minute_rows": 1361,
+        "missing_minutes": 80
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1790121600,
+        "end": 1790208000,
+        "status": "REJECTED",
+        "date_utc": "2026-09-23",
+        "hourly_mismatches": 1,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1790121600,
+              "to": 1790208000
+            },
+            "raw_sha256": "fac8ac71057d37a06f000165aeaa310297e9035e4d98830d8dacd03ee39fd3ef",
+            "fetched_at_utc": "2026-10-21T20:00:02.146004+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1790121600,
+              "to": 1790208000
+            },
+            "raw_sha256": "e11478918f97f9f14ad47e02edb87ed363e2ca3c4e71e84c9d5e32315ea54bce",
+            "fetched_at_utc": "2026-10-21T20:00:04.202820+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1790208000,
+        "end": 1790294400,
+        "status": "REJECTED",
+        "date_utc": "2026-09-24",
+        "hourly_mismatches": 2,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1790208000,
+              "to": 1790294400
+            },
+            "raw_sha256": "db3e81bb18b3a680197feaed8952cbab4e18be281fcaaac09f378bffb3002c10",
+            "fetched_at_utc": "2026-10-21T20:00:07.133466+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1790208000,
+              "to": 1790294400
+            },
+            "raw_sha256": "396c936c026c771df3f75f4baaf6ae57f8b1fbd18af093c2cac4c913e97cb4d6",
+            "fetched_at_utc": "2026-10-21T20:00:07.929406+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1790294400,
+        "end": 1790380800,
+        "status": "REJECTED",
+        "date_utc": "2026-09-25",
+        "hourly_mismatches": 4,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1790294400,
+              "to": 1790380800
+            },
+            "raw_sha256": "613c77fc83e967f214c17766a7a7aebb3623207c02e2bfb4a862f6e08aebeb50",
+            "fetched_at_utc": "2026-10-21T20:00:08.948466+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1790294400,
+              "to": 1790380800
+            },
+            "raw_sha256": "fa1ffa153e30f5ebe607b52475a8f32901a57820368a80dfaf4b98ff7cf1531e",
+            "fetched_at_utc": "2026-10-21T20:00:09.707062+00:00"
+          }
+        ],
+        "minute_rows": 1441,
+        "missing_minutes": 0
+      },
+      {
+        "symbol": "USDTTMN",
+        "start": 1790380800,
+        "end": 1790467200,
+        "status": "REJECTED",
+        "date_utc": "2026-09-26",
+        "hourly_mismatches": null,
+        "error_type": "ValueError",
+        "sources": [
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "1",
+              "from": 1790380800,
+              "to": 1790467200
+            },
+            "raw_sha256": "4ce302d6bcef03c7ecbb1cd9ce3fac2a9170ff14cf4255a3db4d95673b9e6fd4",
+            "fetched_at_utc": "2026-10-21T20:00:11.369038+00:00"
+          },
+          {
+            "source_url": "https://api.wallex.ir/v1/udf/history",
+            "query": {
+              "symbol": "USDTTMN",
+              "resolution": "60",
+              "from": 1790380800,
+              "to": 1790467200
+            },
+            "raw_sha256": "3c9d12fd335198a0fa49ff25551e65d8b65a0b3ae19fbb9dc1bf9b8826e01902",
+            "fetched_at_utc": "2026-10-21T20:00:12.171587+00:00"
+          }
+        ],
+        "minute_rows": 1440,
+        "missing_minutes": 1
+      }
+    ]
+  },
+  "quality_replay": {
+    "verified_at_utc": "2026-10-21T20:21:28.356946+00:00",
+    "network_gets": 0,
+    "raw_hashes_verified": 22,
+    "replayed_days": [
+      {
+        "start": 1789344000,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 4
+      },
+      {
+        "start": 1789430400,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 1
+      },
+      {
+        "start": 1789516800,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 2
+      },
+      {
+        "start": 1789603200,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 0
+      },
+      {
+        "start": 1789689600,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 0
+      },
+      {
+        "start": 1789776000,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 1
+      },
+      {
+        "start": 1790035200,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": null
+      },
+      {
+        "start": 1790121600,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 1
+      },
+      {
+        "start": 1790208000,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 2
+      },
+      {
+        "start": 1790294400,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": 4
+      },
+      {
+        "start": 1790380800,
+        "matches_recorded_classification": true,
+        "hourly_mismatches": null
+      }
+    ],
+    "network_failures_not_replayed": 2,
+    "parser_sha256": "60e8d85de8827203aaf969e0ef715fa5a46471e16b1baac17f453388cabcfa19",
+    "collection_source_hash_at_execution": null,
+    "collection_provenance_limit": "Exact collector script hash was not captured on the initial dirty collection run; final parser classifications replayed offline. Do not attribute the capture to final commit."
+  },
+  "candidate_configurations_planned": 6,
+  "candidate_configurations_executed": 0,
+  "holdout_return_evaluations": 0,
+  "diagnostic_baseline_runs": 20,
+  "metrics": {
+    "base": {
+      "cash": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "shared_risk_hold": {
+        "net_return_pct": "1.012288609800",
+        "net_pnl_mtm_tmn": "50614.4304900000",
+        "total_realized_pnl": "50614.4304900000",
+        "final_cash_tmn": "5050614.4304900000",
+        "final_equity_mtm_tmn": "5050614.4304900000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3046213.170000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 576000,
+        "total_fees_paid_tmn": "9138.6395100000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "50614.4304900000",
+        "mtm_net_excluding_best_episode_tmn": "0E-10",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "passive_buy_once": {
+        "net_return_pct": "1.012288609800",
+        "net_pnl_mtm_tmn": "50614.4304900000",
+        "total_realized_pnl": "50614.4304900000",
+        "final_cash_tmn": "5050614.4304900000",
+        "final_equity_mtm_tmn": "5050614.4304900000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3046213.170000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 576000,
+        "total_fees_paid_tmn": "9138.6395100000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "50614.4304900000",
+        "mtm_net_excluding_best_episode_tmn": "0E-10",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "naive_crossover": {
+        "net_return_pct": "-1.738977940986600",
+        "net_pnl_mtm_tmn": "-86948.8970493300",
+        "total_realized_pnl": "-86948.8970493300",
+        "final_cash_tmn": "4913051.1029506700",
+        "final_equity_mtm_tmn": "4913051.1029506700",
+        "max_drawdown_pct": "1.7538",
+        "metric_sample_n": 6,
+        "closed_round_trips": 6,
+        "buy_fills": 6,
+        "sell_fills": 6,
+        "orders_submitted": 12,
+        "total_orders_including_stop_finalization": 14,
+        "turnover_tmn": "17893990.053110",
+        "peak_exposure_tmn": "1500642.00",
+        "time_exposed_seconds": 54000,
+        "total_fees_paid_tmn": "53681.9701593300",
+        "profit_factor": "0E+10",
+        "profit_factor_status": "DEFINED",
+        "win_rate_pct": 0.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "-2419.304250",
+        "mtm_net_excluding_best_episode_tmn": "-84529.5927993300",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "legacy_conviction_no_AI": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      }
+    },
+    "extra_bar_delay": {
+      "cash": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "shared_risk_hold": {
+        "net_return_pct": "1.012288609800",
+        "net_pnl_mtm_tmn": "50614.4304900000",
+        "total_realized_pnl": "50614.4304900000",
+        "final_cash_tmn": "5050614.4304900000",
+        "final_equity_mtm_tmn": "5050614.4304900000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3046213.170000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 575100,
+        "total_fees_paid_tmn": "9138.6395100000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "50614.4304900000",
+        "mtm_net_excluding_best_episode_tmn": "0E-10",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "passive_buy_once": {
+        "net_return_pct": "1.012288609800",
+        "net_pnl_mtm_tmn": "50614.4304900000",
+        "total_realized_pnl": "50614.4304900000",
+        "final_cash_tmn": "5050614.4304900000",
+        "final_equity_mtm_tmn": "5050614.4304900000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3046213.170000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 575100,
+        "total_fees_paid_tmn": "9138.6395100000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "50614.4304900000",
+        "mtm_net_excluding_best_episode_tmn": "0E-10",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "naive_crossover": {
+        "net_return_pct": "-1.842708321586600",
+        "net_pnl_mtm_tmn": "-92135.4160793300",
+        "total_realized_pnl": "-92135.4160793300",
+        "final_cash_tmn": "4907864.5839206700",
+        "final_equity_mtm_tmn": "4907864.5839206700",
+        "max_drawdown_pct": "1.8669",
+        "metric_sample_n": 6,
+        "closed_round_trips": 6,
+        "buy_fills": 6,
+        "sell_fills": 6,
+        "orders_submitted": 12,
+        "total_orders_including_stop_finalization": 14,
+        "turnover_tmn": "17888933.063110",
+        "peak_exposure_tmn": "1500115.92",
+        "time_exposed_seconds": 54900,
+        "total_fees_paid_tmn": "53666.7991893300",
+        "profit_factor": "0E+10",
+        "profit_factor_status": "DEFINED",
+        "win_rate_pct": 0.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "-5567.382900",
+        "mtm_net_excluding_best_episode_tmn": "-86568.0331793300",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "legacy_conviction_no_AI": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      }
+    },
+    "pessimistic_cost": {
+      "cash": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "shared_risk_hold": {
+        "net_return_pct": "0.965815648200",
+        "net_pnl_mtm_tmn": "48290.782410000",
+        "total_realized_pnl": "48290.782410000",
+        "final_cash_tmn": "5048290.782410000",
+        "final_equity_mtm_tmn": "5048290.782410000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3043882.53000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 576000,
+        "total_fees_paid_tmn": "9131.647590000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "48290.782410000",
+        "mtm_net_excluding_best_episode_tmn": "0E-9",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "passive_buy_once": {
+        "net_return_pct": "0.965815648200",
+        "net_pnl_mtm_tmn": "48290.782410000",
+        "total_realized_pnl": "48290.782410000",
+        "final_cash_tmn": "5048290.782410000",
+        "final_equity_mtm_tmn": "5048290.782410000",
+        "max_drawdown_pct": "1.6195",
+        "metric_sample_n": 1,
+        "closed_round_trips": 1,
+        "buy_fills": 1,
+        "sell_fills": 1,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 2,
+        "turnover_tmn": "3043882.53000",
+        "peak_exposure_tmn": "1582881.30",
+        "time_exposed_seconds": 576000,
+        "total_fees_paid_tmn": "9131.647590000",
+        "profit_factor": null,
+        "profit_factor_status": "NO_LOSSES",
+        "win_rate_pct": 100.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "48290.782410000",
+        "mtm_net_excluding_best_episode_tmn": "0E-9",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "naive_crossover": {
+        "net_return_pct": "-1.619795371346400",
+        "net_pnl_mtm_tmn": "-80989.768567320",
+        "total_realized_pnl": "-80989.768567320",
+        "final_cash_tmn": "4919010.231432680",
+        "final_equity_mtm_tmn": "4919010.231432680",
+        "max_drawdown_pct": "1.6198",
+        "metric_sample_n": 5,
+        "closed_round_trips": 5,
+        "buy_fills": 5,
+        "sell_fills": 5,
+        "orders_submitted": 10,
+        "total_orders_including_stop_finalization": 12,
+        "turnover_tmn": "14900317.00244",
+        "peak_exposure_tmn": "1500642.00",
+        "time_exposed_seconds": 116100,
+        "total_fees_paid_tmn": "44700.951007320",
+        "profit_factor": "0E+9",
+        "profit_factor_status": "DEFINED",
+        "win_rate_pct": 0.0,
+        "residual_dust_base": "0.00",
+        "residual_basis_tmn": "0.000000",
+        "best_round_trip_net_tmn": "-2419.304250",
+        "mtm_net_excluding_best_episode_tmn": "-78570.464317320",
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "legacy_conviction_no_AI": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      }
+    },
+    "no_limit_fill": {
+      "cash": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "shared_risk_hold": {
+        "net_return_pct": "0.000000",
+        "net_pnl_mtm_tmn": "0.000000",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000.000000",
+        "final_equity_mtm_tmn": "5000000.000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 1,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "passive_buy_once": {
+        "net_return_pct": "0.000000",
+        "net_pnl_mtm_tmn": "0.000000",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000.000000",
+        "final_equity_mtm_tmn": "5000000.000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 1,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "naive_crossover": {
+        "net_return_pct": "0.000000",
+        "net_pnl_mtm_tmn": "0.000000",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000.000000",
+        "final_equity_mtm_tmn": "5000000.000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 1,
+        "total_orders_including_stop_finalization": 1,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      },
+      "legacy_conviction_no_AI": {
+        "net_return_pct": "0",
+        "net_pnl_mtm_tmn": "0",
+        "total_realized_pnl": "0",
+        "final_cash_tmn": "5000000",
+        "final_equity_mtm_tmn": "5000000",
+        "max_drawdown_pct": "0.0000",
+        "metric_sample_n": 0,
+        "closed_round_trips": 0,
+        "buy_fills": 0,
+        "sell_fills": 0,
+        "orders_submitted": 0,
+        "total_orders_including_stop_finalization": 0,
+        "turnover_tmn": "0",
+        "peak_exposure_tmn": "0",
+        "time_exposed_seconds": 0,
+        "total_fees_paid_tmn": "0",
+        "profit_factor": null,
+        "profit_factor_status": "NO_TRADES_OR_ZERO_PNL",
+        "win_rate_pct": null,
+        "residual_dust_base": "0",
+        "residual_basis_tmn": "0",
+        "best_round_trip_net_tmn": null,
+        "mtm_net_excluding_best_episode_tmn": null,
+        "concentration_contract": "Outcome subtraction only; not a resimulated strategy without the trade"
+      }
+    }
+  },
+  "audit_sample_kind": "SYNTHETIC_OFFLINE_PAPER; not current feed or real model",
+  "audit_event_count": 41,
+  "audit_excerpt": [
+    {
+      "component": "EVAL",
+      "context": {},
+      "event_id": "20261021T203348Z_2cc77f81:1",
+      "event_type": "DATA_ACCEPTED",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "2026-10-21T20:34:29.497778+00:00",
+      "payload": {
+        "count": 40,
+        "data_sha256": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "interval_seconds": 900,
+        "source": "PAPER",
+        "symbol": "USDTTMN"
+      },
+      "recorded_at": "2026-10-21T20:34:29.497778+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 1,
+      "source": "PAPER",
+      "timestamp": 1792614869.4977782
+    },
+    {
+      "component": "EVAL",
+      "context": {
+        "cutoff": 127900,
+        "snapshot_sha256": "1dcfea195745147e60220ff6f110b5a19e2940c9c4604041e0a51c0337505462",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:2",
+      "event_type": "SNAPSHOT",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:31:40+00:00",
+      "payload": {
+        "snapshot": {
+          "atr_14": "2",
+          "available_tmn_cash": "5000000",
+          "closed_bars_count": 31,
+          "current_position_base": "0",
+          "cutoff": 127900,
+          "evidences": {
+            "EV_DATA_FRESH": "Candle closed at 127900",
+            "EV_POSITION_FLAT": "No open position currently held",
+            "EV_RSI_NORMAL": "RSI is neutral at 50.00",
+            "EV_TREND_NEUTRAL": "Price 100 oscillating around slow SMA 100.00",
+            "EV_VOLUME_NORMAL": "Volume ratio 1.00x is normal"
+          },
+          "interval_seconds": 900,
+          "last_close": "100",
+          "rsi_14": "50",
+          "symbol": "USDTTMN",
+          "trend_sma_fast": "100",
+          "trend_sma_slow": "100",
+          "volume_ratio": "1"
+        }
+      },
+      "recorded_at": "2026-10-21T20:34:29.502839+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 2,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.502839
+    },
+    {
+      "component": "EVAL",
+      "context": {
+        "cutoff": 127900,
+        "decision_id": "d1",
+        "snapshot_sha256": "1dcfea195745147e60220ff6f110b5a19e2940c9c4604041e0a51c0337505462",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:3",
+      "event_type": "HOST_DECISION",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:31:40+00:00",
+      "payload": {
+        "action": "ENTER",
+        "decision_id": "d1",
+        "evidence_ids": [
+          "EV_DATA_FRESH"
+        ],
+        "reason": "synthetic rejection then causal entry",
+        "source": "HOST_BASELINE"
+      },
+      "recorded_at": "2026-10-21T20:34:29.502839+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 3,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.502839
+    },
+    {
+      "component": "RISK",
+      "context": {
+        "cutoff": 127900,
+        "decision_id": "d1",
+        "snapshot_sha256": "1dcfea195745147e60220ff6f110b5a19e2940c9c4604041e0a51c0337505462",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:4",
+      "event_type": "RISK_REJECTED",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:31:50+00:00",
+      "payload": {
+        "action": "WAIT",
+        "approved": false,
+        "event_time": 127910,
+        "reason": "Rejected: Snapshot hash mismatch between decision and host context"
+      },
+      "recorded_at": "2026-10-21T20:34:29.502839+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 4,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.502839
+    },
+    {
+      "component": "RISK",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:7",
+      "event_type": "RISK_APPROVED",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:46:50+00:00",
+      "payload": {
+        "action": "ENTER",
+        "approved": true,
+        "event_time": 128810,
+        "reason": "Approved ENTER within risk policy bounds"
+      },
+      "recorded_at": "2026-10-21T20:34:29.502839+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 7,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.502839
+    },
+    {
+      "component": "LEDGER",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:8",
+      "event_type": "INTENT",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:46:50+00:00",
+      "payload": {
+        "client_id": "ord_128800_31",
+        "order_type": "LIMIT",
+        "price": "100.00",
+        "quantity": "0.99",
+        "side": "BUY",
+        "symbol": "USDTTMN",
+        "timestamp": 128810
+      },
+      "recorded_at": "2026-10-21T20:34:29.508840+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 8,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.50884
+    },
+    {
+      "component": "BROKER",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:9",
+      "event_type": "STATE_TRANSITION",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:46:50+00:00",
+      "payload": {
+        "client_id": "ord_128800_31",
+        "status": "OPEN",
+        "timestamp": 128810
+      },
+      "recorded_at": "2026-10-21T20:34:29.508840+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 9,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.50884
+    },
+    {
+      "component": "EVAL",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:10",
+      "event_type": "SIM_ORDER_SUBMITTED",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T11:46:40+00:00",
+      "payload": {
+        "action": "ENTER",
+        "client_id": "ord_128800_31",
+        "price": "100.00",
+        "quantity": "0.99"
+      },
+      "recorded_at": "2026-10-21T20:34:29.508840+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 10,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.50884
+    },
+    {
+      "component": "LEDGER",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:14",
+      "event_type": "FILL",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T12:16:40+00:00",
+      "payload": {
+        "client_id": "ord_128800_31",
+        "fee": "0.2970000",
+        "fee_asset": "TMN",
+        "fill_id": "fill_ord_128800_31",
+        "price": "100.00",
+        "quantity": "0.99",
+        "side": "BUY",
+        "symbol": "USDTTMN",
+        "timestamp": 130600
+      },
+      "recorded_at": "2026-10-21T20:34:29.508840+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 14,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.50884
+    },
+    {
+      "component": "LEDGER",
+      "context": {
+        "cutoff": 128800,
+        "decision_id": "d2",
+        "snapshot_sha256": "ad6bf6005c282e533015015c31b29ae6e1c15af1cc7501e37852a08e31bdf7dc",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:15",
+      "event_type": "LEDGER_RECONCILIATION",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T12:01:40+00:00",
+      "payload": {
+        "balance": {
+          "TMN": {
+            "free": "4999900.7030000",
+            "locked": "0E-7"
+          },
+          "USDT": {
+            "free": "0.99",
+            "locked": "0"
+          }
+        },
+        "client_id": "ord_128800_31",
+        "fill_id": "fill_ord_128800_31",
+        "realized_pnl_tmn": "0"
+      },
+      "recorded_at": "2026-10-21T20:34:29.508840+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 15,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.50884
+    },
+    {
+      "component": "BROKER",
+      "context": {
+        "cutoff": 135100,
+        "decision_id": "d9",
+        "snapshot_sha256": "313ec77dde4c10d49a6805c7360c3ef937a3a99c10e83c8cd44229213a017d8f",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:37",
+      "event_type": "FINALIZATION",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T13:47:10+00:00",
+      "payload": {
+        "final_tmn_cash": "4999999.356648500",
+        "timestamp": 136030,
+        "total_realized_pnl": "-0.643351500"
+      },
+      "recorded_at": "2026-10-21T20:34:29.533444+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 37,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.5334442
+    },
+    {
+      "component": "BROKER",
+      "context": {
+        "cutoff": 135100,
+        "decision_id": "d9",
+        "snapshot_sha256": "313ec77dde4c10d49a6805c7360c3ef937a3a99c10e83c8cd44229213a017d8f",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:38",
+      "event_type": "RESIDUAL",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": null,
+        "prompt": null
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T13:47:10+00:00",
+      "payload": {
+        "residual_dust_base": "0.00",
+        "timestamp": 136030
+      },
+      "recorded_at": "2026-10-21T20:34:29.533444+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 38,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.5334442
+    },
+    {
+      "component": "AGENT",
+      "context": {
+        "cutoff": 136000,
+        "decision_id": "dec_1ad3f8af2a124514",
+        "snapshot_sha256": "d0a90520dd256ccf7c504a7f60c5941c53226a79896cafdcf2b1478a23fd0fc4",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:39",
+      "event_type": "AI_REQUEST",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": "b0efc5e9d4a84f0733b9d8a35346ad12ab659f2256a6037ec78211e2332dbbff",
+        "prompt": "1066c59563af8a98ec93c2e38dfe922bbbdc9a50ef03fb6b004a9f897f30a687"
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T13:46:40+00:00",
+      "payload": {
+        "model": "gpt-6-luna",
+        "source": "SYNTHETIC"
+      },
+      "recorded_at": "2026-10-21T20:34:29.535456+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 39,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.535456
+    },
+    {
+      "component": "AGENT",
+      "context": {
+        "cutoff": 136000,
+        "decision_id": "dec_1ad3f8af2a124514",
+        "snapshot_sha256": "d0a90520dd256ccf7c504a7f60c5941c53226a79896cafdcf2b1478a23fd0fc4",
+        "symbol": "USDTTMN"
+      },
+      "event_id": "20261021T203348Z_2cc77f81:40",
+      "event_type": "AI_ERROR",
+      "hashes": {
+        "code": "ada7b9a69614e4d9b9545f4a2f07edf9eaaa13d1ab2800e2ce3c4f5497d52917",
+        "config": "a2ab84058f14b01b941958ef6b5bb2fd979174a06967976677d162f1d06eaeca",
+        "data": "b4eb18e24ddafa03bf55a733a8b1724366daebeb733327fdfc74cd0a1c5ea278",
+        "model": "b0efc5e9d4a84f0733b9d8a35346ad12ab659f2256a6037ec78211e2332dbbff",
+        "prompt": "1066c59563af8a98ec93c2e38dfe922bbbdc9a50ef03fb6b004a9f897f30a687"
+      },
+      "mode": "historical",
+      "occurred_at": "1970-01-02T13:46:40+00:00",
+      "payload": {
+        "error_type": "PROVIDER_ERROR",
+        "source": "HOST_FALLBACK"
+      },
+      "recorded_at": "2026-10-21T20:34:29.685102+00:00",
+      "run_id": "20261021T203348Z_2cc77f81",
+      "schema_version": 1,
+      "sequence": 40,
+      "source": "SYNTHETIC",
+      "timestamp": 1792614869.6851022
+    }
+  ],
+  "checks": {
+    "unittest": {
+      "passed": 152,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "47729fa376c83fea6456ce5b3f7ea32edc9b0eb335871c01f34fb9a376186974"
+    },
+    "ruff": "PASS",
+    "compileall": "PASS",
+    "eval_help": "PASS",
+    "diff_check": "PASS",
+    "cli_manifest_eval": "PASS_DEVELOPMENT_ONLY",
+    "public_collection": "BLOCKED_DATA_NONZERO",
+    "live_config": "VALID_CONFIG_ONLY; shadow; network_enabled=false; trading_enabled=false"
+  },
+  "budget_observation": {
+    "observed_at_utc": "2026-10-21T20:04:59.561503+00:00",
+    "reservation_count": 26,
+    "reserved_nano_usd": 32148480,
+    "reserved_tokens": 226304,
+    "policy_total_limit_usd": "2.40",
+    "policy_daily_limit_usd": "0.80",
+    "local_remaining_total_usd": "2.36785152",
+    "local_remaining_daily_usd": "0.76785152",
+    "provider_reported_usage": null,
+    "provider_invoice": null,
+    "mission_new_decisions": 0,
+    "mission_new_http": 0,
+    "mission_new_reserved_usd": "0",
+    "reason": "BLOCKED_DATA; no paid model calls; do not reset/refund reservations"
+  },
+  "unauthenticated_regression_http_attempts": 1,
+  "unauthenticated_regression_status": 401,
+  "regression_note": "Initial budget bypass test reached provider with dummy-key, never real key; final test intercepts send before I/O",
+  "old_smoke_observation": {
+    "sha256": "a2a0b4eac255fa50f4b84c723e8a96b598269c42666945a3d15d64d679abb998",
+    "snapshots_tested": 7,
+    "reservations_added": 14,
+    "old_tokens_field_is_reservation": 121856,
+    "old_cost_field_is_reservation": "0.017311",
+    "actual_usage": null
+  },
+  "not_verified": [
+    "AI incremental value/full return curve",
+    "market-specific account permission",
+    "feeAsset/minimum/step/expiry",
+    "current-feed shadow uptime",
+    "all crash/power-loss/cancel races",
+    "provider invoice/actual balance",
+    "intrabar drawdown",
+    "statistical profitability"
+  ],
+  "next_step": "Resolve official minute/native timestamp and OHLC discrepancy, then preregister fresh accepted windows; never weaken oracle",
+  "budget_ending_observation": {
+    "observed_at_utc": "2026-10-21T20:32:39.385761+00:00",
+    "tehran_day": "2026-10-22",
+    "reservation_count": 26,
+    "reserved_nano_usd": 32148480,
+    "reserved_tokens": 226304,
+    "local_remaining_total_usd": "2.36785152",
+    "local_remaining_daily_usd": "0.80",
+    "daily_reservations": 0,
+    "provider_reported_usage": null,
+    "provider_invoice": null,
+    "mission_new_reserved_usd": "0"
+  }
+}
