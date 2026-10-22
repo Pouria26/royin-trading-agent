@@ -5,13 +5,13 @@
 ## پیش از هر تغییر
 
 1. `git status --short`، فایل‌های موجود و وابستگی‌ها را بخوان؛ تغییر هم‌زمان کاربر را حفظ کن.
-2. docs/challenge-brief.md، TASKS.md و memory.md را بخوان؛ سپس بخش مربوط ARCHITECTURE.md و docs/evaluation-plan.md. Blueprint فقط فرضیه است.
+2. docs/challenge-brief.md، TASKS.md و memory.md را بخوان؛ سپس بخش مربوط ARCHITECTURE.md و docs/evaluation-plan.md. Blueprint تاریخی و فقط فرضیه بود؛ اکنون محلی آرشیو شده است.
 3. هر caller، test، fixture، config، export و migration مرتبط را با `rg` پیدا کن. دامنه تغییر، خطر پول/داده و acceptance task را پیش از نوشتن مشخص کن.
 4. R/S/D/U را مخلوط نکن: الزام بریف، مشاهده منبع، تصمیم تیم و مجهول جدا هستند. معیار/امتیاز/نماد/کارمزد ناشناخته را حدس نزن.
 
 ## دستورهای موجود و تأییدشده
 
-PowerShell، از ریشه مخزن. نتایج و محدودیت محیط در docs/preparation-checks.md ثبت می‌شود. uv در سیستم فعلی وجود دارد؛ Python خود .venv استفاده شود، نه alias فروشگاه Windows.
+PowerShell، از ریشه مخزن. نتایج و محدودیت محیط در docs/current-market-readiness.md ثبت می‌شود. uv در سیستم فعلی وجود دارد؛ Python خود .venv استفاده شود، نه alias فروشگاه Windows.
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
@@ -41,7 +41,7 @@ BoxAPI جایگزین Gemini شد؛ fallback به Google یا OpenAI مستقی�
 .\.venv\Scripts\python.exe -X utf8 -m scripts.probe_wallex_account --run
 ```
 
-فقط GET به فهرست sub-account و، پس از تشخیص یکتای حساب فعال prop، balances-detail و fee دارد؛ حساب اصلی/فعال‌سازی/سفارش ممنوع‌اند. شناسه کشف‌شده فقط در .env ذخیره می‌شود. نتیجه خالی اولیه شاهد تاریخی است؛ probe بعدی حساب فعال و ۵ میلیون TMN را ثبت کرده، اما مجوز Live یا تأیید minimum/step نیست. جزئیات در docs/wallex-read-only-setup.md.
+فقط GET به فهرست sub-account و، پس از تشخیص یکتای حساب فعال prop، balances-detail و fee دارد؛ حساب اصلی/فعال‌سازی/سفارش ممنوع‌اند. شناسه کشف‌شده فقط در .env ذخیره می‌شود. نتیجه خالی اولیه شاهد تاریخی است؛ probe بعدی حساب فعال و ۵ میلیون TMN را ثبت کرده، اما مجوز Live یا تأیید minimum/step نیست. جزئیات در docs/credit-canary.md.
 
 برای نصب آماده‌سازی در محیط تازه با uv (lock پس از حل وابستگی‌ها):
 
@@ -117,80 +117,15 @@ memory.md حافظه واحد پروژه است؛ فایل agent.md موازی �
 
 TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیجه تست/مانع و قدم بعدی به‌روز کن. گزارش فاز: تغییر → معیار داوری/AC → دستور و نتیجه واقعی → real/simulated → محدودیت → درخواست دقیق کار انسانی در صورت نیاز → commit. پایان پاسخ یک یا دو خط: چه چیزی چک نشد/کنار گذاشته شد و خطر باقیمانده. رتبه اول یا سود تضمینی ادعا نکن.
 
-## فرمان ارزیابی اصلاح‌شده — اجراشده، نه گیت سود
 
-تحویل جاری در docs/candidate-evaluation.md و docs/market-data-semantics.md است. فایل‌های config/native-hour-source-plan.json و config/candidate-evaluation-plan.json نام‌های کاربردی برنامه‌های قبلی‌اند؛ freezeهای قدیمی و hash آن‌ها حفظ شده‌اند. هر تغییر بعدی طرح آزمایش باید پیش از outcomes نسخه‌دار شود. سپتامبر ۲۴–۲۷ در diagnostics دیده شده و Holdout دست‌نخورده نیست؛ N≥30 قاعده رسمی یا تضمین آماری نیست.
+## وضعیت جاری و قراردادهای لازم — ۲۰۲۶-۱۰-۲۳
 
-فرمان‌های جدید اجراشده از ریشه:
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts\run_shadow.py --mode OBSERVE_ONLY --cycles 1 --interval 3600 --max-attempts 1
-.\.venv\Scripts\python.exe -X utf8 -m scripts.evaluate_candidates --help
-```
-
-ارزیابی نامزدها فقط آفلاین و با manifest و SHA256 صریح است؛ دستور کامل در docs/candidate-evaluation.md. پایش فقط native ساعتی USDTTMN، بدون کلید، LLM، ledger یا سفارش؛ کندل باز/گپ/کهنگی رد و warmup کوتاه‌تر صریح ثبت می‌شود. COMPLETE فقط مشاهده تشخیصی، PARTIAL خروج 2؛ CANDIDATE_SHADOW بسته است. قفل فقط فرایندهای دارای مسیر محلی مشترک را هماهنگ می‌کند، نه دو دستگاه؛ run قبلی overwrite/reset نمی‌شود. فرمان چهارچرخه‌ای مستندشده هنوز اجرا نشده است.
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts\run_eval.py --manifest config\evaluation-datasets.json --all
-.\.venv\Scripts\python.exe -X utf8 -m scripts.collect_validation_data --protocol config\historical-validation-protocol.json
-```
-
-فرمان اول فقط داده پذیرفته manifest و baseline بدون AI می‌گیرد؛ هر run مسیر تازه دارد. فرمان دوم در این مأموریت با ۲۵ GET از سقف۲۷، BLOCKED_DATA شد؛ برای اجرای دوباره پروتکل/بودجه تازه صریح لازم است و retry برای عبور از محدودیت مجاز نیست. نتیجه/شواهد و محدودیت در docs/historical-validation.md؛ چهار کندل shadow_cycle تست synthetic است، نه Shadow جاری. رزرو مدل usage/invoice نیست و ledger آن پاک/صفر نمی‌شود.
-
-
-## Execution review checkpoint (2026-10-22)
-
-Read docs/execution-readiness-review.md before execution changes. WallexLiveBroker is an offline MockTransport-only contract harness; constructor overrides cannot enable production. CANDIDATE_SHADOW stays blocked. The twelve-configuration plan is config/strategy-experiment-plan.json; its historical prospective freeze is unverified.
-
-Verified no-cost CLI help: `.\.venv\Scripts\python.exe -X utf8 scripts\evaluate_ai_role.py --help`. No flag prints help; `--run` explicitly starts paid diagnostic snapshots, capped before HTTP at 24 requests / USD 0.04 reserved per invocation, plus the shared durable global budget. This is not a portfolio backtest. Personal prompts and review output remain under ignored .local/.
-
-## Current-market checkpoint (2026-10-22)
-
-Read docs/current-market-readiness.md. Role decisions now reserve 12288 input /1024 output tokens
-under budget policy v2; this supersedes the earlier512 role-output limit, not the separate probe CLI.
-Tariffs/global daily and total cost caps are unchanged. The USD0.04 role envelope fits19 worst-case
-requests; durable scope counters and the original session deadline must survive restart.
-Current paper uses observed spot rules, currency-adjusted market breadth and a bounded diversified
-batch. Entry targets above2% gross and300..36000-second horizons are research policy, never a
-profit guarantee. A short diagnostic must WAIT when its funded session cannot contain the position.
-Public USDTTMN metadata observed minQty0.01/minNotional50000; the old one-USDT assumption is
-superseded for that public snapshot, not all credit-package conditions. Production remains blocked.
-316 core tests and a real current-model WAIT diagnostic passed; neither proves strategy profitability.
-
-## Restricted technical canary lane (2026-10-22)
-
-docs/credit-canary.md supersedes the MockTransport-only claim solely for CreditCanaryTransport.
-General live mode remains blocked. The dedicated CLI is `python -m scripts.execute_credit_canary`:
-no flag is help, --prepare is read-only, --execute is the user's previously authorized small technical
-pilot. Before execution require a clean revision and successful current preflight. Maximum100000 TMN,
-one BUY/one SELL/eight order attempts; persistent account-scoped state under the operator home must
-never be reset. Failed or residual outcomes are not successful fully realized strategy trades.
-Do not enable this lane for arbitrary symbols, size or autonomous strategy runs.
-
-## Current forecast outcomes (2026-10-22)
-
-docs/current-forecast-evaluation.md records the public-only scorer. Use `python -m
-scripts.score_market_forecast --paper-manifest <manifest...> --score` for current REAL_MODEL
-manifests; never relabel fake/historical runs. It validates recorded provider/snapshot bindings
-before GET, retains pending/missing outcomes and never overwrites source manifests. At most32
-public outcome GETs, no retry/model/private account access. A zero baseline without a separate
-development interval has point errors only; fitting interval bounds on evaluation returns is forbidden.
-
-## Model-directed public research checkpoint
-
-CURRENT_PAPER/REAL_MODEL now supplies a typed liquid-TMN research universe to the existing
-Entry Analyst. Its one read_market_snapshot call selects1..5 exact symbols for public research;
-final decisions must bind the returned accepted batch. Catalog visibility is not deep research
-of every market or private-account permission. Preserve the existing two-request/tool/model
-budgets and the financial UNKNOWN/cap; see docs/current-market-readiness.md. Positive unpriced
-assets must raise at valuation, never disappear as zero. Join the owned collector on cancellation.
-
-
-Research capacity supersedes the earlier role-input checkpoint: read the2026-10-23 section in
-docs/current-market-readiness.md. Policy v3 reserves32768 input/1024 output tokens; new role
-scopes USD0.20, existing scopes preserve their saved cap. Global counters are never reset.
-
-
-Sustained forward checkpoint: new role scopes48 calls/96 HTTP/USD0.50; persisted legacy
-limits remain unchanged. Read the pre-outcome protocol in docs/current-market-readiness.md.
-Forecast-bound protection ends at cutoff+horizon; network latency must not extend it.
+- پیش از تغییر اجرای مالی، docs/credit-canary.md؛ برای داده، docs/market-data-semantics.md؛ برای سنجش forecast، docs/current-forecast-evaluation.md را بخوانید. گزارش‌های تاریخی آرشیو محلی‌اند، نه دستور جاری.
+- Live عمومی همچنان مسدود است. تنها استثنا CreditCanaryTransport محدود است؛ تلاش قبلی BUY_UNKNOWN و سقف۸attempt مصرف‌شده باقی است. DB/ID/reserve/counter را reset نکنید و این lane را موتور autonomous عمومی ندانید. کلید جایگزین اعتباری و دارای مجوز طبق تأیید کاربر است؛ علت POST خالی هنوز ثابت نیست.
+- نقش‌های فعلی Entry Analyst و Position Reviewer با حداکثر۲HTTP/یک tool در هر تصمیم‌اند. policy v3 ورودی۳۲۷۶۸/خروجی۱۰۲۴ رزرو می‌کند؛ scope جدید۴۸role/۹۶HTTP/USD0.50 و global/daily۲.۴۰/۰.۸۰ است. scopeهای قدیمی limits ذخیره‌شدهٔ خود را حفظ می‌کنند؛ رزرو invoice نیست.
+- probeها و evaluate_ai_role محدودیت مستقل خود را دارند؛ سقف نقش‌ها را به آن‌ها تعمیم ندهید. `evaluate_ai_role.py --help` بدون هزینه و `--run` diagnostic پولیِ محدود است، نه portfolio backtest.
+- مدل فهرست نقدشونده را می‌بیند و۱..۵نماد را با یک ابزار خواندنی انتخاب می‌کند. seed داده توصیهٔ سرمایه‌گذاری نیست. خرابی seed با حداکثر۳تلاش و flags همان cutoff جدا می‌شود؛ همان دادهٔ ردشده دوباره انتخاب نشود. denylist قانونی تغییر نکرده است.
+- source/config/prompt/cutoff/hash و پاسخ واقعی حفظ شوند. collector متعلق به میزبان هنگام cancellation باید join شود. دارایی مثبت بدون قیمت، خطاست. پایان نگهداری forecast-bound برابر cutoff+horizon است، نه زمان ارسال+horizon.
+- اجرای منجمد `net-return-forward-20261023-2` طبق docs/current-market-readiness.md فعال است؛ تا تعیین وضعیت واقعی فرایند src/scripts/config/dependencies را تغییر ندهید، worker دوم نسازید و timeout مشاهده را مرگ فرایند ننامید.
+- scorer فقط outcome پس از موعد را می‌سنجد؛ fake یا response کپی‌شده نتیجهٔ AI واقعی نیست. baseline interval روی outcomes ارزیابی fit نشود. rawهای ignored برای داوری نیاز به بستهٔ مجازِ پاک‌سازی‌شده دارند؛ clone تمیز به‌تنهایی آن‌ها را ندارد.
+- ۳۶۰ تست هسته در source3799e4a پاس شده‌اند؛ coverage کامل، alpha، سود یا readiness از این تعداد نتیجه نمی‌شود. وضعیت و کار بعدی در TASKS.md؛ نکات پایدار در memory.md.

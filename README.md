@@ -1,62 +1,54 @@
-# رویین — موتور معاملاتی هوشمند برای چالش والکس
+# رویین — ایجنت معاملاتی والکس
 
-موتور معاملاتی خودکار و عامل‌محور (Agentic AI) برای بازار رمزارز صرافی والکس در چارچوب چالش هکاتون Agentic AI استارکوچ.
+رویین برای تحلیل بازارهای مجاز اسپات والکس، انتخاب فرصت توسط مدل و مدیریت مستقل ریسک ساخته می‌شود. دو نقش مدل، تحلیل‌گر ورود و بازبین موقعیت‌اند؛ حسابداری، حجم سفارش، توقف و پایان زمان در اختیار میزبان است.
 
-**وضعیت جاری — ۲۰۲۶-۱۰-۲۲:** ران کاغذی با دادهٔ جاری و مدل واقعی، ۱۵ چرخه را تمام کرد: ۴۸ درخواست عمومی، ۳ تصمیم معتبر و ۱ fallback میزبان؛ بدون معامله و با بازده صفر. سودآوری و مزیت مالی AI تأیید نشده‌اند. پایلوت مالی قبلی همچنان `UNKNOWN` است، هرچند تاریخچهٔ حساب خالی و تمام اعتبار آزاد دیده شده است؛ معاملهٔ تازه غیرفعال می‌ماند. [جزئیات اجرای جاری](docs/current-market-readiness.md) · [وضعیت پایلوت مالی](docs/credit-canary.md) · [ارزیابی تاریخی و محدودیت‌ها](docs/candidate-evaluation.md).
+**وضعیت فعلی:** آزمون پیوسته با دادهٔ زنده و مدل واقعی در حال اجراست؛ پول آن کاغذی است. سودآوری پایدار یا آمادگی اجرای عمومی با پول واقعی تأیید نشده است. تلاش فنی قبلیِ ثبت سفارش به `BUY_UNKNOWN` رسیده؛ بررسی خواندنی اخیر هیچ سفارش و کاهش موجودی نشان نداده، اما علت پاسخ خالی آن ارسال مشخص نیست.
 
-نقطه شروع توسعه و راهنمای قوانین و گیت‌ها در [AGENTS.md](AGENTS.md) مستند شده است.
+## از کجا شروع کنیم؟
 
-## مستندات کلیدی پروژه
+| نیاز | مرجع |
+|---|---|
+| وضعیت امروز، آزمون فعال و کارهای بعدی | [وضعیت اجرا](docs/current-market-readiness.md)، [تسک‌ها](TASKS.md) |
+| قوانین مسابقه و محدودیت بازار | [بریف](docs/challenge-brief.md)، [سیاست بازار](docs/market-access-policy.md) |
+| توسعه و شناخت اجزا | [دستور ایجنت](AGENTS.md)، [معماری](ARCHITECTURE.md) |
+| صحت داده و سنجش نتیجه | [قرارداد داده](docs/market-data-semantics.md)، [ارزیابی](docs/evaluation-plan.md)، [سنجش پیش‌بینی](docs/current-forecast-evaluation.md) |
+| حساب واقعی، وضعیت UNKNOWN و بازیابی | [قرارداد حساب و اجرای مالی](docs/credit-canary.md) |
+| مدل، مانیتورینگ و ارائه | [بودجه مدل](docs/boxapi-budget.md)، [داشبورد](dashboard/README.md)، [ویدئو](docs/video-presentation-plan.md) |
 
-- [صورت‌مسئله، بارم‌بندی و الزامات داوری](docs/challenge-brief.md)
-- [محدودیت‌های بازار اسپات و سیاست دسترسی حساب](docs/market-access-policy.md)
-- [شناخت محصول و دامنه نیازمندی‌ها](project-overview.md)
-- [معماری سیستم و انتخاب ابزارها](ARCHITECTURE.md)
-- [اصول طراحی سیستم](DESIGN.md)
-- [پیگیری وظایف و وضعیت گام‌ها](TASKS.md)
-- [حافظه پایدار پروژه و تصمیمات فنی](memory.md)
-- [برنامه جامع ارزیابی و اعتبارسنجی](docs/evaluation-plan.md)
-- [قرارداد و ابهام‌های منبع کندل ساعتی](docs/market-data-semantics.md)
-- [ارزیابی نامزدها و راهنمای پایش فقط‌خواندنی](docs/candidate-evaluation.md)
-- [گزارش کیفیت داده‌های بازار](research/t02-data-contract.json)
-- [پالیسی و سقف بودجه مدل BoxAPI](docs/boxapi-budget.md)
-- [راه‌اندازی و آزمون فقط‌خواندنی حساب والکس](docs/wallex-read-only-setup.md)
-- [انتخاب بازار با مدل واقعی و چرخهٔ کاغذی](docs/current-market-readiness.md)
-- [سنجش پیش‌بینی‌های واقعی و نتایج ناموفق](docs/current-forecast-evaluation.md)
-- [پایلوت مالی محدود و وضعیت درخواست نامشخص](docs/credit-canary.md)
+گزارش‌های میانی، Blueprint و نسخه‌های قبل از تلخیص در `.local/docs/` نگهداری می‌شوند؛ این پوشه ignored است و در clone همکاران وجود ندارد. قراردادها و راهنمای مورد نیاز در فایل‌های جدول بالا باقی مانده‌اند. تاریخچهٔ Git بازنویسی نشده است.
 
-## دستورهای اجرایی اصلی
+## نصب
 
-برای اعتبارسنجی تنظیمات و محیط:
+Python 3.12 و uv؛ از ریشهٔ پروژه در PowerShell، فقط در محیط تازه:
+
 ```powershell
-.\.venv\Scripts\python.exe -m royin check-config
+uv venv --python 3.12 .venv
+uv pip sync --python .\.venv\Scripts\python.exe requirements.lock
+uv pip install --python .\.venv\Scripts\python.exe --no-deps --editable .
 ```
 
-برای اجرای تست‌های رگرسیون و آزمون‌های واحد:
+روی محیط موجود دوباره `uv venv` نزنید. `sync` بستهٔ محلی را حذف می‌کند و نصب editable باید بعد از آن باشد. فایل `.env` محلی را بر اساس `.env.example` بسازید و فایل موجود را overwrite نکنید. نام تنظیمات در `.env.example` است؛ `.env` واقعی و کلیدها وارد Git نمی‌شوند. پیش‌فرض shadow است؛ تغییر پرچم به live، مسیر معاملاتی عمومی ایجاد نمی‌کند.
+
+## فرمان‌های بررسی
+
 ```powershell
+.\.venv\Scripts\python.exe -m royin check-config --env-file .env.example
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s dashboard/tests -v
+.\.venv\Scripts\python.exe -m ruff check src scripts tests dashboard
+.\.venv\Scripts\python.exe -m compileall -q src scripts tests dashboard
 ```
 
-برای اجرای سوئیت ارزیابی و جدول مقایسه استراتژی‌ها (Evaluation Scorecard):
-```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts\run_eval.py --all
-```
+`VALID_CONFIG_ONLY` فقط صحت تنظیمات را می‌سنجد؛ شاهد معامله یا سود نیست. آخرین بررسی هسته در منبع `3799e4a`: ۳۶۰ تست موفق. درصد پوشش کد اندازه‌گیری نشده است؛ تعداد تست تضمین صحت مالی در صرافی نیست.
 
-برای پروب فقط‌خواندنی حساب اعتباری والکس:
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -m scripts.probe_wallex_account --run
-```
-
-برای یک چرخه پایش عمومیِ ساعتی، بدون مدل یا سفارش:
+## مشاهده و اجرای کاغذی
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts\run_shadow.py --mode OBSERVE_ONLY --cycles 1 --interval 3600 --max-attempts 1
+.\.venv\Scripts\python.exe -X utf8 dashboard/server.py --port 8765
+.\.venv\Scripts\python.exe -X utf8 scripts/run_market_paper.py --help
+.\.venv\Scripts\python.exe -X utf8 scripts/run_market_paper.py --self-check
 ```
 
-این فرمان GET عمومی مصرف می‌کند. `COMPLETE` فقط تکمیل مشاهده درخواستی است؛ `PARTIAL` با exit 2 یعنی مشاهده کامل نشده است. مسیر `CANDIDATE_SHADOW` قبل از شبکه رد می‌شود. داده خام پژوهش ignored است؛ بازپخش دقیق در کلون تازه نیازمند بسته داده همراه تحویل است.
+داشبورد در http://127.0.0.1:8765 فقط‌خواندنی است؛ نتیجهٔ کاغذی را موجودی واقعی حساب ندانید. `--self-check` آزمون مصنوعی قرارداد اجراست. برای اجرای مدل واقعی از پروتکل ثبت‌شده در [وضعیت اجرا](docs/current-market-readiness.md) استفاده کنید؛ آن فرمان هزینهٔ مدل دارد، با پول مجازی معامله می‌کند و نباید هم‌زمان با اجرای موجود تکرار شود.
 
-
-Latest execution review: [readiness and evidence limits](docs/execution-readiness-review.md). The order adapter is an offline contract harness; production orders and Candidate Shadow remain blocked. Twelve fixed AI snapshots are not proof of profitable trading.
-
-
-The draft `run_paper_trader.py` CLI is blocked before I/O pending causal execution and provenance repairs; it is not current-model Shadow evidence. Public OBSERVE_ONLY remains separate.
+هدف، بازده خالص پس از کارمزد و هزینهٔ اجراست. پیش‌بینی رشد بالای ۲٪ تضمین سود نیست و کارمزد را حذف نمی‌کند. دادهٔ ناقص، نبود فرصت و خطای مدل باید جدا گزارش شوند؛ برای امتیاز فعالیت معاملهٔ اجباری نداریم.

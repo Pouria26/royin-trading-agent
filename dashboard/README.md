@@ -58,7 +58,7 @@ AVAILABLE داده خواندنی، EMPTY منبع معتبر با صفر رکو
 INVALID schema/value نامعتبر، STALE مشاهده عمومی قدیمی. research تاریخی عمداً
 freshness=HISTORICAL دارد؛ تاریخ artifact نشانه heartbeat نیست. stale مشاهده
 پس از دو interval همان manifest، فقط سیاست نمایشی است؛ آستانه ریسک نیست.
-timestamp آینده بیش از 60 ثانیه INVALID است. worker همیشه UNKNOWN تا اتصال موتور.
+timestamp آینده بیش از 60 ثانیه INVALID است. وضعیت worker فقط از snapshot معتبر موتور گزارش می‌شود؛ سلامت HTTP داشبورد شاهد اجرای موتور نیست.
 همه پول/قیمت/quantity/feeها decimal string هستند. پول scorecard به TMN، افت
 درصد؛ base فقط برای USDTTMN، USDT است و برای نماد دیگر حدس زده نمی‌شود.
 ناحیه حساب واقعی مستقل و unavailable است. موجودی منحنی فقط PAPER همان شاخه است.
@@ -96,12 +96,18 @@ drawdown_basis، سرمایه آغاز و grid زمانی یکسان فعال ا
 این پالایش تضمین تشخیص هر Secret دلخواه نیست. exporter آینده باید sanitized باشد.
 لاگ request، traceback، account ID، header، URL خصوصی و .env وارد API نمی‌شوند.
 
-## اتصال بعدی موتور
+## اتصال فعلی موتور و حساب
 
-قرارداد پیشنهادی در ENGINE-CONTRACT.md است؛ پیاده‌سازی موتور یا adapter حساب
-موجود ادعا نمی‌شود. اکنون حساب/reconciliation/current risk=UNAVAILABLE. فقط
-Agent 2/موتور مالک اتصال صرافی و worker است. افزودن exporter و adapter پس از
-قبول schema کار یکپارچه‌ساز است؛ هیچ client خصوصی دوم ساخته نمی‌شود.
+Sources، فایل `.local/dashboard/engine-snapshot.json` صادرشده توسط موتور را برای run،
+heartbeat، worker_state و موجودی چنددارایی می‌خواند. `data/private/probe-report.json`
+در صورت وجود، snapshot خواندنی حساب را جدا فراهم می‌کند. این خواندن فایل است، نه
+اتصال خصوصی مستقیم به صرافی یا streaming موجودی. نبود/خرابی منبع unavailable/invalid
+است؛ label خوداظهاری snapshot، تأیید مستقل صرافی نیست.
 
-نتیجه browser و screenshotها در handoff محلی ثبت شده‌اند. suite مشترک، freeze
-نهایی، live، invoice و تست real-account در این مأموریت اجرا نشده‌اند.
+اگر منبع paper جایگزین نمایش account شود، evidence_kind آن باید PAPER بماند؛ آن را
+موجودی واقعی معرفی نکنید. route ثبت/لغو سفارش وجود ندارد و worker از سلامت HTTP
+داشبورد نتیجه نمی‌شود. قرارداد schema در [ENGINE-CONTRACT](ENGINE-CONTRACT.md) و
+وضعیت واقعی اجرای فعال در [وضعیت موتور](../docs/current-market-readiness.md) است.
+
+آزمون رابط/منابع، تأیید live، invoice یا سود استراتژی نیست. screenshot و گزارش محلی
+جای سنجش از همان source/config/run را نمی‌گیرند.

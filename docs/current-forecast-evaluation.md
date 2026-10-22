@@ -1,80 +1,26 @@
-# Recorded current-market forecast evaluation
+# سنجش پیش‌بینی‌های ثبت‌شده
 
-Status: **diagnostic evidence, not strategy approval**. The real credit canary remains
-BUY_UNKNOWN; this evaluation sends only public GETs and does not modify that financial state.
+پیش‌بینی قیمت، معاملهٔ اجراشده نیست. این مسیر تنها GET عمومی دارد و state مالی canary را تغییر نمی‌دهد؛ نتیجه، پذیرش استراتژی یا کالیبراسیون مدل نیست.
 
-The scorer consumes the existing CURRENT_PAPER/REAL_MODEL manifests. Before any GET it checks
-snapshot and batch hashes, provider final_result against the recorded host forecast, symbol,
-cutoff, horizon policy, evidence and pre-outcome manifest time. A nullable symbol on WAIT is
-valid only when its forecast and echoed snapshot bind the same market. Missing forecasts,
-unmatured outcomes and invalid candles remain visible rather than becoming successful samples.
-Provider trace consistency is not a cryptographic attestation from the provider.
+## قرارداد
 
-Outcome: the close of the one-minute candle with open timestamp exactly horizon_end-60.
-The source open-time convention is still a diagnostic assumption; no interpolation, rounding
-to a later minute or stale last-price substitution is permitted. Subminute horizons are unscored.
-There are at most32 GETs, no retry and no model call. Source manifests stay untouched and each
-evaluation gets a new output directory with source/scorer/capture hashes. Repeated copies cannot
-inflate sample count; same-session forecasts remain correlated even when IDs differ.
-Copied provider responses under different run IDs are rejected before HTTP as well.
+`score_market_forecast` manifestهای `CURRENT_PAPER / REAL_MODEL` را بررسی می‌کند: hash snapshot/batch، پاسخ نهایی واقعی provider در برابر forecast میزبان، symbol، cutoff، horizon و شواهد، و صدور پیش از outcome. کپی پاسخ در run تازه نباید نمونهٔ جدید بسازد. تطابق trace، امضای مستقل provider نیست.
 
-Verified CLI, from the repository root:
+Outcome از close دقیقه‌ای با آغاز دقیق `cutoff + horizon - 60` خوانده می‌شود؛ تا پایان horizon به‌علاوه ۶۰ ثانیه منتظر می‌ماند. قرارداد آغاز کندل هنوز فرض تشخیصی است. نتیجهٔ نارس، مفقود یا cadence نامعتبر به pass تبدیل نمی‌شود. interpolation و استفاده از قیمت stale مجاز نیست. سقف ۳۲ GET، بدون retry و بدون مدل پولی است.
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -m scripts.score_market_forecast --paper-manifest artifacts/market-paper/market-readiness-real-20261022-4/manifest.json artifacts/market-paper/market-readiness-real-20261022-7/manifest.json artifacts/market-paper/market-readiness-real-20261022-8/manifest.json --score
+.\.venv\Scripts\python.exe -X utf8 -m scripts.score_market_forecast --help
 ```
 
-The actual aggregate run included all seven available manifests from the earlier eight diagnostic
-attempt directories, including four decisions without an issued forecast. The failed attempt
-without a manifest contributes no invented decision. These are mixed source revisions, not an A/B
-comparison or independent holdout. The report retained three valid forecasts.
+برای سنجش از `--paper-manifest <manifest-path> --score` استفاده کنید؛ چند manifest هم پذیرفته می‌شود. مسیر باید به شواهد موجود همان اجرا اشاره کند؛ rawها در clone تازه نیستند. هر ارزیابی مسیر خروجی و hash تازه دارد و source manifest را overwrite نمی‌کند. `pending` و `missing` را جدا گزارش کنید.
 
-## Observation at2026-10-22T17:46:41Z
+## شواهد فعلی و محدودیت
 
-Actual public GETs:1. Model calls:0. Financial writes:0. Result:PARTIAL_FORECAST_DIAGNOSTIC,
-one scored forecast, two pending and no missing outcome among the matured forecasts.
+- دو پیش‌بینی اولیهٔ USOON/PUMP: مدل روی median absolute error از baseline بدون تغییر ضعیف‌تر بود؛ یکی جهت اشتباه داشت.
+- سه پیش‌بینی بعدی USOON نیز مثبت بودند ولی terminal return واقعی منفی شد؛ baseline بدون تغییر نزدیک‌تر بود. این‌ها تصمیم WAIT بودند، نه fill یا زیان محقق‌شدهٔ حساب.
+- برخی افق‌های ده‌ساعته هنوز موعد نرسیده بودند؛ تعداد pending با ساعت ارزیابی تغییر می‌کند. نتایج متفاوت source/prompt را مقایسهٔ کنترل‌شده ننامید.
+- بازهٔ عریض q10..q90 و چند outcome پوشش‌داده‌شده، کالیبراسیون ۸۰٪ را ثابت نمی‌کند. میانگین/میانهٔ terminal forecast نیز expected payoff یک معاملهٔ دارای trailing نیست.
+- baseline صفر فقط point forecast است؛ interval آن از همین outcomes fit نمی‌شود. بدون development interval مستقل، معیار interval آن BLOCKED است.
+- مشاهدات یک جلسه هم‌بسته‌اند؛ نرخ برد استراتژی یا مزیت AI با چند پیش‌بینی اثبات نمی‌شود. پاسخ یا reason منطقی جای مقایسهٔ portfolio با اجرای یکسان را نمی‌گیرد.
 
-| Forecast | Action | Horizon | Median forecast | Observed terminal return | State |
-|---|---|---|---|---|---|
-| USOONTMN | WAIT |50min |+0.200% |+0.3870547% |Scored |
-| PUMPTMN | WAIT |57min |-0.800% |Not yet scored |Pending |
-| PEPETMN | WAIT |10h |-1.200% |Not yet scored |Pending |
-
-For USOONTMN, absolute median error was0.1870547 percentage points, versus0.3870547 for
-the zero-point forecast. Its q10..q90 interval was[-1.2%,+1.8%], width3 percentage points;
-this single outcome was inside it. One covered outcome does not establish80% coverage/calibration.
-This is a gross price move, not a filled trade or net profit. Fees/slippage would still be payable.
-
-## Second maturity check at2026-10-22T17:55:32Z
-
-The57-minute PUMPTMN forecast matured. Two public GETs produced a new report; the first
-USOONTMN result and its capture hash were unchanged. No model or financial request was made.
-
-| Forecast | Median forecast | Observed terminal return | Absolute error |
-|---|---|---|---|
-| USOONTMN |+0.200% |+0.3870547% |0.1870547 percentage points |
-| PUMPTMN |-0.800% |+0.8064516% |1.6064516 percentage points |
-
-Across these two correlated diagnostics, median absolute error was0.8967532 percentage points
-for the model versus0.5967532 for the zero-point baseline. The model was worse on this metric;
-the PUMPTMN sign forecast was wrong. Both outcomes fit the model's broad intervals, which does
-not rescue the point forecast or prove calibration. PEPETMN remains pending until its ten-hour
-horizon matures. This evidence does not justify increasing risk, adding a debate swarm or tuning
-the same evaluation outcomes into an apparent improvement. Any forecast change needs fresh data.
-
-Offline replay against the preserved source/capture hashes reproduced both terminal returns,
-pending count and metric values with zero HTTP/model/order calls. Raw captures stay ignored.
-
-The zero-point baseline now reports interval metrics as BLOCKED_NO_DEVELOPMENT_INTERVAL unless
-an independently supplied development interval exists. Previously the helper fitted its default
-interval on its own evaluation outcomes, contrary to the documented intended comparison. The
-regression prevents that leakage; historical artifacts are preserved, not silently rewritten.
-
-For replay, retain the ignored source manifests and outcome captures; a clean public clone does
-not contain those raw records. Do not call this complete judge reproducibility until an allowed,
-sanitized evidence package and replay inputs are assembled. No profitability, superiority over a
-strategy baseline, stable income or competition score is established.
-
-Verification for this phase:336 core tests, Ruff, compileall and wheel build passed. Existing
-market-policy snapshots were not changed; the host now independently applies that denylist even
-when a scanner/model proposes a prohibited symbol. No new model spend or financial write occurred.
+برای replay داوری باید source، capture و پاسخ مجاز و پاک‌سازی‌شده فراهم شود. موجود بودن hash در Git بدون raw مجاز، اجرای کامل داوری از clone را ثابت نمی‌کند. وضعیت آزمایش فعال و موعد بعدی در [current-market-readiness](current-market-readiness.md) است.
