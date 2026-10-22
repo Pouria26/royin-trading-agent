@@ -241,3 +241,14 @@ A clean export of staged tracked files, without .env/private data and using the 
 - [ ] Run bounded multi-hour forward evidence and own-state baselines; measure net outcomes without promising profit.
 
 Full mission remains active. This phase is analysis/paper readiness, not a live release. See docs/current-market-readiness.md.
+
+## Restricted financial connection phase - 2026-10-22
+
+- [x] Add one100k-TMN technical transport with a shared account lock, durable two-order/eight-request caps and known-intent scope.
+- [x] Execute bounded read-only preflight successfully; observe actual spot minimums, fees, account and buy/sell feasibility.
+- [x] Add eight offline contract/accounting checks, including exact fee/dust, account mismatch, restart, expiry recovery and fractional fill timestamps.
+- [x] Review324 passing core tests,9 dashboard tests, Ruff, compileall and wheel; clean source is required before execution.
+- [ ] Execute the authorized tiny technical canary from the committed source.
+- [ ] Independently reconcile real order observations and account delta. General strategy live remains blocked.
+
+Source and operating limits: docs/credit-canary.md. A technical pilot incurs fees and does not prove alpha.

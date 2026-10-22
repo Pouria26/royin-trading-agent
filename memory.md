@@ -160,3 +160,10 @@ TMN market breadth needs USDT/TMN adjustment to avoid mistaking FX movement for 
 Real role output exceeded512 tokens and tool-return packets exceeded the8192 input byte bound: policyv2 reserves12288/1024;
 prices and global/daily caps unchanged. Scope counters, original funded deadline and chosen rules/horizon persist on restart.
 316 core tests passed; real current decisions returned WAIT. These observations establish wiring, not alpha or production safety.
+
+2026-10-22: A separate100k-TMN technical canary lane is scoped by account worker lock, clean revision,
+one BUY/SELL, eight durable order attempts and600-second initial-entry expiry. Shared financial state
+lives under the operator home; cloning/restarting must not create a fresh allowance. General live stays
+blocked. Read-only preparation passed. Fractional UTC-offset fill times are now accepted; whole-second
+fixture identities stay compatible. Complete cumulative multisets are required because the official
+order contract exposes no documented server fill ID. A dust result remains exit2, not fully realized profit.

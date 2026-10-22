@@ -196,6 +196,7 @@ class Ledger:
         lock = None
         self._worker_active = True
         self._worker_owner = threading.get_ident()
+        self._worker_account_fingerprint = account_fingerprint
         try:
             if account_fingerprint is not None or lock_directory is not None:
                 if not isinstance(account_fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", account_fingerprint) or lock_directory is None:
@@ -214,6 +215,7 @@ class Ledger:
                 lock.close()
             self._worker_active = False
             self._worker_owner = None
+            self._worker_account_fingerprint = None
 
     def _init_db(self):
         with self.transaction() as db:

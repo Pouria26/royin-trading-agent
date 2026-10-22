@@ -151,7 +151,7 @@ def prepare_pilot_packet(
 
 def run_pilot_round_trip(broker, ledger, rules, policy, current_price, current_time,
                          snapshot_sha256, *, client_id_prefix="pilot", exit_quote=None):
-    """One restartable offline step; never invent an exit clock/price or treat partial as settled."""
+    """One restartable technical step; never invent an exit quote or treat partial as settled."""
     import hashlib
     from dataclasses import asdict
     if type(current_time) is not int or current_time<=0:
@@ -189,7 +189,7 @@ def run_pilot_round_trip(broker, ledger, rules, policy, current_price, current_t
         action="ENTER" if stage=="BUY" else "EXIT"
         decision=Decision(decision_id=cid,symbol=rules.symbol,action=action,cutoff=current_time,
             snapshot_sha256=snapshot_sha256,evidence_ids=("TECHNICAL_PILOT_NOT_STRATEGY",),
-            reason="Offline technical execution contract step",invalidation="Host policy/deadline")
+            reason="Technical execution verification, not strategy alpha",invalidation="Host policy/deadline")
         risk=evaluate_risk(decision,market_rules=rules,policy=policy,ledger=ledger,current_time=current_time,
             snapshot_sha256=snapshot_sha256,candle_close_time=current_time,current_price=price,
             denied_markets=load_restrictions(broker.restrictions_path))

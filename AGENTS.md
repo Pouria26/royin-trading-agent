@@ -156,3 +156,13 @@ profit guarantee. A short diagnostic must WAIT when its funded session cannot co
 Public USDTTMN metadata observed minQty0.01/minNotional50000; the old one-USDT assumption is
 superseded for that public snapshot, not all credit-package conditions. Production remains blocked.
 316 core tests and a real current-model WAIT diagnostic passed; neither proves strategy profitability.
+
+## Restricted technical canary lane (2026-10-22)
+
+docs/credit-canary.md supersedes the MockTransport-only claim solely for CreditCanaryTransport.
+General live mode remains blocked. The dedicated CLI is `python -m scripts.execute_credit_canary`:
+no flag is help, --prepare is read-only, --execute is the user's previously authorized small technical
+pilot. Before execution require a clean revision and successful current preflight. Maximum100000 TMN,
+one BUY/one SELL/eight order attempts; persistent account-scoped state under the operator home must
+never be reset. Failed or residual outcomes are not successful fully realized strategy trades.
+Do not enable this lane for arbitrary symbols, size or autonomous strategy runs.

@@ -1,11 +1,11 @@
-"""Offline Wallex order-contract prototype. Production transport is deliberately blocked."""
+"""Wallex order contract; general production is blocked outside a restricted technical canary."""
 
 import hashlib
 import json
 import re
 import threading
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from functools import wraps
 from pathlib import Path
@@ -39,11 +39,11 @@ def single_worker(method):
 
 
 class WallexLiveBroker:
-    """Mock-transport contract harness, not a live execution engine.
+    """Order reconciliation shared by offline fixtures and a restricted credit canary.
 
     Complete cumulative synthetic snapshots reconcile atomically. Undocumented
-    server fill identity/finality semantics remain a production blocker.
-    Flags/constructor overrides never authorize real network transport.
+    General strategy production is blocked. Flags alone cannot authorize real HTTP;
+    the technical lane additionally enforces account lock and durable transport caps.
     """
 
     def __init__(
@@ -77,9 +77,15 @@ class WallexLiveBroker:
         if self.enable_live_trading is not True or self.run_mode != "live":
             raise LiveTradingSafetyGateError("Live trading is disabled")
         client = self._injected_client
-        if client is None or type(client._transport) is not httpx.MockTransport or client._mounts:
+        from royin.canary import CreditCanaryTransport
+        transport = client._transport if client is not None else None
+        allowed = type(transport) is httpx.MockTransport or (
+            type(transport) is CreditCanaryTransport and transport.ledger is self.ledger
+            and transport.rules == self.rules and transport.config is self.config
+        )
+        if client is None or not allowed or client._mounts:
             raise LiveTradingSafetyGateError(
-                "Production transport is blocked; offline MockTransport only"
+                "Production transport is blocked outside the restricted credit canary"
             )
         if not self.config.WALLEX_API_KEY or not self.config.SUB_ACCOUNT_CLIENT_ID:
             raise ValueError(
@@ -196,8 +202,8 @@ class WallexLiveBroker:
                 if p <= 0 or q <= 0 or decimal_number(fill["sum"]) != p * q:
                     raise ValueError("Invalid fill amounts")
                 instant = datetime.fromisoformat(fill["timestamp"].replace("Z", "+00:00"))
-                if instant.utcoffset() is None or instant.microsecond:
-                    raise ValueError("Fixture timestamps require offset and whole seconds")
+                if instant.utcoffset() is None:
+                    raise ValueError("Fill timestamps require an explicit offset")
                 t = int(instant.timestamp())
                 if t > timestamp:
                     raise ValueError("Future fill")
@@ -211,10 +217,10 @@ class WallexLiveBroker:
                         str(q.normalize()),
                         str(fee.normalize()),
                         fill["feeAsset"],
-                        t,
+                        instant.astimezone(UTC).isoformat() if instant.microsecond else t,
                     ]
                 )
-                # shortcut: content multiset IDs are offline-only; require exchange-attested identity before production.
+                # shortcut: no server fill ID is documented; reject revised/incomplete cumulative multisets.
                 digest = hashlib.sha256(canonical.encode()).hexdigest()
                 occurrences[digest] += 1
                 fid = f"{client_id}:{digest}:{occurrences[digest]}"
