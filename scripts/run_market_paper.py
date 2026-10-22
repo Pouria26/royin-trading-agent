@@ -880,6 +880,8 @@ class MarketPaperOrchestrator:
                     )
                     # Arm protection
                     horizon = decision.horizon_seconds or self.horizon_max_seconds
+                    if decision.forecast is not None:
+                        horizon = decision.forecast.cutoff + decision.forecast.horizon_seconds - submit_time
                     self.protection_policy = replace(self.base_protection_policy,
                         hard_holding_seconds=horizon,
                         review_interval_seconds=max(1, min(decision.review_after_seconds or 1800, horizon)))

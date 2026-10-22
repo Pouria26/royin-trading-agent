@@ -254,3 +254,9 @@ Financial UNKNOWN remains unresolved; budget changes do not authorize new financ
 horizon; budget total holding duration+buffer+latency explicitly before calling this a performance
 experiment. Fresh6-GET private audit found complete empty order history and5M free cash;
 original same-ID404 does not reconstruct the missing historic POST HTTP status.
+
+2026-10-23: Remove bootstrap-symbol framing when a full research universe is available; an
+internal anchor is not an investment selection. Source-bound forecast expiry is cutoff+horizon,
+not order submission+horizon. New long-run role scopes48 calls/96 HTTP/USD0.50; saved legacy
+caps/counters survive migration. Pre-outcome3-hour protocol in current-market-readiness.md;
+model chooses holdings within funded time, no quota or forced trade. No alpha claim yet.

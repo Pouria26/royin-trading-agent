@@ -189,3 +189,8 @@ assets must raise at valuation, never disappear as zero. Join the owned collecto
 Research capacity supersedes the earlier role-input checkpoint: read the2026-10-23 section in
 docs/current-market-readiness.md. Policy v3 reserves32768 input/1024 output tokens; new role
 scopes USD0.20, existing scopes preserve their saved cap. Global counters are never reset.
+
+
+Sustained forward checkpoint: new role scopes48 calls/96 HTTP/USD0.50; persisted legacy
+limits remain unchanged. Read the pre-outcome protocol in docs/current-market-readiness.md.
+Forecast-bound protection ends at cutoff+horizon; network latency must not extend it.

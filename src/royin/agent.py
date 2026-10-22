@@ -115,7 +115,8 @@ class RoleRunEnvelope:
         self.started = time.monotonic()
         self.agent_runs = self.http_attempts = 0
         self.reservation_ceiling_usd = Decimal(0)
-        self.cost_limit_usd = Decimal(".20")
+        self.cost_limit_usd = Decimal(".50")
+        self.agent_limit = 48
         if self.scope_id is not None:
             age = self._durable_claim()
             self.started -= age
@@ -130,17 +131,20 @@ class RoleRunEnvelope:
             db.execute("BEGIN IMMEDIATE")
             if "cost_limit" not in {row[1] for row in db.execute("PRAGMA table_info(role_run_envelopes)")}:
                 db.execute("ALTER TABLE role_run_envelopes ADD COLUMN cost_limit TEXT NOT NULL DEFAULT '0.04'")
+            if "agent_limit" not in {row[1] for row in db.execute("PRAGMA table_info(role_run_envelopes)")}:
+                db.execute("ALTER TABLE role_run_envelopes ADD COLUMN agent_limit INTEGER NOT NULL DEFAULT 12")
             now = time.time()
             db.execute("INSERT OR IGNORE INTO role_run_envelopes "
-                       "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit) VALUES (?,?,?,0,0,'0',?)",
-                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd)))
-            started, duration, runs, attempts, reserved, cost_limit = db.execute(
-                "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit FROM role_run_envelopes WHERE scope=?",
+                       "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit) VALUES (?,?,?,0,0,'0',?,?)",
+                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd), self.agent_limit))
+            started, duration, runs, attempts, reserved, cost_limit, agent_limit = db.execute(
+                "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit FROM role_run_envelopes WHERE scope=?",
                 (self.scope_id,)).fetchone()
             self.cost_limit_usd = Decimal(cost_limit)
+            self.agent_limit = agent_limit
             reserved = Decimal(reserved) + cost
             if (duration != self.duration_seconds or not 0 <= now-started < duration
-                    or runs+agent_runs > 12 or attempts+http_attempts > 24 or reserved > self.cost_limit_usd):
+                    or runs+agent_runs > self.agent_limit or attempts+http_attempts > 2*self.agent_limit or reserved > self.cost_limit_usd):
                 raise BudgetBlocked("Durable run/model budget exhausted or binding changed")
             db.execute("UPDATE role_run_envelopes SET agent_runs=?,http_attempts=?,reserved=? WHERE scope=?",
                        (runs+agent_runs, attempts+http_attempts, str(reserved), self.scope_id))
@@ -149,7 +153,7 @@ class RoleRunEnvelope:
             return now-started
 
     def claim_run(self):
-        if self.agent_runs >= 12 or time.monotonic() - self.started >= self.duration_seconds:
+        if self.agent_runs >= self.agent_limit or time.monotonic() - self.started >= self.duration_seconds:
             raise BudgetBlocked("Shared run/time pilot envelope exhausted")
         if self.scope_id is not None:
             self._durable_claim(agent_runs=1)
@@ -160,7 +164,7 @@ class RoleRunEnvelope:
         b = self.budget
         cost = (b.policy["max_input_tokens"] * b.input_rate
                 + b.policy["max_output_tokens"] * b.output_rate) / Decimal(1_000_000)
-        if self.http_attempts >= 24 or self.reservation_ceiling_usd + cost > self.cost_limit_usd or (
+        if self.http_attempts >= 2*self.agent_limit or self.reservation_ceiling_usd + cost > self.cost_limit_usd or (
             time.monotonic() - self.started >= self.duration_seconds
         ):
             raise BudgetBlocked("Shared HTTP/USD/time pilot envelope exhausted")
@@ -332,6 +336,9 @@ async def decide(
             async with asyncio.timeout(timeout_seconds):
                 prompt = f"Evaluate market snapshot for {snapshot.symbol} at cutoff {snapshot.cutoff}."
                 if role_context and role_context.get("research_universe"):
+                    prompt = ("Compare the full eligible market universe at the supplied cutoff. "
+                        "Select the most informative1..5 symbols for deep research via read_market_snapshot; "
+                        "no symbol has been preselected as an investment recommendation.")
                     preview = {key:value for key,value in role_context.items()
                         if key not in ("candidates","research_universe","research_view")}
                     preview["research_universe"] = role_context["research_view"]

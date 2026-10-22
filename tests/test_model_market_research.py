@@ -61,6 +61,8 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         first = json.dumps(bodies[0]["messages"])
         self.assertIn("ADATMN",first)
         self.assertIn("LTCTMN",first)
+        initial = next(row["content"] for row in bodies[0]["messages"] if row["role"] == "user")
+        self.assertNotIn("BTCTMN",initial.split("Research selection context:")[0])
         self.assertEqual(len(trace["context"]["research_universe"]["markets"]),7)
         self.assertEqual(trace["context"]["requested_symbols"],["SOLTMN"])
         self.assertEqual([row["symbol"] for row in trace["context"]["candidates"]],["SOLTMN"])

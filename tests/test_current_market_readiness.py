@@ -256,7 +256,8 @@ class CurrentMarketReadinessTests(unittest.TestCase):
              patch.object(runner,"decide_role",return_value=decision), patch("time.time",return_value=8105):
             asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
         self.assertEqual(o.rules.symbol,"ETHTMN")
-        self.assertEqual(o.protection_policy.hard_holding_seconds,7200)
+        self.assertEqual(o.protection_policy.hard_holding_seconds,7195)
+        self.assertEqual(8105+o.protection_policy.hard_holding_seconds,decision.forecast.cutoff+decision.forecast.horizon_seconds)
         self.assertEqual(o.protection_policy.review_interval_seconds,600)
         saved_hash = o.protection_policy.sha256
         self.assertTrue(o.decision_traces[-1]["client_id"])
@@ -273,16 +274,16 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         cfg = RuntimeConfig(LLM_COST_BUDGET=D(".5"),LLM_TOKEN_BUDGET=100000,LLM_COST_CURRENCY="USD")
         budget = ModelBudget(cfg,o.capture_dir/"budget.sqlite3")
         first = RoleRunEnvelope(budget,duration_seconds=3600,scope_id="shared")
-        for _ in range(12):
+        for _ in range(48):
             first.claim_run()
         restarted = RoleRunEnvelope(budget,duration_seconds=3600,scope_id="shared")
-        self.assertEqual(restarted.agent_runs,12)
+        self.assertEqual(restarted.agent_runs,48)
         with self.assertRaises(BudgetBlocked):
             restarted.claim_run()
         with self.assertRaises(BudgetBlocked):
             RoleRunEnvelope(budget,duration_seconds=7200,scope_id="shared")
         with closing(sqlite3.connect(budget.path)) as db:
-            self.assertEqual(db.execute("SELECT agent_runs FROM role_run_envelopes").fetchone()[0],12)
+            self.assertEqual(db.execute("SELECT agent_runs FROM role_run_envelopes").fetchone()[0],48)
 
     def test_legacy_envelope_keeps_original_cost_cap(self):
         o = self.make_runner()
@@ -295,7 +296,8 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         resumed = RoleRunEnvelope(budget,duration_seconds=3600,scope_id="legacy")
         self.assertEqual(resumed.cost_limit_usd,D(".04"))
         self.assertEqual(resumed.http_attempts,4)
-        self.assertEqual(RoleRunEnvelope(budget,duration_seconds=3600,scope_id="fresh").cost_limit_usd,D(".20"))
+        self.assertEqual(resumed.agent_limit,12)
+        self.assertEqual(RoleRunEnvelope(budget,duration_seconds=3600,scope_id="fresh").cost_limit_usd,D(".50"))
 
     def test_host_rechecks_denied_symbol_even_if_scanner_proposes_it(self):
         o = self.make_runner()

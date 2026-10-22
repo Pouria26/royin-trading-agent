@@ -258,3 +258,29 @@ was50,000 TMN, not a guessed100,000/300,000. Missing historic POST status preven
 root-cause diagnosis. Key revocation, write rejection or network/server interference are hypotheses.
 Private raw evidence stays ignored: data/private/order-recheck-1792707544/report.json.
 No financial loss observed; historic UNKNOWN is not silently rewritten as REJECTED.
+
+
+## Sustained forward protocol — 2026-10-23, pre-outcome
+
+The preceding420-second connectivity trial cannot test5-minute entries after a300-second
+exit buffer. Next run: current public Wallex data plus real gpt-6-luna,10,800-second wall limit,
+181 cycles at60 seconds,1,200 public GET ceiling,5M virtual cash,100,000 TMN maximum virtual
+order. Initial funded holding allowance is about10,500 seconds before collection latency;
+the model chooses its horizon within that allowance and the global5min..10h policy. No real
+account write is enabled. A WAIT remains valid; no trade count or forced-positive forecast.
+
+New role scopes allow48 role calls/96 model HTTPs/USD0.50 worst-case reservations to cover
+entry research plus position reviews. Global daily/total caps and all previous reservations
+remain. Saved old scopes retain both their original role count and cost limits; schema changes
+append columns with legacy defaults, never reset previous state.
+
+The universe-selection user message no longer says to evaluate the bootstrap currency:
+it asks to compare the complete eligible universe; the neutral internal anchor is not a pick.
+This removes an anchoring prompt defect, but improved selection/alpha remains an experiment.
+
+When an entry has a timestamp-bound forecast, protection now expires at forecast.cutoff+horizon,
+not submit_time+horizon. Analysis/network delay must not extend the predicted holding window.
+Source and config freeze occur before the run; do not edit src/scripts/config while it is active.
+Record terminal state, real model decisions/fallbacks, selected/researched markets, full costs,
+net portfolio return, drawdown and reasons. Only score forecasts after their exact maturity;
+keep diagnostic forecasts separate from paper fills, real money and independent calibration.

@@ -334,3 +334,13 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x]Capacity trial stopped flat:54 catalog rows,8 public GETs,4 real model HTTPs,2 valid WAITs,0 orders/fills,0% paper return. Not a profitability trial due to short funded horizon.
 - [x]Rechecked credit identity, balances, full order history, open orders and original client ID with6 read-only GETs; no exchange order observable,5M cash intact.
 - [ ]Run a source-bound forward trial with holding horizon plus exit buffer funded; score its pre-issued forecasts after maturity. No positive-alpha or real-trade readiness claim.
+
+
+## Sustained forward run — 2026-10-23
+
+- [x]Remove bootstrap-symbol anchoring from model selection prompt; keep full eligible catalog and single bounded research tool.
+- [x]Bind host holding expiry to original forecast endpoint; regression verifies latency does not extend it.
+- [x]Provide48/96-call bounded long-run role capacity; preserve legacy scope limits and counters.
+- [ ]Launch frozen3-hour real-data/real-model paper protocol with100k virtual order ceiling; inspect first checkpoint and eventual terminal state.
+- [ ]Score matured forecasts; report model-vs-zero error and net realized paper outcomes separately. Financial UNKNOWN and positive-alpha proof remain open.
+- [x]357 core tests passed in68.826s; Ruff/compileall/diff check passed before the sustained-run source freeze.
