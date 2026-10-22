@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 from dataclasses import asdict, replace
-from decimal import Decimal, localcontext
+from decimal import ROUND_DOWN, Decimal, localcontext
 from pathlib import Path
 
 from royin.agent import (
@@ -44,6 +44,7 @@ from royin.market_context import catalog_return
 from royin.market_data import (
     CandleSeries,
     aggregate_closed,
+    conservative_book_price,
     decimal_number,
     parse_history,
 )
@@ -630,11 +631,9 @@ class MarketPaperOrchestrator:
                     cutoff=now, max_age_seconds=0)
                 if depth.get("success") is not True or not 0 <= int(time.time())-received <= 60:
                     raise ValueError("No fresh terminal quote")
-                top = depth["result"]["bid"][0]
-                bid = decimal_number(top["price"], positive=True)
-                available = decimal_number(top["quantity"], positive=True)
-                if available < quantity:
-                    raise ValueError("Terminal top bid cannot fill the held paper quantity")
+                bid = conservative_book_price(depth,"SELL",self.rules.quantize_quantity(quantity))
+                if bid is None:
+                    raise ValueError("Terminal book cannot fill the held paper quantity")
                 settlement = self.broker.finalize_portfolio(bid, timestamp=received,
                     initial_capital=self.initial_capital, slippage_pct=DEFAULT_SLIPPAGE_PCT)
                 key = "protection_" + self.rules.symbol
@@ -857,6 +856,7 @@ class MarketPaperOrchestrator:
         # Host risk evaluation
         risk_result = None
         client_id = None
+        execution_evidence = None
         if decision.action == "ENTER" and decision.symbol in batch_map:
             submit_time = int(time.time())
             chosen_snap, _chosen_opp = batch_map[decision.symbol]
@@ -869,6 +869,9 @@ class MarketPaperOrchestrator:
             execution_price = _chosen_opp.best_ask
             if execution_price is None or not 0 <= submit_time-_chosen_opp.depth_received_at <= 60:
                 raise ValueError("Entry requires a fresh observed ask price")
+            # Reserve at a bounded limit, so a worse fresh ask cannot exceed the cash ceiling.
+            execution_price = (execution_price*(1+DEFAULT_SLIPPAGE_PCT)/target_rules.tick_size).to_integral_value(
+                rounding=ROUND_DOWN)*target_rules.tick_size
             risk_result = evaluate_risk(
                 decision,
                 market_rules=target_rules,
@@ -880,6 +883,28 @@ class MarketPaperOrchestrator:
                 current_price=execution_price,
                 denied_markets=load_restrictions(ROOT/"config/wallex-credit-market-policy.json"),
             )
+
+            actual_fill_price = None
+            if risk_result.approved:
+                try:
+                    depth, received = feed.get("/v1/depth",{"symbol":decision.symbol},
+                        cutoff=int(time.time()),max_age_seconds=0)
+                    actual_fill_price = conservative_book_price(depth,"BUY",risk_result.quantity,
+                        limit_price=risk_result.price)
+                    submit_time = int(time.time())
+                    if actual_fill_price is None or not 0 <= submit_time-received <= 60:
+                        raise ValueError("No full executable buy within the reserved limit")
+                    if decision.forecast is not None and decision.forecast.cutoff+decision.forecast.horizon_seconds <= submit_time:
+                        raise ValueError("Forecast expired while fetching the executable book")
+                    risk_result = evaluate_risk(decision,market_rules=target_rules,policy=self.risk_policy,
+                        ledger=self.ledger,current_time=submit_time,snapshot_sha256=chosen_snap.snapshot_sha256,
+                        candle_close_time=chosen_snap.cutoff,current_price=execution_price,
+                        denied_markets=load_restrictions(ROOT/"config/wallex-credit-market-policy.json"))
+                    execution_evidence = dict(assumption="WORST_CONSUMED_ASK_WITHIN_LIMIT",
+                        limit_price=str(risk_result.price),fill_price=str(actual_fill_price),received_at=received)
+                except (ValueError,OSError,RuntimeError,KeyError,IndexError,TypeError,ArithmeticError) as exc:
+                    risk_result = replace(risk_result,approved=False,
+                        reason="Executable entry book rejected: "+type(exc).__name__)
 
             if risk_result.approved:
                 # Rebind execution rules/broker to the model-selected market.
@@ -898,7 +923,7 @@ class MarketPaperOrchestrator:
                         client_id,
                         simulated_state="FILLED",
                         timestamp=submit_time,
-                        executed_price=risk_result.price,
+                        executed_price=actual_fill_price,
                     )
                     # Arm protection
                     horizon = decision.horizon_seconds or self.horizon_max_seconds
@@ -909,7 +934,7 @@ class MarketPaperOrchestrator:
                         review_interval_seconds=max(1, min(decision.review_after_seconds or 1800, horizon)))
                     self.ledger.set_meta("bound_position_policy", json.dumps(asdict(self.protection_policy), default=str))
                     self.broker.arm_protection(
-                        self.protection_policy, opened_at=submit_time, entry_price=risk_result.price
+                        self.protection_policy, opened_at=submit_time, entry_price=actual_fill_price
                     )
 
         trace = {
@@ -920,6 +945,7 @@ class MarketPaperOrchestrator:
             "model_trace": model_trace,
             "market_context": report.get("market_context"),
             "bootstrap_attempts":bootstrap_attempts,
+            "execution":execution_evidence,
             "coverage": report.get("coverage"),
             "risk": {
                 "approved": risk_result.approved if risk_result else None,
@@ -981,7 +1007,13 @@ class MarketPaperOrchestrator:
                 depth, received = feed.get("/v1/depth",{"symbol":self.rules.symbol},cutoff=observed,max_age_seconds=0)
                 if depth.get("success") is not True:
                     raise ValueError("Exit requires a fresh executable quote")
-                fresh_bid = Decimal(str(depth["result"]["bid"][0]["price"]))
+                if not 0 <= int(time.time())-received <= 60:
+                    raise ValueError("Exit quote expired")
+                fresh_bid = conservative_book_price(depth,"SELL",self.rules.quantize_quantity(
+                    self.ledger.get_balance(self.rules.base_asset).total))
+                if fresh_bid is None:
+                    raise ValueError("Exit book cannot fill the held paper quantity")
+                trace["execution_assumption"] = "WORST_CONSUMED_BID_PLUS_SLIPPAGE_BUFFER"
                 trace["settlement"] = self.broker.finalize_portfolio(fresh_bid,timestamp=received,
                     slippage_pct=DEFAULT_SLIPPAGE_PCT)
         except (BudgetBlocked, ValueError, OSError, KeyError, IndexError, TypeError) as exc:
@@ -994,15 +1026,18 @@ class MarketPaperOrchestrator:
         bid = last_price
         source_time = state.get("last_source_time", state.get("opened_at", now))
         received_at = now
+        execution_available = False
 
         try:
-            depth_data, received = feed.get("/v1/depth", {"symbol": symbol}, cutoff=now)
-            if depth_data.get("success") and depth_data.get("result", {}).get("bid"):
-                top_bid = depth_data["result"]["bid"][0]
-                bid = Decimal(str(top_bid.get("price", last_price)))
-                source_time = received
-                received_at = received
-        except (ValueError, OSError, RuntimeError):
+            depth_data, received = feed.get("/v1/depth", {"symbol": symbol}, cutoff=now,max_age_seconds=0)
+            quantity = self.rules.quantize_quantity(self.ledger.get_balance(self.rules.base_asset).total)
+            executable_bid = conservative_book_price(depth_data,"SELL",quantity)
+            bid = executable_bid if executable_bid is not None else decimal_number(
+                depth_data["result"]["bid"][0]["price"],positive=True)
+            source_time = received
+            received_at = received
+            execution_available = executable_bid is not None
+        except (ValueError, OSError, RuntimeError, KeyError, IndexError, TypeError, ArithmeticError):
             bid = last_price
 
         # Host protection tick
@@ -1013,6 +1048,7 @@ class MarketPaperOrchestrator:
             now=max(now, received_at),
             policy=self.protection_policy,
             slippage_pct=DEFAULT_SLIPPAGE_PCT,
+            execution_available=execution_available,
         )
 
         trace = {
@@ -1037,6 +1073,8 @@ class MarketPaperOrchestrator:
                 "reason": tick.get("exit_reason", "Position ongoing"),
                 "stop_price": tick.get("trailing_stop_price"),
             },
+            "execution_assumption": "WORST_CONSUMED_BID_PLUS_SLIPPAGE_BUFFER",
+            "execution_available":execution_available,
             "protection": {
                 "high_water": tick.get("high_water"),
                 "net_peak_tmn": tick.get("net_peak"),
