@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 from royin.market_data import Candle, CandleSeries, decode_json
 from scripts.run_paper_trader import (
     ScannerPublicFeed,
+    build_candidate_batch,
     decode_closed_minutes,
     scan_current_market,
-    select_candidate,
     shortlist_markets,
 )
 
@@ -58,9 +58,11 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(scan_current_market(feed,account_symbols=None,**args)["status"],"BLOCKED_ACCESS")
             feed.get.assert_not_called()
             report=scan_current_market(feed,account_symbols={"BTCTMN","ETHTMN","BTCUSDT"},**args)
-        self.assertEqual(report["status"],"CANDIDATE")
+        self.assertEqual(report["status"],"CANDIDATES")
         self.assertEqual(feed.get.call_count,7)
-        self.assertEqual(report["candidate"].snapshot.available_tmn_cash,D(1234))
+        self.assertEqual(len(report["batch"]), 3)
+        self.assertEqual(report["batch"][0].snapshot.available_tmn_cash,D(1234))
+        self.assertEqual(report["cutoff"], 30000)
 
     def shortlist(self, payload=None, **kwargs):
         params = dict(account_symbols={"BTCTMN", "ETHTMN", "TONTMN", "TONUSDT", "BTCUSDT"},
@@ -68,24 +70,27 @@ class ScannerTests(unittest.TestCase):
         params.update(kwargs)
         return shortlist_markets(payload or catalog(), **params)
 
-    def select(self, rows=None, **kwargs):
+    def batch(self, rows=None, **kwargs):
         rows = rows if rows is not None else self.shortlist()
         symbols = [r.symbol for r in rows]
         params = dict(series_by_symbol={s:series() for s in symbols},
             depth_by_symbol={s:depth() for s in symbols}, cutoff=8105,
+            snapshot_cutoff=8100,
             candle_received_at={s:8101 for s in symbols}, depth_received_at={s:8102 for s in symbols},
             round_trip_fee_pct=D(".006"), min_depth_tmn=D(10000), max_spread_pct=D(".005"),
             available_tmn_cash=D(1234))
         params.update(kwargs)
-        return select_candidate(rows, **params)
+        return build_candidate_batch(rows, **params)
 
     def test_whole_catalog_turnover_is_tmn_and_ton_never_enters(self):
         rows = self.shortlist()
         self.assertEqual([r.symbol for r in rows], ["BTCUSDT", "ETHTMN", "BTCTMN"])
         self.assertEqual(rows[0].turnover_tmn, D(400000000))
         self.assertEqual(rows[0].quote_to_tmn, D(100))
-        self.assertIsNotNone(self.select(rows))
-        self.assertEqual(self.select(rows).snapshot.available_tmn_cash, D(1234))
+        batch = self.batch(rows)
+        self.assertEqual(len(batch), 3)
+        self.assertEqual(batch[0].snapshot.available_tmn_cash, D(1234))
+        self.assertEqual([c.snapshot.symbol for c in batch], ["BTCTMN", "BTCUSDT", "ETHTMN"])
 
     def test_unknown_access_stale_and_future_metadata_close_gate(self):
         for kwargs in (dict(account_as_of=None), dict(received_at=8000), dict(received_at=8106)):
@@ -99,26 +104,29 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(self.shortlist(cutoff=8099), ())
         future = Candle(8100, D(1000), D(1200), D(10), D(900), D(999))
         # Open data must not reach the expensive stage as a completed snapshot.
-        self.assertIsNone(self.select(now, series_by_symbol={r.symbol:CandleSeries((*series().candles, future),60)
-                                                            for r in now}))
+        self.assertEqual(self.batch(now, series_by_symbol={r.symbol:CandleSeries((*series().candles, future),60)
+                                                          for r in now}), ())
         from royin.features import extract_features
         original = extract_features(series(), "BTCTMN", cutoff=8100)
         full = extract_features(CandleSeries((*series().candles, future),60), "BTCTMN", cutoff=8100)
         self.assertEqual(original.snapshot_sha256, full.snapshot_sha256)
 
-    def test_depth_spread_gap_stale_and_insufficient_volatility_no_fallback(self):
+    def test_depth_spread_gap_stale_and_noise_are_handled(self):
         rows = self.shortlist()
         symbols = [r.symbol for r in rows]
         for changes in (
             dict(depth_by_symbol={s:dict(success=False) for s in symbols}),
             dict(depth_received_at={s:8000 for s in symbols}),
-            dict(round_trip_fee_pct=D(".1")),
             dict(min_depth_tmn=D("1e20")),
             dict(max_spread_pct=D(".00001")),
             dict(series_by_symbol={s:CandleSeries(series().candles[:10]+series().candles[11:],60) for s in symbols}),
         ):
             with self.subTest(changes=changes):
-                self.assertIsNone(self.select(rows, **changes))
+                self.assertEqual(self.batch(rows, **changes), ())
+        # Costs and ATR are ordering evidence, not hard eligibility gates.
+        high_fee = self.batch(rows, round_trip_fee_pct=D(".1"))
+        self.assertEqual(len(high_fee), 3)
+        self.assertTrue(all(c.opportunity.round_trip_fee_pct == D(".1") for c in high_fee))
 
     def test_exact_decoding_and_no_gap_fill(self):
         raw = b'{"s":"ok","t":[600,660],"o":[1.0000000000000001,1],"h":[2,2],"l":[1,1],"c":[2,2],"v":[1,1]}'

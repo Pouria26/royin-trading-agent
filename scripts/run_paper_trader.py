@@ -83,15 +83,25 @@ class ScanCandidate:
     opportunity: EntryOpportunityContext
 
 
-def select_candidate(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
-                     candle_received_at, depth_received_at, round_trip_fee_pct,
-                     min_depth_tmn, max_spread_pct, available_tmn_cash):
-    """Bounded expensive stage; no valid option means NO_CANDIDATE (None)."""
+def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
+                          candle_received_at, depth_received_at, round_trip_fee_pct,
+                          min_depth_tmn, max_spread_pct, available_tmn_cash, limit=3,
+                          snapshot_cutoff=None):
+    """Bounded expensive stage: every liquidity-valid candidate, ordered for cheap review.
+
+    Host ordering is not a selection. The model chooses one symbol or NO_TRADE; ATR and
+    the old score are ordering evidence only, never hard eligibility gates.
+    """
     decimal_number(round_trip_fee_pct)
     for amount in (min_depth_tmn, max_spread_pct):
         decimal_number(amount, positive=True)
+    if type(limit) is not int or not 1 <= limit <= 5:
+        raise ValueError("Invalid batch limit")
     if round_trip_fee_pct >= 1 or max_spread_pct >= 1 or len(shortlist) > 5:
         raise ValueError("Invalid scanner limits")
+    snapshot_cutoff = cutoff if snapshot_cutoff is None else snapshot_cutoff
+    if type(snapshot_cutoff) is not int or not 0 < snapshot_cutoff <= cutoff:
+        raise ValueError("Invalid snapshot cutoff")
     accepted = []
     for row in shortlist:
         if not all(_fresh(t, cutoff, 60) for t in (
@@ -101,9 +111,10 @@ def select_candidate(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
         try:
             series = series_by_symbol[row.symbol]
             closed_at = series.candles[-1].open_time + series.interval_seconds
-            if not _fresh(closed_at, cutoff, series.interval_seconds - 1):
+            # One uniform cutoff: the model must compare candidates from the same instant.
+            if closed_at != snapshot_cutoff:
                 continue
-            snapshot = extract_features(series, row.symbol, cutoff=closed_at,
+            snapshot = extract_features(series, row.symbol, cutoff=snapshot_cutoff,
                                         available_tmn_cash=available_tmn_cash)
             depth = depth_by_symbol[row.symbol]
             if depth.get("success") is not True:
@@ -129,9 +140,10 @@ def select_candidate(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
                 context.traps[Inexact] = True
                 bid_depth = sum((p*q*row.quote_to_tmn for p, q in bids if p >= bid*(1-max_spread_pct)), Decimal(0))
                 ask_depth = sum((p*q*row.quote_to_tmn for p, q in asks if p <= ask*(1+max_spread_pct)), Decimal(0))
-            score = snapshot.atr_14 / snapshot.last_close - round_trip_fee_pct - spread
-            if min(bid_depth, ask_depth) < min_depth_tmn or score <= 0:
+            if min(bid_depth, ask_depth) < min_depth_tmn:
                 continue
+            # Ordering evidence only; the entry model decides whether it is attractive.
+            score = snapshot.atr_14 / snapshot.last_close - round_trip_fee_pct - spread
             opportunity = EntryOpportunityContext(spread_pct=spread, round_trip_fee_pct=round_trip_fee_pct,
                 bid_depth_tmn=bid_depth, ask_depth_tmn=ask_depth, catalog_sha256=row.catalog_sha256,
                 catalog_received_at=row.received_at, candle_received_at=candle_received_at[row.symbol],
@@ -139,7 +151,13 @@ def select_candidate(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
             accepted.append(ScanCandidate(snapshot, score, opportunity))
         except (ValueError, KeyError, TypeError, IndexError, DecimalException):
             continue
-    return min(accepted, key=lambda c: (-c.score, c.snapshot.symbol)) if accepted else None
+    return tuple(sorted(accepted, key=lambda c: (-c.score, c.snapshot.symbol))[:limit])
+
+
+def select_candidate(shortlist, **kwargs):
+    """Deprecated host-winner helper; kept only for internal ordering tests."""
+    batch = build_candidate_batch(shortlist, **kwargs)
+    return batch[0] if batch else None
 
 
 class ScannerPublicFeed:
@@ -193,24 +211,29 @@ class ScannerPublicFeed:
 
 
 def scan_current_market(feed, *, account_symbols, account_as_of, interval_seconds=300,
-                        round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash):
-    """At most one catalog and two GETs per shortlisted symbol; never scan historical winners."""
+                        round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash,
+                        batch_limit=3):
+    """At most one catalog and two GETs per shortlisted symbol; never scan historical winners.
+
+    Returns every liquidity-valid candidate at one uniform closed-candle cutoff. The entry
+    model selects the symbol; this function never returns a host-chosen winner.
+    """
     if interval_seconds not in (60, 300, 900, 1800, 3600):
         raise ValueError("Unsupported scanner interval")
     now = int(time.time())
     if account_symbols is None or not _fresh(account_as_of, now, 3600):
-        return dict(status="BLOCKED_ACCESS", candidate=None, errors=[])
+        return dict(status="BLOCKED_ACCESS", batch=(), errors=[], cutoff=None)
     errors = []
     try:
         payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now)
         rows = shortlist_markets(payload, account_symbols=account_symbols, cutoff=int(time.time()),
                                  received_at=received, account_as_of=account_as_of)
     except (OSError, ValueError) as exc:
-        return dict(status="BLOCKED_DATA", candidate=None, errors=[type(exc).__name__])
+        return dict(status="BLOCKED_DATA", batch=(), errors=[type(exc).__name__], cutoff=None)
+    snapshot_cutoff = now // interval_seconds * interval_seconds
     series, depths, candle_times, depth_times = {}, {}, {}, {}
     for row in rows:
         try:
-            now = int(time.time())
             end = now // interval_seconds * interval_seconds
             start = end - 40 * interval_seconds
             history, candle_times[row.symbol] = feed.get("/v1/udf/history", {
@@ -225,12 +248,13 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
                 "/v1/depth", {"symbol": row.symbol}, cutoff=int(time.time()))
         except (OSError, ValueError) as exc:
             errors.append(dict(symbol=row.symbol, error_type=type(exc).__name__))
-    candidate = select_candidate(rows, series_by_symbol=series, depth_by_symbol=depths,
-        cutoff=int(time.time()), candle_received_at=candle_times, depth_received_at=depth_times,
+    batch = build_candidate_batch(rows, series_by_symbol=series, depth_by_symbol=depths,
+        cutoff=int(time.time()), snapshot_cutoff=snapshot_cutoff,
+        candle_received_at=candle_times, depth_received_at=depth_times,
         round_trip_fee_pct=round_trip_fee_pct, min_depth_tmn=min_depth_tmn, max_spread_pct=max_spread_pct,
-        available_tmn_cash=available_tmn_cash)
-    return dict(status="CANDIDATE" if candidate else "BLOCKED_DATA" if errors else "NO_CANDIDATE",
-                candidate=candidate, errors=errors)
+        available_tmn_cash=available_tmn_cash, limit=batch_limit)
+    status = "CANDIDATES" if batch else ("BLOCKED_DATA" if errors else "NO_CANDIDATE")
+    return dict(status=status, batch=batch, errors=errors, cutoff=snapshot_cutoff)
 
 
 def fetch_wallex_candles(

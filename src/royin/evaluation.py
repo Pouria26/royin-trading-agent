@@ -1536,3 +1536,120 @@ def format_scorecard_markdown(
 
     lines.append("")
     return "\n".join(lines)
+
+# --- Terminal-return forecast scoring (uncertainty, not trade PnL) -----------------
+
+def _forecast_value(item, name):
+    return item[name] if isinstance(item, dict) else getattr(item, name)
+
+
+def _median(values):
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("Median of empty sample")
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / Decimal(2)
+
+
+def empirical_interval(returns, *, lower_q=Decimal("0.1"), upper_q=Decimal("0.9")):
+    """Development-only empirical interval with linear interpolation; never fit on test."""
+    values = sorted(returns)
+    if not values or not 0 < lower_q < upper_q < 1:
+        raise ValueError("Invalid empirical interval sample")
+    def at(q):
+        index = q * Decimal(len(values) - 1)
+        lo = int(index)
+        hi = min(lo + 1, len(values) - 1)
+        frac = index - lo
+        return values[lo] * (Decimal(1) - frac) + values[hi] * frac
+    return at(lower_q), at(upper_q)
+
+
+def winkler_score(lower, upper, outcome, *, alpha=Decimal("0.2")):
+    """Interval score from the task contract: width, plus 2/alpha penalty outside."""
+    if not lower <= upper:
+        raise ValueError("Interval bounds are inverted")
+    if not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)")
+    if outcome < lower:
+        return (upper - lower) + (Decimal(2) / alpha) * (lower - outcome)
+    if outcome > upper:
+        return (upper - lower) + (Decimal(2) / alpha) * (outcome - upper)
+    return upper - lower
+
+
+def score_return_forecasts(forecasts, outcomes, *, alpha=Decimal("0.2")):
+    """Score issued forecasts; pending/missing outcomes stay visible, never interpolated."""
+    forecasts = list(forecasts)
+    ids = [_forecast_value(f, "forecast_id") for f in forecasts]
+    if len(set(ids)) != len(ids):
+        raise ValueError("Duplicate forecast ids")
+    pending = missing = 0
+    rows = []
+    for f in forecasts:
+        fid = _forecast_value(f, "forecast_id")
+        if fid not in outcomes:
+            pending += 1
+            continue
+        outcome = outcomes[fid]
+        if outcome is None:
+            missing += 1
+            continue
+        y = Decimal(outcome)
+        q10 = Decimal(_forecast_value(f, "return_q10"))
+        q50 = Decimal(_forecast_value(f, "return_q50"))
+        q90 = Decimal(_forecast_value(f, "return_q90"))
+        if not q10 <= q50 <= q90:
+            raise ValueError("Quantile crossing")
+        rows.append(dict(
+            forecast_id=fid, horizon_seconds=_forecast_value(f, "horizon_seconds"),
+            outcome=y, q10=q10, q50=q50, q90=q90,
+            abs_error=abs(y - q50), bias=y - q50,
+            covered=q10 <= y <= q90, width=q90 - q10,
+            winkler=winkler_score(q10, q90, y, alpha=alpha),
+        ))
+    n = len(rows)
+    result = dict(
+        issued=len(forecasts), scored=n, pending=pending, missing_outcome=missing,
+        median_abs_error=_median([r["abs_error"] for r in rows]) if n else None,
+        bias=(sum((r["bias"] for r in rows), Decimal(0)) / n) if n else None,
+        coverage=(Decimal(sum(1 for r in rows if r["covered"])) / n) if n else None,
+        mean_width=(sum((r["width"] for r in rows), Decimal(0)) / n) if n else None,
+        mean_winkler=(sum((r["winkler"] for r in rows), Decimal(0)) / n) if n else None,
+        per_horizon={},
+        rows=rows,
+    )
+    buckets = {}
+    for r in rows:
+        buckets.setdefault(r["horizon_seconds"], []).append(r)
+    for horizon, group in sorted(buckets.items()):
+        count = len(group)
+        result["per_horizon"][horizon] = dict(
+            n=count,
+            median_abs_error=_median([r["abs_error"] for r in group]),
+            bias=sum((r["bias"] for r in group), Decimal(0)) / count,
+            coverage=Decimal(sum(1 for r in group if r["covered"])) / count,
+            mean_width=sum((r["width"] for r in group), Decimal(0)) / count,
+            mean_winkler=sum((r["winkler"] for r in group), Decimal(0)) / count,
+        )
+    return result
+
+
+def score_zero_baseline(outcome_returns, *, interval=None):
+    """Zero point forecast plus a development empirical interval, same scoring contract."""
+    values = [Decimal(v) for v in outcome_returns]
+    if not values:
+        raise ValueError("Baseline needs outcomes")
+    q10, q90 = interval if interval is not None else empirical_interval(values)
+    errors = [abs(v) for v in values]
+    return dict(
+        n=len(values),
+        median_abs_error=_median(errors),
+        bias=sum(values, Decimal(0)) / len(values),
+        coverage=Decimal(sum(1 for v in values if q10 <= v <= q90)) / len(values),
+        mean_width=q90 - q10,
+        mean_winkler=sum((winkler_score(q10, q90, v) for v in values), Decimal(0)) / len(values),
+        q10=q10, q90=q90,
+    )
