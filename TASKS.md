@@ -281,3 +281,12 @@ existing order returned404. No POST/DELETE was sent. The original execution coun
 the local reserve/UNKNOWN stayed intact, and the new key's read-only credit balance was5M TMN
 available/zero locked. This adds1 diagnostic GET to the8 earlier execution requests, not a new
 execution allowance. Actual key trading permission remains pending operator confirmation.
+
+## Replacement-key history checkpoint — 2026-10-22
+
+- [x] Record operator confirmation of replacement-key trading permission; supersedes pending confirmation.
+- [x] Bounded official history/open-order/balance audit:3 GETs, all HTTP200; history empty with no further pages, no open orders,5M TMN free and0 USDT.
+- [x] Preserve original UNKNOWN, local reserve and8 execution-attempt count; no order mutation.
+- [ ] Resolve the existing intent under a reviewed exchange recovery/finality contract before another financial attempt.
+
+Verification: real read-only HTTP observations; no code changes or model calls in this checkpoint.

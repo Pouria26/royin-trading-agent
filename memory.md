@@ -196,3 +196,10 @@ Replacement-key audit: one separately bounded GET of the same existing order sti
 Original financial counter8 and UNKNOWN reserve are unchanged; no POST/DELETE added. New read-only
 credit preparation observed5M TMN available/zero locked. An account read does not prove trading
 permission; source spot-intro additionally requires the credit-account key and sub-account header.
+
+2026-10-22: Supersedes pending replacement-key permission: operator confirmed trading access enabled.
+A3-GET official read-only history/openOrders/balances audit returned HTTP200 throughout: unfiltered
+order history empty, has_more_pages=false; no open orders;5M TMN available,0 locked/USDT.
+This is4 separate diagnostic GETs cumulatively after8 original execution requests. No financial
+counter reset/reserve release/new client ID. Original empty POST status and exchange finality remain
+unattested; do not infer a rejected order or diagnose missing permission from older observations.

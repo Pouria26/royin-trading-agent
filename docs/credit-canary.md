@@ -87,3 +87,22 @@ GET. The diagnostic is not a cap reset, rejection receipt or approval for a seco
 Trading permission of the replacement key remains unconfirmed. The official spot introduction also
 requires the credit-account key plus `sub-account-client-id`; supported Limit/Market order types
 alone establish neither condition: https://developers.wallex.ir/docs/spot-intro .
+
+## Replacement-key permission and history audit — 2026-10-22
+
+This checkpoint supersedes the earlier pending-permission statements: the operator explicitly
+confirmed that trading access is enabled for the replacement key. This is operator confirmation,
+not an exchange-attested permission probe.
+
+A separately bounded read-only audit used3 GETs with the same dedicated account header:
+- GET /v1/account/orders, page1/per_page100: HTTP200, success=true, orders=[], has_more_pages=false.
+- GET /v1/account/openOrders: HTTP200, success=true, orders=[], count0.
+- GET /v1/account/balances-detail: HTTP200; TMN total/available5000000, locked0; USDT0.
+
+Official history contract: https://developers.wallex.ir/docs/spot-order-list . No date, side or
+market filter narrowed the history query. Raw account payloads and audit scripts remain ignored.
+This adds3 diagnostic GETs to the earlier1 diagnostic GET and8 execution requests. No POST,
+DELETE, counter reset, reserve release or new client ID occurred. The original POST HTTP status
+remains unknown; an empty history observation alone does not attest eventual-consistency finality.
+Financial state remains NO_GO_ORDER_UNKNOWN until an explicit, reviewed recovery contract resolves
+the existing intent. Do not misreport this audit as a completed real trade or a failed-key diagnosis.
