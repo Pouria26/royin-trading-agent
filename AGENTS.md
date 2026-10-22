@@ -175,3 +175,12 @@ manifests; never relabel fake/historical runs. It validates recorded provider/sn
 before GET, retains pending/missing outcomes and never overwrites source manifests. At most32
 public outcome GETs, no retry/model/private account access. A zero baseline without a separate
 development interval has point errors only; fitting interval bounds on evaluation returns is forbidden.
+
+## Model-directed public research checkpoint
+
+CURRENT_PAPER/REAL_MODEL now supplies a typed liquid-TMN research universe to the existing
+Entry Analyst. Its one read_market_snapshot call selects1..5 exact symbols for public research;
+final decisions must bind the returned accepted batch. Catalog visibility is not deep research
+of every market or private-account permission. Preserve the existing two-request/tool/model
+budgets and the financial UNKNOWN/cap; see docs/current-market-readiness.md. Positive unpriced
+assets must raise at valuation, never disappear as zero. Join the owned collector on cancellation.

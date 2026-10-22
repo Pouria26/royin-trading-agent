@@ -103,6 +103,28 @@ class EntryOpportunityContext(BaseModel):
         return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
 
 
+class MarketCatalogCandidate(BaseModel):
+    """Validated public catalog facts for research selection, never an entry signal."""
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    symbol: str = Field(pattern=r"^[A-Z0-9]+TMN$")
+    price_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    turnover_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    return_24h: Decimal | None = Field(default=None, ge=-1, allow_inf_nan=False)
+
+
+class MarketResearchUniverse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    observed_at: int = Field(strict=True, ge=0)
+    markets: tuple[MarketCatalogCandidate, ...] = Field(min_length=1, max_length=256)
+
+    @model_validator(mode="after")
+    def unique_symbols(self):
+        if len({row.symbol for row in self.markets}) != len(self.markets):
+            raise ValueError("Research universe symbols must be unique")
+        return self
+
+
 class ReturnForecast(BaseModel):
     """Model-issued terminal-horizon return distribution; host validates, never clamps."""
 

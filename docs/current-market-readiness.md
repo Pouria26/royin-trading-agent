@@ -161,3 +161,38 @@ measured improvement in predictive accuracy. No forecast outcome was fetched ear
 
 The prior15-cycle trial and this diagnostic ended STOPPED_FLAT. No background worker
 remains from these commands. The financial canary reserve/counter/UNKNOWN is unchanged.
+
+## Model-directed catalog research — 2026-10-22
+
+REAL_MODEL entry now sees a validated public catalog universe of eligible liquid TMN markets
+(up to256 rows), not just the deterministic five-market diagnostic shortlist. The existing Entry
+Analyst selects1..5 exact symbols in its single read_market_snapshot tool call. Only those
+symbols receive candle/depth research; the final proposal must bind an accepted researched
+snapshot. A verified anchor initializes the existing decision contract; it is not a recommendation.
+FAKE_MODEL diagnostics retain their existing ranked shortlist. No third agent or dependency added.
+
+The host independently filters the credit denylist, activity, spot metadata and the existing
+100M-TMN24h-turnover research floor. Catalog24h performance is not a forecast. The model can
+reject all researched candidates. The research universe records catalog hash/time; the trace
+retains requested symbols, accepted batch hash, public captures and provider requests/responses.
+Coverage distinguishes eligible catalog rows, model-visible liquid TMN rows, researched symbols
+and accepted snapshots. Other quote currencies require a conversion-ledger implementation.
+
+Unlisted/repeated symbols, changing catalog hashes, substituted symbols and a final decision
+that skips research fail closed. The tool collector has an explicit short deadline under the
+30-second role budget; cancellation joins the owned collector before terminal export/worker
+release. The old12-role/24-HTTP/USD0.04 envelope and durable global budget remain unchanged.
+There is no financial transport in this paper tool.
+
+A discovered accounting defect was fixed at its shared boundary: positive held assets without
+a valuation price now raise instead of silently contributing zero equity. Residual/unprotected
+inventory stops another paid entry scan and proceeds to explicit session finalization.
+
+Verification:352 core tests passed in39.646s; an additional owned-collector cancellation test
+passed separately; Ruff, compileall, wheel and diff check passed. Synthetic tool tests prove
+selection outside the initial anchor with two provider messages, not trading alpha. A fresh
+real-provider/current-data observation is required before claiming operational compatibility.
+
+Predeclared next public-only trial:900 seconds/15 cycles/60-second polling/160 GET cap,
+100000 TMN virtual order ceiling, REAL_MODEL and existing shared model budget. No forced entry,
+no early forecast outcome retrieval and no change to the financial UNKNOWN/counter/reserve.

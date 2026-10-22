@@ -12,6 +12,7 @@ from royin.market_data import Candle, CandleSeries, decode_json
 from scripts.run_paper_trader import (
     ScannerPublicFeed,
     build_candidate_batch,
+    catalog_candidates,
     decode_closed_minutes,
     scan_current_market,
     shortlist_markets,
@@ -41,6 +42,22 @@ def depth():
 
 
 class ScannerTests(unittest.TestCase):
+    def test_model_can_select_a_liquid_market_outside_the_diagnostic_shortlist(self):
+        payload = catalog()
+        for base in ("DOGE","SOL","ADA","LTC","XLM","XRP"):
+            row = dict(payload["result"]["markets"][0])
+            row.update(symbol=base+"TMN",base_asset=base,quote_volume_24h="100000001")
+            payload["result"]["markets"].append(row)
+        symbols = {row["symbol"] for row in payload["result"]["markets"]}
+        args = dict(account_symbols=symbols,cutoff=8105,received_at=8100,account_as_of=8100,tmn_only=True)
+        candidates = catalog_candidates(payload,**args)
+        self.assertGreater(len(candidates),5)
+        requested = shortlist_markets(payload,**args,selected_symbols=["XRPTMN","SOLTMN"])
+        self.assertEqual([row.symbol for row in requested],["XRPTMN","SOLTMN"])
+        for selected in (["TONTMN"],["OPTMN"],["SOLTMN","SOLTMN"]):
+            with self.subTest(selected=selected),self.assertRaises(ValueError):
+                shortlist_markets(payload,**args,selected_symbols=selected)
+
     def test_current_pipeline_bounds_gets_and_unknown_access_precedes_io(self):
         feed = MagicMock()
         def get(endpoint, params, **kwargs):

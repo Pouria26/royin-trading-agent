@@ -227,3 +227,11 @@ Fresh real-provider observation after the null-only schema fix:12 public GETs,2 
 1 accepted WAIT/0 fallbacks and0 orders. The negative ten-hour forecast remains pending;
 source revalidation passed without outcome HTTP. This proves protocol compatibility only.
 Both current trials ended STOPPED_FLAT; no unattended worker is claimed.
+
+2026-10-22: Wider research uses the existing Entry Analyst, not a new agent: typed eligible/liquid
+TMN catalog -> model's1..5-symbol read_market_snapshot selection -> accepted closed-candle/depth
+batch -> bound final decision. Two model HTTPs/one tool remain the limit; global/run budgets
+unchanged. Catalog return is past performance. Collector cancellation must join its owned job
+before releasing the worker. Positive unpriced inventory now raises; residual inventory blocks
+paid re-entry.352 core tests passed plus a targeted collector-cancellation regression. No alpha/live
+claim; original financial UNKNOWN/counter/reserve remain intact.

@@ -41,12 +41,9 @@ def _fresh(timestamp, cutoff, max_age):
     return type(timestamp) is int and type(cutoff) is int and 0 <= cutoff - timestamp <= max_age
 
 
-def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
-                      account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000"),
-                      diversify=False, tmn_only=False):
-    """All eligible catalog rows, ranked by quote turnover converted to TMN at this cutoff."""
-    if type(limit) is not int or not 1 <= limit <= 5:
-        raise ValueError("Shortlist cap must be 1..5")
+def catalog_candidates(payload, *, account_symbols, cutoff, received_at,
+                       account_as_of=None, min_turnover_tmn=Decimal("100000000"), tmn_only=False):
+    """All eligible liquid rows, using the same access/monetary checks as deep research."""
     decimal_number(min_turnover_tmn, positive=True)
     if not _fresh(received_at, cutoff, 60) or not _fresh(account_as_of, cutoff, 3600):
         return ()
@@ -77,11 +74,34 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
             continue
         if turnover >= min_turnover_tmn:
             candidates.append(MarketShortlistRow(symbol, turnover, rate, received_at, digest))
-    liquid = sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol))
+    if len(candidates) > 256:
+        raise ValueError("Market universe exceeds the bounded input contract")
+    return tuple(sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol)))
+
+
+def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
+                      account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000"),
+                      diversify=False, tmn_only=False, selected_symbols=None):
+    """Deep-research batch: explicit model selection or the existing diagnostic ranking."""
+    if type(limit) is not int or not 1 <= limit <= 5:
+        raise ValueError("Shortlist cap must be 1..5")
+    liquid = catalog_candidates(payload, account_symbols=account_symbols, cutoff=cutoff,
+        received_at=received_at, account_as_of=account_as_of,
+        min_turnover_tmn=min_turnover_tmn, tmn_only=tmn_only)
+    if selected_symbols is not None:
+        if (not isinstance(selected_symbols, (list,tuple)) or not 1 <= len(selected_symbols) <= limit
+                or any(not isinstance(symbol,str) for symbol in selected_symbols)
+                or len(set(selected_symbols)) != len(selected_symbols)):
+            raise ValueError("Model research selection must contain1..5 unique symbols")
+        indexed = {row.symbol:row for row in liquid}
+        if not set(selected_symbols).issubset(indexed):
+            raise ValueError("Model research selection is outside the eligible liquid universe")
+        return tuple(indexed[symbol] for symbol in selected_symbols)
     if not diversify:
         return tuple(liquid[:limit])
     # Preserve liquidity coverage, then compare relative movers instead of only the largest assets.
-    selected = liquid[:min(2, limit)]
+    selected = list(liquid[:min(2, limit)])
+    rows = {row["symbol"]: row for row in payload["result"]["markets"]}
     movers = sorted(liquid, key=lambda row: (
         -(catalog_return(rows[row.symbol]) if catalog_return(rows[row.symbol]) is not None else Decimal(-1)),
         -row.turnover_tmn, row.symbol))
@@ -179,6 +199,7 @@ class ScannerPublicFeed:
         self.before_request = before_request
         self.cache, self.captures = {}, []
         self.last_request = None
+        self.deadline_monotonic = None
 
     def get(self, endpoint, params, *, cutoff, max_age_seconds=60):
         if type(max_age_seconds) is not int or not 0 <= max_age_seconds <= 60:
@@ -199,12 +220,15 @@ class ScannerPublicFeed:
             raise ValueError("Scanner GET cap reached")
         if self.last_request is not None:
             time.sleep(max(0, 1 - (time.monotonic() - self.last_request)))
+        if self.deadline_monotonic is not None and time.monotonic() >= self.deadline_monotonic:
+            raise ValueError("Public research deadline reached")
         self.requests += 1
         if self.before_request is not None:
             self.before_request()
         self.last_request = time.monotonic()
         url = "https://api.wallex.ir" + endpoint + "?" + urlencode(params)
-        with urllib.request.urlopen(urllib.request.Request(url), timeout=10) as response:
+        timeout = 10 if self.deadline_monotonic is None else min(10,max(.01,self.deadline_monotonic-time.monotonic()))
+        with urllib.request.urlopen(urllib.request.Request(url), timeout=timeout) as response:
             raw = response.read(4_000_001)
         if len(raw) > 4_000_000:
             raise ValueError("Public response exceeds size cap")
@@ -219,13 +243,16 @@ class ScannerPublicFeed:
             with path.open("xb") as out:
                 out.write(raw)
         self.captures.append(dict(endpoint=endpoint, query=params, sha256=sha, received_at=received))
+        if self.deadline_monotonic is not None and time.monotonic() > self.deadline_monotonic:
+            raise ValueError("Public research response missed its deadline")
         self.cache[key] = (raw, received)
         return decode_json(raw), received
 
 
 def scan_current_market(feed, *, account_symbols, account_as_of, interval_seconds=300,
                         round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash,
-                        batch_limit=3, diversify=False, tmn_only=False, use_spot_rules=False):
+                        batch_limit=3, diversify=False, tmn_only=False, use_spot_rules=False,
+                        selected_symbols=None):
     """At most one catalog and two GETs per shortlisted symbol; never scan historical winners.
 
     Returns every liquidity-valid candidate at one uniform closed-candle cutoff. The entry
@@ -241,7 +268,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
         payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now)
         rows = shortlist_markets(payload, account_symbols=account_symbols, cutoff=int(time.time()),
                                  received_at=received, account_as_of=account_as_of,
-                                 limit=batch_limit, diversify=diversify, tmn_only=tmn_only)
+                                 limit=batch_limit, diversify=diversify, tmn_only=tmn_only,
+                                 selected_symbols=selected_symbols)
     except (OSError, ValueError) as exc:
         return dict(status="BLOCKED_DATA", batch=(), errors=[type(exc).__name__], cutoff=None)
     snapshot_cutoff = now // interval_seconds * interval_seconds

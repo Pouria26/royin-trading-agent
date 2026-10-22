@@ -159,3 +159,11 @@ full traces landed in4b9fab0; real-model benefit/OOS remain BLOCKED_DATA. No acc
 approval validator or Candidate execution is enabled. Follow-up contracts:
 docs/offline-execution-accounting.md, docs/portfolio-ai-evaluation.md and
 docs/shadow-execution-contract.md. No framework, strategy family or dependency added.
+
+### Model-directed research tool
+
+Current REAL_MODEL paper entry passes a typed/hash-bound liquid TMN catalog to the existing
+Entry Analyst. Its one read_market_snapshot call chooses up to5 eligible symbols; an owned
+public-only collector supplies accepted closed-candle/depth contexts. The same analyst then
+chooses ENTER/WAIT from that researched batch. Host policy and one-position/risk ownership
+remain independent. See docs/current-market-readiness.md for bounds and evidence limitations.

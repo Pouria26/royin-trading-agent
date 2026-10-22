@@ -3,6 +3,7 @@ import asyncio
 import json
 import sqlite3
 import tempfile
+import threading
 import unittest
 from contextlib import closing
 from decimal import Decimal as D
@@ -16,7 +17,8 @@ from royin.market_data import Candle
 from royin.model_budget import BudgetBlocked, ModelBudget
 from royin.risk import RiskResult
 from scripts import run_market_paper as runner
-from scripts.run_paper_trader import ScanCandidate, ScannerPublicFeed
+from scripts.run_paper_trader import MarketShortlistRow, ScanCandidate, ScannerPublicFeed
+from tests.test_market_scanner import catalog
 from tests.test_market_selection import enter_proposal, opportunity, snapshot
 
 
@@ -53,6 +55,48 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "symbol"):
             o.broker.submit_order(risk, client_id="wrong", timestamp=1000)
         self.assertEqual(o.ledger.get_balance("TMN").locked, D(0))
+
+    def test_residual_inventory_stops_before_paid_market_selection(self):
+        o = self.make_runner()
+        o.ledger.set_balance("USDT",D(".001"))
+        o.ledger.set_meta("protection_USDTTMN",json.dumps({"status":"CLOSED","last_bid":"250000"}))
+        with patch.object(o,"_handle_entry_cycle") as entry:
+            asyncio.run(o._execute_cycle(MagicMock(),8105))
+        entry.assert_not_awaited()
+        self.assertTrue(o.shutdown_requested)
+        self.assertEqual(o.ledger.get_meta("entry_block_reason"),"UNPROTECTED_OR_RESIDUAL_INVENTORY")
+
+    def test_cancelled_model_research_joins_owned_collector_before_returning(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        snap = snapshot("ETHTMN")
+        started,release,finished = threading.Event(),threading.Event(),threading.Event()
+        def scan(*args,**kwargs):
+            if threading.current_thread() is not threading.main_thread():
+                started.set()
+                self.assertTrue(release.wait(2))
+                finished.set()
+            return dict(batch=[ScanCandidate(snap,D(0),opportunity())],cutoff=8100,
+                market_rules={"ETHTMN":runner.build_default_rules("ETHTMN")},coverage={},errors=[])
+        async def infer(*args,**kwargs):
+            task = asyncio.create_task(kwargs["market_loader"](("ETHTMN",)))
+            self.assertTrue(await asyncio.to_thread(started.wait,2))
+            task.cancel()
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertTrue(finished.is_set())
+            return runner.RoleDecisionProposal(role="ENTRY_ANALYST",action="WAIT",symbol=snap.symbol,
+                cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+                reason="synthetic cancellation boundary",invalidation="next cycle")
+        feed = ScannerPublicFeed(o.capture_dir/"raw")
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
+             patch.object(runner,"scan_current_market",side_effect=scan), \
+             patch.object(runner,"decide_role",side_effect=infer),patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(feed,8105))
+        self.assertTrue(finished.is_set())
+        self.assertIsNone(feed.deadline_monotonic)
+        self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
 
     def test_quote_failure_preserves_old_timestamp_instead_of_refreshing_it(self):
         o = self.make_runner()
@@ -181,7 +225,7 @@ class CurrentMarketReadinessTests(unittest.TestCase):
             symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,
             available_evidence_ids=tuple(snap.evidences))
         o.model_mode, o.run_envelope = "REAL_MODEL", object()
-        with patch.object(runner,"public_symbols",return_value=({},8105,{"ETHTMN"})), \
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
              patch.object(runner,"scan_current_market",return_value={"batch":[ScanCandidate(snap,D(0),opp)],
                  "market_rules":{"ETHTMN":runner.build_default_rules("ETHTMN")}}), \
              patch.object(runner,"decide_role",return_value=decision), patch("time.time",return_value=8105):
@@ -224,7 +268,8 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         decision = bind_decision(MarketEntryProposal.model_validate(proposal),decision_id="banned-candidate",
             symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,available_evidence_ids=tuple(snap.evidences))
         o.model_mode,o.run_envelope = "REAL_MODEL",object()
-        with patch.object(runner,"public_symbols",return_value=({},8105,{"TONTMN"})), \
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"TONTMN"})), \
+             patch.object(runner,"catalog_candidates",return_value=(MarketShortlistRow("TONTMN",D(100000000),D(1),8105,"c"*64),)), \
              patch.object(runner,"scan_current_market",return_value={"batch":[ScanCandidate(snap,D(0),opp)],
                  "market_rules":{"TONTMN":runner.build_default_rules("TONTMN")}}), \
              patch.object(runner,"decide_role",return_value=decision),patch("time.time",return_value=8105):

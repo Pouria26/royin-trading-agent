@@ -28,6 +28,7 @@ from royin.decision import (
     DecisionProposal,
     EntryOpportunityContext,
     MarketEntryProposal,
+    MarketResearchUniverse,
     PositionReviewContext,
     RoleDecisionProposal,
     bind_decision,
@@ -58,7 +59,11 @@ SYSTEM_INSTRUCTIONS = (
 ROLE_INSTRUCTIONS = {
     "ENTRY_ANALYST": (
         "You are the Market/Entry Analyst for spot-only paper trading. Read read_market_snapshot once. "
-        "The host has already checked access, liquidity, freshness and costs. It gives you a bounded batch "
+        "If a research_universe is supplied, first compare its catalog rows and call that tool with "
+        "symbols containing1..5 distinct exact universe symbols to research. Catalog return is past "
+        "performance, not a forecast. The tool supplies closed-candle and depth evidence for your "
+        "selection; choose ENTER only from its accepted candidates, or WAIT. Never skip the tool. "
+        "Only the tool's accepted candidates have passed host access, liquidity, freshness and cost checks. It gives you a bounded batch "
         "of candidates at one cutoff, each with exact features, cost and evidence. Choose at most one symbol "
         "for a long entry, or return WAIT (NO_TRADE). The host ordering is not a recommendation. "
         "For ENTER: set symbol to an exact batch symbol; set horizon_seconds within the stated policy; set "
@@ -167,6 +172,7 @@ def create_trading_agent(
     client: httpx2.AsyncClient,
     *,
     role_context: dict | None = None,
+    market_loader=None,
 ) -> Agent[FeatureSnapshot, DecisionProposal]:
     """Create a Pydantic AI Agent bound to BoxAPI Chat Completions with dependencies tool."""
     api_key = config.BOXAPI_API_KEY.get_secret_value() if config.BOXAPI_API_KEY else "dummy-key"
@@ -190,7 +196,11 @@ def create_trading_agent(
     )
 
     @agent.tool
-    def read_market_snapshot(ctx: RunContext[FeatureSnapshot]) -> str:
+    async def read_market_snapshot(ctx: RunContext[FeatureSnapshot], symbols: list[str] | None = None) -> str:
+        if market_loader is not None:
+            return json.dumps(await market_loader(symbols))
+        if symbols is not None:
+            raise ValueError("Explicit symbols require a bound research universe")
         return json.dumps(role_context or ctx.deps.to_canonical_dict())
 
     return agent
@@ -216,6 +226,7 @@ async def decide(
     remaining_seconds: int | None = None,
     run_envelope: RoleRunEnvelope | None = None,
     model_trace: dict | None = None,
+    market_loader=None,
 ) -> Decision:
     """Evaluate a snapshot and return a host-validated Decision."""
     dec_id = decision_id or f"dec_{uuid.uuid4().hex[:16]}"
@@ -310,16 +321,22 @@ async def decide(
     async def _execute_with_client(http_client: httpx2.AsyncClient) -> Decision:
         nonlocal agent, fallback
         if agent is None:
-            agent = create_trading_agent(config, http_client, role_context=role_context)
+            agent = create_trading_agent(config, http_client, role_context=role_context, market_loader=market_loader)
 
         try:
             async with asyncio.timeout(timeout_seconds):
+                prompt = f"Evaluate market snapshot for {snapshot.symbol} at cutoff {snapshot.cutoff}."
+                if role_context and role_context.get("research_universe"):
+                    prompt += "\nResearch selection context: " + json.dumps(
+                        {key:value for key,value in role_context.items() if key != "candidates"},separators=(",",":"))
                 run_result = await agent.run(
-                    f"Evaluate market snapshot for {snapshot.symbol} at cutoff {snapshot.cutoff}.",
+                    prompt,
                     deps=snapshot,
                     usage_limits=UsageLimits(request_limit=2, tool_calls_limit=1),
                 )
             proposal = run_result.output
+            if role_context and role_context.get("research_universe") and not role_context.get("research_loaded"):
+                raise ValueError("Model must research its selected symbols before a final decision")
             if model_trace is not None:
                 usage = run_result.usage() if callable(run_result.usage) else run_result.usage
                 model_trace["sdk_messages_json"] = run_result.all_messages_json().decode()
@@ -516,11 +533,31 @@ async def decide(
     return result
 
 
+def _entry_rows(market_batch):
+    return [
+        {"symbol":symbol, "snapshot_sha256":snap.snapshot_sha256, "opportunity_sha256":opp.sha256,
+         "interval_seconds":snap.interval_seconds, "last_close":str(snap.last_close),
+         "trend_sma_fast":str(snap.trend_sma_fast), "trend_sma_slow":str(snap.trend_sma_slow),
+         "rsi_14":str(snap.rsi_14), "atr_14":str(snap.atr_14), "volume_ratio":str(snap.volume_ratio),
+         "evidences":sorted(snap.evidences), "spread_pct":str(opp.spread_pct),
+         "round_trip_fee_pct":str(opp.round_trip_fee_pct), "bid_depth_tmn":str(opp.bid_depth_tmn),
+         "ask_depth_tmn":str(opp.ask_depth_tmn),
+         "asset_return_24h":str(opp.asset_return_24h) if opp.asset_return_24h is not None else None,
+         "relative_strength_24h":str(opp.relative_strength_24h) if opp.relative_strength_24h is not None else None}
+        for symbol,(snap,opp) in sorted(market_batch.items())
+    ]
+
+
 async def decide_role(snapshot=None, *, position=None, opportunity=None, market_batch=None,
-                      run_envelope=None, **kwargs):
+                      market_universe=None, market_loader=None, run_envelope=None, **kwargs):
     """Deterministic dispatch of exactly one role, using the existing shared budget transport."""
     horizon_bounds = kwargs.pop("horizon_bounds", (300, 36000))
     remaining_seconds = kwargs.pop("remaining_seconds", None)
+    if (market_universe is None) != (market_loader is None):
+        raise ValueError("Research universe and loader must be supplied together")
+    if market_universe is not None and (not isinstance(market_universe,MarketResearchUniverse)
+            or market_batch is None or not callable(market_loader)):
+        raise ValueError("Validated research universe and batch anchor required")
     timeout = kwargs.pop("timeout_seconds", 30.0)
     if not 0 < timeout <= 30:
         raise ValueError("Role deadline must be 0..30 seconds")
@@ -558,28 +595,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             run_envelope.claim_run()
             if kwargs.get("model_trace") is None:
                 raise ValueError("Production role calls require provider/input/output trace capture")
-        entries = [
-            {
-                "symbol": symbol,
-                "snapshot_sha256": snap.snapshot_sha256,
-                "opportunity_sha256": opp.sha256,
-                "interval_seconds": snap.interval_seconds,
-                "last_close": str(snap.last_close),
-                "trend_sma_fast": str(snap.trend_sma_fast),
-                "trend_sma_slow": str(snap.trend_sma_slow),
-                "rsi_14": str(snap.rsi_14),
-                "atr_14": str(snap.atr_14),
-                "volume_ratio": str(snap.volume_ratio),
-                "evidences": sorted(snap.evidences),
-                "spread_pct": str(opp.spread_pct),
-                "round_trip_fee_pct": str(opp.round_trip_fee_pct),
-                "bid_depth_tmn": str(opp.bid_depth_tmn),
-                "ask_depth_tmn": str(opp.ask_depth_tmn),
-                "asset_return_24h": str(opp.asset_return_24h) if opp.asset_return_24h is not None else None,
-                "relative_strength_24h": str(opp.relative_strength_24h) if opp.relative_strength_24h is not None else None,
-            }
-            for symbol, (snap, opp) in sorted(market_batch.items())
-        ]
+        entries = _entry_rows(market_batch)
         batch_sha256 = hashlib.sha256(
             json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -593,6 +609,44 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
                 if next(iter(market_batch.values()))[1].market_context else None,
             "desired_gross_return_fraction": "0.02",
         }
+        batch_context = {"horizon_bounds":horizon_bounds, "remaining_seconds":remaining_seconds}
+        selection_used = False
+        started = time.monotonic()
+        async def load_selected(symbols):
+            nonlocal selection_used
+            universe_symbols = {row.symbol for row in market_universe.markets}
+            if (selection_used or not isinstance(symbols,list) or not 1 <= len(symbols) <= 5
+                    or any(not isinstance(symbol,str) for symbol in symbols)
+                    or len(set(symbols)) != len(symbols) or not set(symbols).issubset(universe_symbols)):
+                raise ValueError("Invalid or repeated model research selection")
+            selection_used = True
+            context["requested_symbols"] = symbols
+            loaded = await market_loader(tuple(symbols))
+            if (not isinstance(loaded,dict) or not 1 <= len(loaded) <= 5
+                    or not set(loaded).issubset(symbols)
+                    or any(symbol != snap.symbol or snap.cutoff != cutoff or not snap.verify_hash()
+                        or "EV_DATA_FRESH" not in snap.evidences or not isinstance(opp,EntryOpportunityContext)
+                        or opp.catalog_sha256 != market_universe.catalog_sha256
+                        for symbol,(snap,opp) in loaded.items())):
+                raise ValueError("Research loader returned an invalid batch")
+            market_batch.clear()
+            market_batch.update(loaded)
+            context["candidates"] = _entry_rows(market_batch)
+            context["research_loaded"] = True
+            context["batch_sha256"] = hashlib.sha256(json.dumps(context["candidates"],
+                sort_keys=True,separators=(",",":")).encode()).hexdigest()
+            if remaining_seconds is not None:
+                context["remaining_seconds"] = max(0, remaining_seconds-int(time.monotonic()-started))
+                batch_context["remaining_seconds"] = context["remaining_seconds"]
+            return {key:value for key,value in context.items() if key != "research_universe"}
+        if market_universe is not None:
+            universe_symbols = {row.symbol for row in market_universe.markets}
+            if (not set(market_batch).issubset(universe_symbols)
+                    or not universe_symbols.issubset(kwargs.get("allowed_symbols") or ())):
+                raise ValueError("Research universe is outside the explicit access policy")
+            if kwargs.get("client") is None and not 0 <= int(time.time())-market_universe.observed_at <= 60:
+                raise ValueError("Research catalog is stale or future")
+            context["research_universe"] = market_universe.model_dump(mode="json")
         trace = kwargs.get("model_trace")
         if trace is not None:
             from royin.evaluation import source_bundle_sha256
@@ -609,11 +663,10 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             ])
             trace["config_sha256"] = hashlib.sha256(json.dumps(
                 kwargs["config"].model_dump(mode="json"), sort_keys=True).encode()).hexdigest()
-        started = time.monotonic()
         result = await decide(
             snapshot, position=None, opportunity=None, role_context=context,
-            market_batch=market_batch, batch_context={"horizon_bounds": horizon_bounds,
-                                                       "remaining_seconds": remaining_seconds},
+            market_batch=market_batch, batch_context=batch_context,
+            market_loader=load_selected if market_universe is not None else None,
             run_envelope=run_envelope, timeout_seconds=timeout, **kwargs,
         )
         if trace is not None:

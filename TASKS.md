@@ -309,3 +309,12 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x] Bound funded holding time by the cycle limit as well as wall time; export current checkpoints after the decision rather than at cycle start.
 - [x]344 core tests passed in38.873s, Ruff/compileall/wheel/diff check passed. The prior10 dashboard tests remain applicable; dashboard source unchanged in this phase.
 - [x] Fresh corrected-schema real-provider diagnostic completed:12 public GETs,2 model HTTPs,1 accepted WAIT/0 fallbacks,0 orders; offline source revalidation accepted its forecast. No alpha or financial recovery claim.
+
+## Model-directed wider market research — 2026-10-22
+
+- [x] Share validated liquid-catalog filtering between diagnostics and explicit model research selection.
+- [x] Let the existing Entry Analyst choose up to5 symbols from the wider typed TMN universe using its existing single tool; bind final decisions to accepted research only.
+- [x] Enforce catalog/time/symbol/budget boundaries, reject skipped research, join the owned collector on cancellation and record actual coverage.
+- [x] Reject missing prices for positive inventory; prevent paid re-entry scans on residual/unprotected inventory.
+- [x]352-test full core suite passed; added cancellation regression passed separately. Ruff/compileall/wheel/diff check passed.
+- [ ] Run the predeclared real-model public-data trial and inspect catalog choice, tool transcript, terminal state and model usage. No financial-order authorization added.

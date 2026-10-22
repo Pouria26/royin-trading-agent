@@ -978,7 +978,10 @@ class Ledger:
         for asset, bal in balances.items():
             if asset == quote_currency:
                 total_equity += bal.total
-            else:
-                price = prices.get(f"{asset}{quote_currency}", prices.get(asset, Decimal(0)))
+            elif bal.total:
+                price = prices.get(f"{asset}{quote_currency}", prices.get(asset))
+                if price is None:
+                    raise ValueError("A held asset lacks a valuation price")
+                validate_decimal(price, "valuation price", strictly_positive=True)
                 total_equity += bal.total * price
         return total_equity

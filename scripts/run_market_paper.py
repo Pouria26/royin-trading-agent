@@ -29,6 +29,8 @@ from royin.config import RuntimeConfig, load_config
 from royin.datasets import load_dataset
 from royin.decision import (
     EntryOpportunityContext,
+    MarketCatalogCandidate,
+    MarketResearchUniverse,
     PositionReviewContext,
     RoleDecisionProposal,
     bind_decision,
@@ -37,6 +39,7 @@ from royin.evaluation import source_bundle_sha256
 from royin.features import extract_features
 from royin.ledger import Ledger
 from royin.logger import AuditLogger
+from royin.market_context import catalog_return
 from royin.market_data import (
     CandleSeries,
     aggregate_closed,
@@ -56,11 +59,13 @@ from royin.risk import (
 try:
     from scripts.run_paper_trader import (
         ScannerPublicFeed,
+        catalog_candidates,
         scan_current_market,
     )
 except ImportError:
     from run_paper_trader import (
         ScannerPublicFeed,
+        catalog_candidates,
         scan_current_market,
     )
 
@@ -659,6 +664,9 @@ class MarketPaperOrchestrator:
         if held_qty > 0 and prot_state and prot_state.get("status") == "OPEN":
             # Position holding & protection tick
             await self._handle_position_cycle(feed, now, prot_state)
+        elif held_qty > 0:
+            self.ledger.set_meta("entry_block_reason", "UNPROTECTED_OR_RESIDUAL_INVENTORY")
+            self.shutdown_requested = True
         else:
             # Flat: scanning & entry analysis
             if feed.requests > self.public_get_cap - 16:
@@ -670,11 +678,9 @@ class MarketPaperOrchestrator:
             await self._handle_entry_cycle(feed, now)
 
     async def _handle_entry_cycle(self, feed: ScannerPublicFeed, now: int):
-        _payload, received, symbols = public_symbols(feed, cutoff=now)
+        payload, received, symbols = public_symbols(feed, cutoff=now)
         available_cash = self.ledger.get_balance(self.rules.quote_asset).free
-
-        report = scan_current_market(
-            feed,
+        scan_options = dict(
             account_symbols=symbols,
             account_as_of=received,
             interval_seconds=300,
@@ -682,11 +688,19 @@ class MarketPaperOrchestrator:
             min_depth_tmn=Decimal("1000000"),
             max_spread_pct=Decimal("0.005"),
             available_tmn_cash=available_cash,
-            batch_limit=5,
             diversify=True,
             tmn_only=True,
             use_spot_rules=True,
         )
+        liquid = ()
+        if self.model_mode == "REAL_MODEL":
+            liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=now,
+                received_at=received,account_as_of=received,tmn_only=True)
+        anchor_symbols = None
+        if liquid:
+            anchor_symbols = ["USDTTMN" if any(row.symbol == "USDTTMN" for row in liquid) else liquid[0].symbol]
+        report = scan_current_market(feed, **scan_options,
+            batch_limit=1 if self.model_mode == "REAL_MODEL" else 5, selected_symbols=anchor_symbols)
 
         batch_list = [
             item for item in report.get("batch", [])
@@ -719,18 +733,50 @@ class MarketPaperOrchestrator:
         model_trace = {}
 
         if self.model_mode == "REAL_MODEL" and self.run_envelope:
+            catalog_rows = {row["symbol"]:row for row in payload["result"]["markets"]}
+            universe = MarketResearchUniverse(catalog_sha256=liquid[0].catalog_sha256, observed_at=received,
+                markets=tuple(MarketCatalogCandidate(symbol=row.symbol,
+                    price_tmn=decimal_number(catalog_rows[row.symbol]["price"],positive=True),
+                    turnover_tmn=row.turnover_tmn, return_24h=catalog_return(catalog_rows[row.symbol]))
+                    for row in liquid if row.symbol in report["market_rules"]))
+            model_deadline = time.monotonic()+30
+            async def load_selected(selected):
+                def collect():
+                    previous_deadline = feed.deadline_monotonic
+                    feed.deadline_monotonic = min(model_deadline-1,time.monotonic()+15)
+                    try:
+                        return scan_current_market(feed,**scan_options,batch_limit=5,selected_symbols=selected)
+                    finally:
+                        feed.deadline_monotonic = previous_deadline
+                job = asyncio.create_task(asyncio.to_thread(collect))
+                try:
+                    researched = await asyncio.shield(job)
+                except asyncio.CancelledError:
+                    # Join the owned collector before releasing its worker/DB or exporting terminal state.
+                    await asyncio.gather(job, return_exceptions=True)
+                    raise
+                if researched.get("cutoff") != primary_snap.cutoff:
+                    raise ValueError("Model-selected research crossed its closed-candle cutoff")
+                report.clear()
+                report.update(researched)
+                report["coverage"]["model_visible_catalog"] = len(universe.markets)
+                report["coverage"]["model_requested_symbols"] = list(selected)
+                model_trace["research_errors"] = researched.get("errors", [])
+                return {item.snapshot.symbol:(item.snapshot,item.opportunity) for item in report["batch"]}
             try:
                 decision = await decide_role(
                     primary_snap,
                     market_batch=batch_map,
+                    market_universe=universe,
+                    market_loader=load_selected,
                     config=self.config,
                     budget=self.budget,
                     run_envelope=self.run_envelope,
                     model_trace=model_trace,
-                    allowed_symbols=tuple(batch_map),
+                    allowed_symbols=tuple(row.symbol for row in universe.markets),
                     horizon_bounds=(300, self.horizon_max_seconds),
                     remaining_seconds=max(0, min(self.horizon_max_seconds,
-                        self.protection_policy.deadline_utc - self.protection_policy.exit_buffer_seconds - now)),
+                        self.protection_policy.deadline_utc - self.protection_policy.exit_buffer_seconds - int(time.time()))),
                     timeout_seconds=30,
                 )
             except BudgetBlocked as exc:
