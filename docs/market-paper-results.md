@@ -1,6 +1,6 @@
 # ادغام و بازبینی معاملات کاغذی — ۲۰۲۶-۱۰-۲۲
 
-وضعیت: **main = `7121faa`**؛ شاخه‌های `codex/task-a-market-ai` و `codex/task-b-market-paper`
+وضعیت: **main = `5951dba`**؛ شاخه‌های `codex/task-a-market-ai` و `codex/task-b-market-paper`
 به‌صورت fast-forward روی main ادغام شدند. هیچ سفارش واقعی، حساب خصوصی یا لایو فعال نشد.
 
 ## ۱. یافته‌های بازبینی B و اصلاح‌ها
