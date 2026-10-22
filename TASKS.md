@@ -1,5 +1,7 @@
 # برنامهٔ جاری پروژه
 
+آخرین تحویل: `market-research-coverage` / `a76a420`؛ چرخهٔ خروج مدل/حفاظت و بازیابی آن اصلاح شد،۳۷۳هسته/۱۰داشبورد و۴self-check پاس. providerdiagnosticقبلی فقط sourceداشتهٔdacb5a6وورود را سنجید؛ پایلوت بازبین واقعی موقعیت باز اجرا نشده است. طبق درخواست کاربر برای جمع‌بندی و محدودیت توکن، اجرای پولی تازه آغاز نشد. جزئیات و پرامپت ادامه در [HANDOFF.md](HANDOFF.md)؛ sourceاجرای موجود mainهمچنان ثابت است.
+
 نامزد آماده اما فعال‌نشده: `market-research-coverage` / `dacb5a6`، پژوهش۱۰نمادی/پوششdurable، quotecontext، سقف۱۰۰k و اجرای paperبا عمق کلquantity، limitرزروشده و stopمعوقِ پایدار.۳۷۱هسته/۱۰داشبورد و۴self-check پاس؛ sourceاجرای mainهنوز3799e4aاست و تا terminalمعتبر تغییر نکند.
 
 checkpoint23:38UTCنامزد:۱۰درخواست/۸داده معتبر از۵۴بازارمدل،۲HTTPمدل/۲۱GET و۳۵٫۳۲۸ثانیه، WAIT/bindingمعتبر و۰order/STOPPED_FLAT. diagnosticبا remaining_seconds=0فقطسازگاریproviderبود؛ fundedforward، positionreviewوliveنامزد OPEN. افزایش خودکار حجم و multi-position فعال نیست. جزئیات/شواهد در [وضعیت جاری](docs/current-market-readiness.md).
