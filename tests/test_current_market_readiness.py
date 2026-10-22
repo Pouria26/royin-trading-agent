@@ -34,7 +34,7 @@ class CurrentMarketReadinessTests(unittest.TestCase):
     def test_prefix_settlement_uses_last_processed_price_not_dataset_future(self):
         candles = [Candle(900000+i*900, D(99900+i*100), D(100001+i*100),
                          D(99900+i*100), D(100000+i*100), D(100)) for i in range(42)]
-        o = self.make_runner(mode="HISTORICAL_REPLAY", cycles=5)
+        o = self.make_runner(mode="HISTORICAL_REPLAY", cycles=5,order_tmn=D(1500000))
         fixture = o.capture_dir / "fixture.json"
         fixture.write_text("{}", encoding="utf-8")
         original = runner.PaperBroker.finalize_portfolio
@@ -96,6 +96,36 @@ class CurrentMarketReadinessTests(unittest.TestCase):
             asyncio.run(o._handle_entry_cycle(feed,8105))
         self.assertTrue(finished.is_set())
         self.assertIsNone(feed.deadline_monotonic)
+        self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
+
+    def test_research_coverage_is_durable_and_visible_on_the_next_model_call(self):
+        o = self.make_runner()
+        self.assertEqual(o.risk_policy.max_order_tmn,D(100000))
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        snap = snapshot("ETHTMN")
+        coverage = []
+        async def infer(*args,**kwargs):
+            coverage.append(kwargs["market_universe"].markets[0])
+            await kwargs["market_loader"](("ETHTMN",))
+            return runner.RoleDecisionProposal(role="ENTRY_ANALYST",action="WAIT",symbol=snap.symbol,
+                cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+                reason="synthetic research coverage",invalidation="next cycle")
+        def scan(*args,**kwargs):
+            return dict(batch=[ScanCandidate(snap,D(0),opportunity())],cutoff=8100,
+                market_rules={"ETHTMN":runner.build_default_rules("ETHTMN")},coverage={},errors=[])
+        feed = ScannerPublicFeed(o.capture_dir/"raw")
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
+             patch.object(runner,"scan_current_market",side_effect=scan), \
+             patch.object(runner,"decide_role",side_effect=infer),patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(feed,8105))
+            # Durable state, not the in-memory trace, carries coverage into the next call.
+            o.decision_traces.clear()
+            asyncio.run(o._handle_entry_cycle(feed,8105))
+        self.assertEqual((coverage[0].research_requests,coverage[1].research_requests),(0,1))
+        self.assertEqual(coverage[1].accepted_research_count,1)
+        counts = json.loads(o.ledger.get_meta("engine_research_coverage"))
+        self.assertEqual(counts["ETHTMN"],{"requested":2,"accepted":2})
+        self.assertEqual(o.decision_traces[-1]["coverage"]["unique_accepted_symbols"],1)
         self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
 
     def test_catalog_received_after_cycle_start_is_not_mislabeled_future(self):
@@ -289,7 +319,7 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         o.model_mode, o.run_envelope = "REAL_MODEL", object()
         with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
              patch.object(runner,"scan_current_market",return_value={"batch":[ScanCandidate(snap,D(0),opp)],
-                 "market_rules":{"ETHTMN":runner.build_default_rules("ETHTMN")}}), \
+                 "market_rules":{"ETHTMN":runner.replace(runner.build_default_rules("ETHTMN"),min_notional=D(50000))}}), \
              patch.object(runner,"decide_role",return_value=decision), patch("time.time",return_value=8105):
             asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
         self.assertEqual(o.rules.symbol,"ETHTMN")

@@ -28,6 +28,7 @@ from royin.broker import PaperBroker
 from royin.config import RuntimeConfig, load_config
 from royin.datasets import load_dataset
 from royin.decision import (
+    MAX_RESEARCH_SYMBOLS,
     EntryOpportunityContext,
     MarketCatalogCandidate,
     MarketResearchUniverse,
@@ -74,7 +75,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Default parameters
 DEFAULT_CAPITAL_TMN = Decimal("5000000")
-DEFAULT_MAX_ORDER_TMN = Decimal("1500000")
+DEFAULT_MAX_ORDER_TMN = Decimal("100000")
 DEFAULT_MIN_NOTIONAL_TMN = Decimal("100000")
 DEFAULT_MIN_QUANTITY_USDT = Decimal("1.0")
 DEFAULT_TAKER_FEE_RATE = Decimal("0.0030")
@@ -742,20 +743,27 @@ class MarketPaperOrchestrator:
 
         if self.model_mode == "REAL_MODEL" and self.run_envelope:
             catalog_rows = {row["symbol"]:row for row in payload["result"]["markets"]}
+            coverage_history = json.loads(self.ledger.get_meta("engine_research_coverage") or "{}")
             universe = MarketResearchUniverse(catalog_sha256=liquid[0].catalog_sha256, observed_at=received,
                 markets=tuple(MarketCatalogCandidate(symbol=row.symbol,
                     price_tmn=decimal_number(catalog_rows[row.symbol]["price"],positive=True),
-                    turnover_tmn=row.turnover_tmn, return_24h=catalog_return(catalog_rows[row.symbol]))
+                    turnover_tmn=row.turnover_tmn, return_24h=catalog_return(catalog_rows[row.symbol]),
+                    research_requests=coverage_history.get(row.symbol,{}).get("requested",0),
+                    accepted_research_count=coverage_history.get(row.symbol,{}).get("accepted",0))
                     for row in liquid if row.symbol in report["market_rules"]),
                 unavailable_symbols=tuple(row["symbol"] for row in bootstrap_attempts
                     if not row["accepted"] and row["symbol"] in report["market_rules"]))
-            model_deadline = time.monotonic()+30
+            model_deadline = time.monotonic()+60
             async def load_selected(selected):
+                for symbol in selected:
+                    counts = coverage_history.setdefault(symbol,{"requested":0,"accepted":0})
+                    counts["requested"] += 1
+                self.ledger.set_meta("engine_research_coverage",json.dumps(coverage_history))
                 def collect():
                     previous_deadline = feed.deadline_monotonic
-                    feed.deadline_monotonic = min(model_deadline-1,time.monotonic()+15)
+                    feed.deadline_monotonic = min(model_deadline-1,time.monotonic()+35)
                     try:
-                        return scan_current_market(feed,**scan_options,batch_limit=5,selected_symbols=selected)
+                        return scan_current_market(feed,**scan_options,batch_limit=MAX_RESEARCH_SYMBOLS,selected_symbols=selected)
                     finally:
                         feed.deadline_monotonic = previous_deadline
                 job = asyncio.create_task(asyncio.to_thread(collect))
@@ -769,6 +777,13 @@ class MarketPaperOrchestrator:
                     raise ValueError("Model-selected research crossed its closed-candle cutoff")
                 report.clear()
                 report.update(researched)
+                for item in researched["batch"]:
+                    coverage_history[item.snapshot.symbol]["accepted"] += 1
+                self.ledger.set_meta("engine_research_coverage",json.dumps(coverage_history))
+                report["coverage"]["unique_requested_symbols"] = len(coverage_history)
+                report["coverage"]["unique_accepted_symbols"] = sum(
+                    counts["accepted"] > 0 for counts in coverage_history.values())
+                report["coverage"]["model_accepted_symbols"] = [item.snapshot.symbol for item in researched["batch"]]
                 report["coverage"]["model_visible_catalog"] = len(universe.markets)
                 report["coverage"]["model_requested_symbols"] = list(selected)
                 model_trace["research_errors"] = researched.get("errors", [])
@@ -787,7 +802,7 @@ class MarketPaperOrchestrator:
                     horizon_bounds=(300, self.horizon_max_seconds),
                     remaining_seconds=max(0, min(self.horizon_max_seconds,
                         self.protection_policy.deadline_utc - self.protection_policy.exit_buffer_seconds - int(time.time()))),
-                    timeout_seconds=30,
+                    timeout_seconds=60,
                 )
             except BudgetBlocked as exc:
                 self.ledger.set_meta("entry_block_reason", "BUDGET_EXHAUSTED")

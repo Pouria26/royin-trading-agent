@@ -24,6 +24,7 @@ from pydantic_ai.usage import UsageLimits
 
 from royin.config import RuntimeConfig
 from royin.decision import (
+    MAX_RESEARCH_SYMBOLS,
     Decision,
     DecisionProposal,
     EntryOpportunityContext,
@@ -60,8 +61,10 @@ ROLE_INSTRUCTIONS = {
     "ENTRY_ANALYST": (
         "You are the Market/Entry Analyst for spot-only paper trading. Read read_market_snapshot once. "
         "If a research_universe is supplied, first compare its catalog rows and call that tool with "
-        "symbols containing1..5 distinct exact universe symbols to research. Catalog return is past "
-        "performance, not a forecast. The tool supplies closed-candle and depth evidence for your "
+        "symbols containing1..10 distinct exact universe symbols to research. Catalog return is past "
+        "performance, not a forecast. Prefer broad research across cycles: compare research_requests and "
+        "accepted_research_count and include previously unresearched promising markets when warranted. "
+        "Repeated requests are not successful analysis. Do not force a trade to improve coverage. The tool supplies closed-candle and depth evidence for your "
         "selection; choose ENTER only from its accepted candidates, or WAIT. Never skip the tool. "
         "Skip symbols listed unavailable_for_current_cutoff: their current research data failed validation; "
         "this is a temporary data-quality observation, not a permanent market ban. "
@@ -72,6 +75,10 @@ ROLE_INSTRUCTIONS = {
         "review_after_seconds no greater than the horizon; include a forecast with q10/q50/q90 terminal "
         "return fractions over that horizon, a positive target_return_fraction, reference_price equal to the "
         "chosen snapshot last_close, reference_kind LAST_CLOSE, and cited evidence from that snapshot only. "
+        "Both top-level evidence_ids and forecast.evidence_ids must belong to that chosen snapshot; "
+        "never cite another candidate evidence ID as proof for the selected symbol. "
+        "Compare best_ask/best_bid and quote age with last_close; a price move since the closed candle "
+        "and round-trip costs may already consume the target. A terminal forecast is not an executable payoff. "
         "Returns are fractions: 0.025 means 2.5%. Negative forecasts are valid; do not clamp them. "
         "Weigh momentum, volatility, regime, spread and round-trip fee. Do not invent a symbol, evidence, horizon or hash. "
         "The desired opportunity is above 2% gross within 5 minutes to 10 hours, never a guaranteed return. "
@@ -339,7 +346,7 @@ async def decide(
                 prompt = f"Evaluate market snapshot for {snapshot.symbol} at cutoff {snapshot.cutoff}."
                 if role_context and role_context.get("research_universe"):
                     prompt = ("Compare the full eligible market universe at the supplied cutoff. "
-                        "Select the most informative1..5 symbols for deep research via read_market_snapshot; "
+                        "Select the most informative1..10 symbols for deep research via read_market_snapshot; "
                         "no symbol has been preselected as an investment recommendation.")
                     preview = {key:value for key,value in role_context.items()
                         if key not in ("candidates","research_universe","research_view")}
@@ -558,6 +565,9 @@ def _entry_rows(market_batch):
          "evidences":sorted(snap.evidences), "spread_pct":str(opp.spread_pct),
          "round_trip_fee_pct":str(opp.round_trip_fee_pct), "bid_depth_tmn":str(opp.bid_depth_tmn),
          "ask_depth_tmn":str(opp.ask_depth_tmn),
+         "best_bid":str(opp.best_bid) if opp.best_bid is not None else None,
+         "best_ask":str(opp.best_ask) if opp.best_ask is not None else None,
+         "quote_observed_at":opp.depth_received_at, "context_observed_at":opp.observed_at,
          "asset_return_24h":str(opp.asset_return_24h) if opp.asset_return_24h is not None else None,
          "relative_strength_24h":str(opp.relative_strength_24h) if opp.relative_strength_24h is not None else None}
         for symbol,(snap,opp) in sorted(market_batch.items())
@@ -575,8 +585,9 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             or market_batch is None or not callable(market_loader)):
         raise ValueError("Validated research universe and batch anchor required")
     timeout = kwargs.pop("timeout_seconds", 30.0)
-    if not 0 < timeout <= 30:
-        raise ValueError("Role deadline must be 0..30 seconds")
+    limit = 60 if market_universe is not None else 30
+    if not 0 < timeout <= limit:
+        raise ValueError(f"Role deadline must be 0..{limit} seconds")
     if run_envelope is not None:
         timeout = min(timeout, run_envelope.duration_seconds - (time.monotonic() - run_envelope.started))
         if timeout <= 0:
@@ -584,8 +595,8 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
     if market_batch is not None:
         if position is not None or opportunity is not None:
             raise ValueError("Batch entry cannot carry a position or single opportunity")
-        if not isinstance(market_batch, dict) or not 1 <= len(market_batch) <= 5:
-            raise ValueError("Bounded market batch must contain 1..5 candidates")
+        if not isinstance(market_batch, dict) or not 1 <= len(market_batch) <= MAX_RESEARCH_SYMBOLS:
+            raise ValueError("Bounded market batch must contain 1..10 candidates")
         cutoffs = {snap.cutoff for snap, _opp in market_batch.values()}
         if len(cutoffs) != 1:
             raise ValueError("All batch candidates must share one cutoff")
@@ -631,7 +642,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
         async def load_selected(symbols):
             nonlocal selection_used
             universe_symbols = {row.symbol for row in market_universe.markets}
-            if (selection_used or not isinstance(symbols,list) or not 1 <= len(symbols) <= 5
+            if (selection_used or not isinstance(symbols,list) or not 1 <= len(symbols) <= MAX_RESEARCH_SYMBOLS
                     or any(not isinstance(symbol,str) for symbol in symbols)
                     or len(set(symbols)) != len(symbols) or not set(symbols).issubset(universe_symbols)
                     or set(symbols).intersection(market_universe.unavailable_symbols)):
@@ -639,7 +650,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             selection_used = True
             context["requested_symbols"] = symbols
             loaded = await market_loader(tuple(symbols))
-            if (not isinstance(loaded,dict) or not 1 <= len(loaded) <= 5
+            if (not isinstance(loaded,dict) or not 1 <= len(loaded) <= MAX_RESEARCH_SYMBOLS
                     or not set(loaded).issubset(symbols)
                     or any(symbol != snap.symbol or snap.cutoff != cutoff or not snap.verify_hash()
                         or "EV_DATA_FRESH" not in snap.evidences or not isinstance(opp,EntryOpportunityContext)
