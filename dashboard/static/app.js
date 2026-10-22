@@ -79,6 +79,38 @@ function renderOverview() {
   $('model-info').textContent = [o.model.model || 'مدل نامعلوم', o.model.provider || 'provider نامعلوم',
     format(o.model.decisions, 'تصمیم snapshot تاریخی'), format(o.model.average_latency_seconds, 'ثانیه میانگین تشخیصی'),
     'timeout / error: نامعلوم', 'توافق با baseline اثبات مزیت مالی نیست.'].join(' · ');
+  if ($('account-status')) {
+    if (o.account && o.account.status === 'AVAILABLE') {
+      $('account-status').textContent = '۵,۰۰۰,۰۰۰ TMN (حساب اعتباری)';
+      $('account-equity').textContent = 'ارزش حساب: ' + format(o.account.equity_tmn, 'TMN');
+      const tmnFree = o.account.balances && o.account.balances.TMN ? o.account.balances.TMN.free : null;
+      const usdtTotal = o.account.balances && o.account.balances.USDT ? o.account.balances.USDT.total : null;
+      $('account-detail').textContent = 'نقدینگی آزاد: ' + format(tmnFree, 'TMN') + ' · موجودی تتر: ' + format(usdtTotal, 'USDT');
+    } else {
+      $('account-status').textContent = (statusLabels[o.account && o.account.status] || (o.account && o.account.status) || 'UNAVAILABLE');
+      $('account-equity').textContent = 'منتظر اتصال موتور';
+      $('account-detail').textContent = 'موجودی آزاد / قفل‌شده / ارزش حساب: نامعلوم';
+    }
+  }
+  if ($('reflections-list') && o.reflections) {
+    const list = $('reflections-list');
+    const items = o.reflections.items || [];
+    if (!items.length) {
+      list.replaceChildren(node('p', 'هنوز معامله خروجی یا درسی در حافظه پایدار ثبت نشده است.', 'empty'));
+    } else {
+      list.replaceChildren(...items.map(ref => {
+        const item = node('div', null, 'event');
+        const body = node('div');
+        body.append(
+          node('strong', ref.symbol + ' · سود/زیان: ' + format(ref.net_pnl_tmn, 'TMN') + ' (' + format(ref.return_pct, '%') + ') · دلیل: ' + (ref.exit_reason || '—')),
+          node('p', 'درس ثبت‌شده: ' + ref.lesson),
+          node('small', time(ref.recorded_at) + ' · شناسه: ' + ref.reflection_id)
+        );
+        item.append(node('b', ref.net_pnl_tmn && ref.net_pnl_tmn.startsWith('-') ? 'LOSS' : 'WIN'), body);
+        return item;
+      }));
+    }
+  }
   if (feed.status === 'STALE') setNotice('داده ذخیره‌شده کهنه است', 'اتصال جاری موتور تأیید نشده؛ زمان آخرین مشاهده را بررسی کنید. حساب صرافی منتظر اتصال موتور است.');
   else setNotice('حساب و worker جاری تأیید نشده‌اند', 'شواهد محلی برای بررسی در دسترس‌اند؛ وضعیت سرور داشبورد، سلامت ربات یا آمادگی معامله نیست.');
   state.events = [

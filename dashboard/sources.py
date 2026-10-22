@@ -127,6 +127,48 @@ def readonly_budget(path):
     return result
 
 
+def readonly_reflections(path):
+    result = envelope(source_name="trade_reflections", items=[])
+    result["source"] = "LOCAL_DURABLE_LEDGER"
+    result["evidence_kind"] = "REFLEXION_LEARNING_LOG"
+    if not path.is_file():
+        result.update(status="EMPTY", warnings=["LEDGER_NOT_INITIALIZED_YET"])
+        return result
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=.2)) as db:
+            db.execute("PRAGMA query_only=ON")
+            has_table = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='trade_reflections'"
+            ).fetchone()
+            if not has_table:
+                result.update(status="EMPTY", warnings=["NO_REFLECTIONS_TABLE"])
+                return result
+            rows = db.execute(
+                "SELECT reflection_id, trade_id, symbol, entry_time, exit_time, net_pnl_tmn, return_pct, exit_reason, lesson, recorded_at "
+                "FROM trade_reflections ORDER BY recorded_at DESC LIMIT 50"
+            ).fetchall()
+            items = []
+            for r in rows:
+                items.append({
+                    "reflection_id": ident(r[0]),
+                    "trade_id": ident(r[1]),
+                    "symbol": ident(r[2]),
+                    "entry_time": timestamp(r[3]),
+                    "exit_time": timestamp(r[4]),
+                    "net_pnl_tmn": decimal(r[5], negative=True),
+                    "return_pct": decimal(r[6], negative=True),
+                    "exit_reason": text(r[7]),
+                    "lesson": text(r[8]),
+                    "recorded_at": timestamp(r[9]),
+                })
+            result.update(status="AVAILABLE" if items else "EMPTY", items=items)
+    except sqlite3.OperationalError:
+        result.update(status="UNAVAILABLE", warnings=["LEDGER_BUSY_OR_UNREADABLE"])
+    except (sqlite3.DatabaseError, ValueError):
+        result.update(status="INVALID", warnings=["LEDGER_SCHEMA_OR_VALUES_INVALID"])
+    return result
+
+
 def public_tail(path):
     """Read at most 64 KiB; unfinished last line is never parsed as an event."""
     if not path.is_file():
@@ -410,9 +452,39 @@ class Sources:
             except (OSError, ValueError, TypeError, AttributeError):
                 observation.update(status="INVALID", warnings=["OBSERVATION_SCHEMA_OR_READ_FAILED"])
         account = envelope()
-        account.update(warnings=["WAITING_FOR_ENGINE_EXCHANGE_ATTESTED_EXPORT"], balances=None,
-                       equity_tmn=None, reconciliation=None, free=None, locked=None)
+        probe_path = self.root / "data/private/probe-report.json"
+        if probe_path.is_file():
+            try:
+                p_data, p_sha = self.read(probe_path)
+                tmn = p_data.get("tmn_balance", {})
+                usdt = p_data.get("usdt_balance", {})
+                tmn_free = decimal(str(tmn.get("available")), negative=False)
+                tmn_locked = decimal(str(tmn.get("locked")), negative=False)
+                usdt_free = decimal(str(usdt.get("available")), negative=False)
+                usdt_locked = decimal(str(usdt.get("locked")), negative=False)
+                total_tmn = decimal(str(tmn.get("total")), negative=False)
+                account.update(
+                    status="AVAILABLE",
+                    source="READ_ONLY_PROBE_SNAPSHOT",
+                    evidence_kind="READ_ONLY_CREDIT_ACCOUNT_AND_MARKET_CONTRACT",
+                    sha256=p_sha,
+                    subaccount_type=ident(p_data.get("subaccount_type")),
+                    subaccount_active=bool(p_data.get("subaccount_active")),
+                    balances={
+                        "TMN": {"free": tmn_free, "locked": tmn_locked, "total": total_tmn},
+                        "USDT": {"free": usdt_free, "locked": usdt_locked, "total": decimal(str(usdt.get("total")), negative=False)},
+                    },
+                    equity_tmn=total_tmn,
+                    reconciliation="ATTESTED_READONLY_PROBE",
+                    warnings=["READONLY_PROBE_SNAPSHOT_NOT_STREAMING_SOCKET"],
+                )
+            except (OSError, ValueError, TypeError, AttributeError):
+                account.update(status="INVALID", warnings=["PROBE_REPORT_SCHEMA_INVALID"])
+        else:
+            account.update(warnings=["WAITING_FOR_ENGINE_EXCHANGE_ATTESTED_EXPORT"], balances=None,
+                           equity_tmn=None, reconciliation=None, free=None, locked=None)
         usage = readonly_budget(self.root / "data/llm-budget.sqlite3")
+        reflections = readonly_reflections(self.root / "data/ledger.sqlite3")
         review = envelope()
         try:
             data, sha = self.read(self.root / "research/execution-review-evidence.json")
@@ -443,7 +515,7 @@ class Sources:
         result = envelope("AVAILABLE")
         result.update(server="SERVER_AVAILABLE", server_time=datetime.now(UTC).isoformat(),
                       observation=observation, account=account, reservation=usage,
-                      archived_usage=review, model=diagnostic,
+                      archived_usage=review, model=diagnostic, reflections=reflections,
                       risk=dict(status="UNAVAILABLE", stop=None, kill_switch=None),
                       warnings=["CANDIDATE_APPROVAL_NOT_ATTESTED", "DASHBOARD_IS_READ_ONLY"])
         return result

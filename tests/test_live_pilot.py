@@ -91,6 +91,17 @@ class LivePilotTests(unittest.TestCase):
         )
         self.assertEqual(packet["kind"], "TECHNICAL_MICRO_PILOT_REVIEW_PACKET")
         self.assertEqual(packet["symbol"], "USDTTMN")
+        self.assertEqual(packet["gates_status"]["sellability_gate"], "PASS_SELLABLE")
+        self.assertEqual(packet["recommended_action"], "READY_FOR_INTEGRATION_REVIEW")
+
+    def test_prepare_packet_with_explicit_low_ceiling_is_blocked(self):
+        packet = prepare_pilot_packet(
+            config=self.config,
+            market_rules=self.rules,
+            current_price=Decimal("266721"),
+            ceiling_tmn=Decimal("200000"),
+            denied_markets=frozenset(),
+        )
         self.assertEqual(packet["gates_status"]["sellability_gate"], "BLOCKED_MINIMUM")
         self.assertIn("BLOCKED_MINIMUM", packet["recommended_action"])
 

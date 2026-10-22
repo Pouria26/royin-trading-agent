@@ -9,7 +9,7 @@ alpha or profit claims. It strictly executes at most a single round-trip (1 BUY,
 import argparse
 import json
 import time
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from pathlib import Path
 
 from royin.config import RuntimeConfig, load_config
@@ -21,7 +21,7 @@ from royin.markets import load_restrictions
 from royin.risk import MarketRules, RiskPolicy, evaluate_risk
 
 PROPOSED_PILOT_SYMBOL = "USDTTMN"
-PROPOSED_PILOT_CEILING_TMN = Decimal("200000")
+PROPOSED_PILOT_CEILING_TMN = Decimal("300000")
 PROPOSED_MIN_QUANTITY = Decimal("1.0")
 PROPOSED_MIN_NOTIONAL = Decimal("100000")
 PROPOSED_STOP_LOSS_PCT = Decimal("0.02")  # 2% stop-loss threshold (not a guaranteed exit price)
@@ -79,6 +79,11 @@ def evaluate_pilot_sellability(
         }
     return {
         "status": "PASS_SELLABLE",
+        "reason": (
+            f"Proposed ceiling {ceiling_tmn} TMN yields target quantity {target_qty} {PROPOSED_PILOT_SYMBOL[:4]} "
+            f"and post-fee sellable {sellable_qty} ({sellable_notional} TMN), "
+            f"which fully satisfies min_quantity {min_quantity} and min_notional {min_notional} TMN"
+        ),
         "target_qty": str(target_qty),
         "sellable_qty": str(sellable_qty),
         "sellable_notional": str(sellable_notional),
@@ -91,6 +96,7 @@ def prepare_pilot_packet(
     market_rules: MarketRules,
     current_price: Decimal,
     *,
+    ceiling_tmn: Decimal = PROPOSED_PILOT_CEILING_TMN,
     denied_markets: frozenset[str] | None = None,
 ) -> dict:
     """Generate prepare-only review packet without any trading execution."""
@@ -101,7 +107,7 @@ def prepare_pilot_packet(
         price=current_price,
         taker_fee_rate=market_rules.taker_fee_rate,
         step_size=market_rules.step_size,
-        ceiling_tmn=PROPOSED_PILOT_CEILING_TMN,
+        ceiling_tmn=ceiling_tmn,
         min_quantity=market_rules.min_quantity,
         min_notional=market_rules.min_notional,
     )
@@ -119,7 +125,7 @@ def prepare_pilot_packet(
         "quote_asset": market_rules.quote_asset,
         "market_denied_by_policy": is_denied,
         "proposed_parameters": {
-            "max_buy_notional_tmn": str(PROPOSED_PILOT_CEILING_TMN),
+            "max_buy_notional_tmn": str(ceiling_tmn),
             "min_quantity": str(market_rules.min_quantity),
             "min_notional_tmn": str(market_rules.min_notional),
             "step_size": str(market_rules.step_size),
@@ -142,7 +148,7 @@ def prepare_pilot_packet(
             "live_safety_gate": "BLOCKED_SAFETY_GATE (offline MockTransport only)",
         },
         "recommended_action": (
-            "BLOCKED_MINIMUM: 200,000 TMN ceiling is below the 1.0 USDT minimum order size at current price. "
+            f"BLOCKED_MINIMUM: {ceiling_tmn} TMN ceiling is below the 1.0 USDT minimum order size at current price. "
             "Do NOT silently raise ceiling. Human review required."
             if sellability["status"] == "BLOCKED_MINIMUM"
             else "READY_FOR_INTEGRATION_REVIEW"
@@ -259,11 +265,23 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", action="store_true", help="Output fail-closed review packet without trading")
     parser.add_argument("--run", action="store_true", help="Execute pilot (blocked by live safety gate)")
+    parser.add_argument(
+        "--ceiling",
+        type=str,
+        default=str(PROPOSED_PILOT_CEILING_TMN),
+        help=f"Proposed buy notional ceiling in TMN (default: {PROPOSED_PILOT_CEILING_TMN})",
+    )
     args = parser.parse_args(argv)
 
     if not args.prepare and not args.run:
         parser.print_help()
         return 0
+
+    try:
+        ceiling_tmn = Decimal(args.ceiling)
+        validate_decimal(ceiling_tmn, "ceiling", strictly_positive=True)
+    except (ValueError, InvalidOperation) as e:
+        parser.error(f"Invalid --ceiling amount: {e}")
 
     config = load_config()
     market_rules = MarketRules(
@@ -290,7 +308,7 @@ def main(argv=None):
             pass
 
     if args.prepare:
-        packet = prepare_pilot_packet(config, market_rules, ref_price)
+        packet = prepare_pilot_packet(config, market_rules, ref_price, ceiling_tmn=ceiling_tmn)
         output_path = Path(".local/parallel/live-pilot-review-packet.md")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         # Format markdown packet

@@ -27,7 +27,7 @@ from royin.market_data import Candle
 from royin.risk import MarketRules, RiskPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
-PROTOCOL = ROOT / "config/portfolio-ai-protocol-v4.json"
+PROTOCOL = ROOT / "config/portfolio-ai-protocol-v5.json"
 
 
 def synthetic_scenario():
