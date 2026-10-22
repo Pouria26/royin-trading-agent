@@ -58,6 +58,25 @@ def decimal(value, negative=True):
         raise ValueError("invalid decimal") from exc
 
 
+def project_balances(balances, *, totals=False):
+    if not isinstance(balances, dict) or not 1 <= len(balances) <= 32:
+        raise ValueError("invalid balances")
+    result = {}
+    for asset, balance in balances.items():
+        if not isinstance(asset, str) or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or not isinstance(balance, dict):
+            raise ValueError("invalid asset balance")
+        fields = ("free", "locked", "total") if totals else ("free", "locked")
+        values = {key: decimal(balance.get(key), False) for key in fields}
+        if any(value is None for value in values.values()):
+            raise ValueError("missing asset balance")
+        with localcontext() as ctx:
+            ctx.prec = 128
+            if totals and Decimal(values["free"]) + Decimal(values["locked"]) != Decimal(values["total"]):
+                raise ValueError("inconsistent asset balance")
+        result[asset] = values
+    return result
+
+
 def count(value):
     if value is None:
         return None
@@ -332,8 +351,7 @@ class Sources:
                 row["latest_unrealized_pnl_tmn"] = row["curve"][-1]["unrealized_pnl_tmn"]
                 balances = arm["equity_curve"][-1].get("balances")
                 if isinstance(balances, dict):
-                    row["latest_balances"] = {asset: {k: decimal(balances[asset].get(k), False) for k in ("free", "locked")}
-                                              for asset in ("TMN", "USDT") if asset in balances}
+                    row["latest_balances"] = project_balances(balances)
             signatures.append((arm.get("benchmark_contract"), arm.get("initial_capital_tmn"),
                                arm.get("execution_model"), arm.get("drawdown_basis"),
                                tuple(p["observed_at"] for p in row["curve"])))
@@ -341,7 +359,7 @@ class Sources:
         comparable = bool(signatures and signatures[0][0] and signatures[0][-1]
                           and all(s == signatures[0] for s in signatures))
         meta.update(dataset=dataset, acceptance=acceptance, arms=output, comparable=comparable,
-                    units=dict(money="TMN", base="USDT only for USDTTMN", drawdown="percent"),
+                    units=dict(money="TMN", base="asset symbol in balances", drawdown="percent"),
                     risk=dict(status="UNAVAILABLE", stop_policy=None, kill_switch=None,
                               warning="Thresholds not attested by this artifact; not a loss guarantee"))
         meta["record_linking"] = "REAL_IDS_ONLY_NO_TIMESTAMP_JOIN"
@@ -522,14 +540,15 @@ class Sources:
             try:
                 e_data, e_sha = self.read(engine_path)
                 acc = e_data.get("account", {})
-                balances = acc.get("balances", {})
-                tmn = balances.get("TMN", {})
-                usdt = balances.get("USDT", {})
-                tmn_free = decimal(str(tmn.get("free", "0")), negative=False)
-                tmn_locked = decimal(str(tmn.get("locked", "0")), negative=False)
-                usdt_free = decimal(str(usdt.get("free", "0")), negative=False)
-                usdt_locked = decimal(str(usdt.get("locked", "0")), negative=False)
-                total_tmn = decimal(str(tmn.get("total", "0")), negative=False)
+                balances = project_balances(acc.get("balances"), totals=True)
+                if "TMN" not in balances:
+                    raise ValueError("Engine cash balance is missing")
+                total_tmn = balances["TMN"]["total"]
+                equity = decimal(acc.get("equity_tmn"), negative=False)
+                if equity is None:
+                    if any(Decimal(value["total"]) for asset,value in balances.items() if asset != "TMN"):
+                        raise ValueError("Noncash engine assets need an observed valuation")
+                    equity = total_tmn
                 engine_snapshot.update(
                     status="AVAILABLE",
                     source=ident(e_data.get("source")) or "PAPER_ENGINE_SNAPSHOT",
@@ -540,11 +559,8 @@ class Sources:
                     worker_state=ident(e_data.get("worker_state")),
                     observed_at=timestamp(e_data.get("observed_at")),
                     heartbeat_at=timestamp(e_data.get("heartbeat_at")),
-                    balances={
-                        "TMN": {"free": tmn_free, "locked": tmn_locked, "total": total_tmn},
-                        "USDT": {"free": usdt_free, "locked": usdt_locked, "total": decimal(str(usdt.get("total", "0")), negative=False)},
-                    },
-                    equity_tmn=total_tmn,
+                    balances=balances,
+                    equity_tmn=equity,
                     risk=e_data.get("risk"),
                     warnings=bounded_list(e_data.get("warnings")),
                 )
@@ -555,7 +571,7 @@ class Sources:
                         evidence_kind=ident(e_data.get("evidence_kind")) or "PUBLIC_MARKET_PAPER",
                         sha256=e_sha,
                         balances=engine_snapshot["balances"],
-                        equity_tmn=total_tmn,
+                        equity_tmn=equity,
                         reconciliation="PAPER_INTERNAL_LEDGER",
                         warnings=engine_snapshot["warnings"],
                     )

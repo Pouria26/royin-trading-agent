@@ -92,7 +92,9 @@ alone establish neither condition: https://developers.wallex.ir/docs/spot-intro 
 
 This checkpoint supersedes the earlier pending-permission statements: the operator explicitly
 confirmed that trading access is enabled for the replacement key. This is operator confirmation,
-not an exchange-attested permission probe.
+not an exchange-attested permission probe. The operator also confirmed that the replacement
+key was created inside the credit account, rather than the main account. Missing trading
+permission or main-account key origin is therefore not an established root cause.
 
 A separately bounded read-only audit used3 GETs with the same dedicated account header:
 - GET /v1/account/orders, page1/per_page100: HTTP200, success=true, orders=[], has_more_pages=false.

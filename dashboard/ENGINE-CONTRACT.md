@@ -53,3 +53,12 @@ Agent 1 request: export actual decision_traces.client_id when an order is create
 and order created_at/state history if available. Older portfolio artifacts omit
 the join; dashboard correctly refuses to infer it from timestamps. Preserve old
 artifacts/protocols and supply a newly versioned run after the integration barrier.
+
+## Multi-asset projection correction — 2026-10-22
+
+The snapshot and evaluation projections retain validated asset symbols instead of assuming USDT.
+Engine balances require exact decimal strings and free+locked=total. Noncash holdings require an
+explicit engine equity valuation; cash alone is not substituted as total equity. The account card
+distinguishes the virtual paper ledger from an archived credit-account observation and has no
+hardcoded5M balance. Worker state passes through the producing engine; it is not proof of a live
+process lease.10 dashboard tests, Ruff, compileall and JavaScript syntax checks passed.

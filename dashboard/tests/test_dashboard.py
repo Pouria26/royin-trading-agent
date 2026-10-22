@@ -15,7 +15,15 @@ from unittest.mock import patch
 from urllib.parse import urlencode
 
 from dashboard.server import make_server
-from dashboard.sources import MAX_BYTES, Sources, decimal, public_tail, readonly_budget, text
+from dashboard.sources import (
+    MAX_BYTES,
+    Sources,
+    decimal,
+    project_balances,
+    public_tail,
+    readonly_budget,
+    text,
+)
 
 
 def fixture():
@@ -269,6 +277,31 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(overview["account"]["status"], "AVAILABLE")
         self.assertEqual(overview["account"]["balances"]["TMN"]["free"], "5000000")
         self.assertEqual(overview["observation"]["mode"], "PUBLIC_MARKET_PAPER")
+
+        snapshot = json.loads(engine_snap.read_text())
+        snapshot["account"] = dict(balances={
+            "TMN":dict(free="4000000",locked="0",total="4000000"),
+            "ETH":dict(free="0.01",locked="0.02",total="0.03")},equity_tmn="5050000")
+        snapshot["worker_state"] = "STOPPED_OPEN"
+        engine_snap.write_text(json.dumps(snapshot),encoding="utf8")
+        overview = self.sources.overview()
+        self.assertEqual(overview["engine_snapshot"]["balances"]["ETH"]["total"],"0.03")
+        self.assertNotIn("USDT",overview["engine_snapshot"]["balances"])
+        self.assertEqual(overview["engine_snapshot"]["worker_state"],"STOPPED_OPEN")
+        self.assertEqual(overview["account"]["equity_tmn"],"5050000")
+        del snapshot["account"]["equity_tmn"]
+        engine_snap.write_text(json.dumps(snapshot),encoding="utf8")
+        self.assertEqual(self.sources.overview()["engine_snapshot"]["status"],"INVALID")
+
+    def test_asset_projection_rejects_invalid_missing_and_inconsistent_values(self):
+        for balances in ({"ETH":dict(free=".1",locked=".2",total=".4")},
+                         {"../.env":dict(free="0",locked="0",total="0")},
+                         {"ETH":dict(free=.1,locked="0",total=".1")},
+                         {"ETH":dict(free="0",locked="0")},{}):
+            with self.subTest(balances=balances),self.assertRaises(ValueError):
+                project_balances(balances,totals=True)
+        self.assertEqual(project_balances({"ETH":dict(free="0.1",locked="0.2",total="0.3")},totals=True)
+            ["ETH"]["total"],"0.3")
 
 
 if __name__ == "__main__":

@@ -300,3 +300,7 @@ Verification: real read-only HTTP observations; no code changes or model calls i
 - [ ] Run the predeclared15-minute real-model/current-public-data trial and inspect its full traces; no financial order in this trial.
 
 The original financial UNKNOWN remains a separate unresolved incident; paper evidence is not live readiness.
+
+- [x] Fix dashboard API/UI projections for actual asset balances, observed equity and paper/account labels;10 dashboard tests, Ruff, compileall and node --check passed.
+- [x] Isolate the runner lifecycle test snapshot in its temporary root; targeted regression passed.
+- [x] Operator confirmed replacement key was created inside the credit account and trading access is enabled. Neither permission nor key origin is a demonstrated cause of the earlier empty POST.

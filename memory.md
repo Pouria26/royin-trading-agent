@@ -210,3 +210,8 @@ the existing model/global budgets. Bounded stop uses uncached sufficient top bid
 PARTIAL with residual; never fabricate liquidation from a stale price. Dashboard base assets and
 worker terminal states are accurate. Per-decision issued_at_utc avoids using final export time
 as forecast issuance.342 core regressions passed. Financial UNKNOWN/cap/reserve unchanged.
+
+2026-10-22: Operator confirmed replacement key originated inside the credit account and has trading
+access. Do not keep asking the same permission/origin question or claim either caused the old failure.
+Dashboard API now retains non-USDT assets, validates free+locked=total and requires an explicit equity
+valuation for noncash holdings. Paper/archived-account labels replace the fixed5M/credit claim.

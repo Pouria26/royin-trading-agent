@@ -132,7 +132,8 @@ class CurrentMarketReadinessTests(unittest.TestCase):
 
     def test_current_loop_finishes_and_persists_cycles_and_manifest_budget(self):
         o = self.make_runner()
-        with patch.object(o,"_execute_cycle") as cycle, patch.object(o,"_finish_current", wraps=o._finish_current) as finish:
+        with patch.object(runner,"ROOT",o.capture_dir), patch.object(o,"_execute_cycle") as cycle, \
+             patch.object(o,"_finish_current", wraps=o._finish_current) as finish:
             result = asyncio.run(o.run())
         cycle.assert_awaited_once()
         finish.assert_called_once()
