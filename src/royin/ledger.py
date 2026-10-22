@@ -72,6 +72,8 @@ class Ledger:
         self.audit = audit
         self.db_path = str(db_path)
         self._memory_conn = None
+        self._transaction_conn = None
+        self._worker_active = False
         if self.db_path == ":memory:":
             self._memory_conn = sqlite3.connect(":memory:", timeout=10)
             self._memory_conn.execute("PRAGMA foreign_keys = ON")
@@ -81,7 +83,9 @@ class Ledger:
 
     @contextmanager
     def connection(self):
-        if self._memory_conn is not None:
+        if self._transaction_conn is not None:
+            yield self._transaction_conn
+        elif self._memory_conn is not None:
             yield self._memory_conn
         else:
             conn = sqlite3.connect(self.db_path, timeout=10)
@@ -91,9 +95,44 @@ class Ledger:
             finally:
                 conn.close()
 
-    def _init_db(self):
-        with self.connection() as db, db:
+    @contextmanager
+    def transaction(self):
+        """Compose ledger operations in one durable transaction, never nested commits."""
+        if self._transaction_conn is not None:
+            yield self._transaction_conn
+            return
+        with self.connection() as db:
             db.execute("PRAGMA synchronous = FULL")
+            db.execute("BEGIN IMMEDIATE")
+            self._transaction_conn = db
+            try:
+                yield db
+                db.commit()
+            except BaseException:
+                db.rollback()
+                raise
+            finally:
+                self._transaction_conn = None
+
+    @contextmanager
+    def worker(self):
+        """One local execution operation, including HTTP; OS releases SQLite lock on crash."""
+        if self._worker_active:
+            raise BlockingIOError("Another execution operation is active")
+        lock = None
+        self._worker_active = True
+        try:
+            if self.db_path != ":memory:":
+                lock = sqlite3.connect(str(Path(self.db_path).resolve()) + ".worker", timeout=0)
+                lock.execute("BEGIN EXCLUSIVE")
+            yield
+        finally:
+            if lock is not None:
+                lock.close()
+            self._worker_active = False
+
+    def _init_db(self):
+        with self.transaction() as db:
             db.execute("""
                 CREATE TABLE IF NOT EXISTS balances (
                     asset TEXT PRIMARY KEY,
@@ -152,7 +191,7 @@ class Ledger:
             """)
 
     def set_meta(self, key: str, value: str):
-        with self.connection() as db, db:
+        with self.transaction() as db:
             db.execute(
                 "INSERT INTO metadata (key, value) VALUES (?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -171,7 +210,7 @@ class Ledger:
         if not asset or not isinstance(asset, str):
             raise ValueError("Asset must be a non-empty string")
 
-        with self.connection() as db, db:
+        with self.transaction() as db:
             db.execute(
                 "INSERT INTO balances (asset, free, locked) VALUES (?, ?, ?) "
                 "ON CONFLICT(asset) DO UPDATE SET free = excluded.free, locked = excluded.locked",
@@ -219,7 +258,7 @@ class Ledger:
         if not client_id or not isinstance(client_id, str):
             raise ValueError("client_id must be a non-empty string")
 
-        with self.connection() as db, db:
+        with self.transaction() as db:
             existing = db.execute(
                 "SELECT client_id FROM order_intents WHERE client_id = ?", (client_id,)
             ).fetchone()
@@ -315,13 +354,13 @@ class Ledger:
 
     def cancel_intent(self, client_id: str) -> bool:
         """Cancel remaining unfilled intent and unlock reserved funds from durable record."""
-        with self.connection() as db, db:
+        with self.transaction() as db:
             row = db.execute(
                 "SELECT symbol, side, price, quantity, quote_fee_reserve, quote_asset, base_asset, status "
                 "FROM order_intents WHERE client_id = ?",
                 (client_id,),
             ).fetchone()
-            if not row or row[7] in ("FILLED", "CANCELED", "REJECTED"):
+            if not row or row[7] in ("FILLED", "CANCELED", "REJECTED", "PARTIALLY_FILLED_CANCELED"):
                 return False
 
             _, side, price_str, qty_str, fee_res_str, quote_asset, base_asset, _ = row
@@ -338,13 +377,14 @@ class Ledger:
 
             if remaining_qty > Decimal(0):
                 if side == "BUY":
-                    proportion = remaining_qty / intent_qty
-                    unlock_amount = (intent_price * remaining_qty) + (fee_reserve * proportion)
+                    unlock_amount = intent_price * remaining_qty + fee_reserve - fee_reserve * filled_qty / intent_qty
                     bal = db.execute(
                         "SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)
                     ).fetchone()
                     free, locked = Decimal(bal[0]), Decimal(bal[1])
-                    actual_unlock = min(locked, unlock_amount)
+                    actual_unlock = unlock_amount
+                    if locked < actual_unlock:
+                        raise ValueError("Reservation mismatch; refusing release")
                     db.execute(
                         "UPDATE balances SET free = ?, locked = ? WHERE asset = ?",
                         (str(free + actual_unlock), str(locked - actual_unlock), quote_asset),
@@ -355,7 +395,9 @@ class Ledger:
                         "SELECT free, locked FROM balances WHERE asset = ?", (base_asset,)
                     ).fetchone()
                     free, locked = Decimal(bal[0]), Decimal(bal[1])
-                    actual_unlock = min(locked, unlock_amount)
+                    actual_unlock = unlock_amount
+                    if locked < actual_unlock:
+                        raise ValueError("Reservation mismatch; refusing release")
                     db.execute(
                         "UPDATE balances SET free = ?, locked = ? WHERE asset = ?",
                         (str(free + actual_unlock), str(locked - actual_unlock), base_asset),
@@ -388,7 +430,7 @@ class Ledger:
         if not fill_id or not isinstance(fill_id, str):
             raise ValueError("fill_id must be a non-empty string")
 
-        with self.connection() as db, db:
+        with self.transaction() as db:
             existing = db.execute(
                 "SELECT fill_id, client_id, price, quantity, fee, fee_asset, timestamp "
                 "FROM fills WHERE fill_id = ?",
@@ -402,12 +444,13 @@ class Ledger:
                     Decimal(existing[4]),
                     existing[5],
                 )
-                if (ex_cid, ex_p, ex_q, ex_f, ex_fa) != (
+                if (ex_cid, ex_p, ex_q, ex_f, ex_fa, existing[6]) != (
                     client_id,
                     price,
                     quantity,
                     fee,
                     fee_asset,
+                    timestamp,
                 ):
                     raise ValueError(
                         f"Conflicting payload for existing fill_id: {fill_id} "
@@ -439,8 +482,12 @@ class Ledger:
                 fee_res_str,
                 quote_asset,
                 base_asset,
-                _,
+                intent_status,
             ) = intent
+            if intent_status in ("CANCELED", "REJECTED", "PARTIALLY_FILLED_CANCELED", "FILLED"):
+                raise ValueError("New fill after terminal settlement requires reconciliation")
+            if (side == "BUY" and price > Decimal(intent_price_str)) or (side == "SELL" and price < Decimal(intent_price_str)):
+                raise ValueError("Fill violates LIMIT price")
             position_row = db.execute(
                 "SELECT value FROM metadata WHERE key=?", (f"position_origin_{base_asset}",)
             ).fetchone()
@@ -472,8 +519,9 @@ class Ledger:
             )
 
             if side == "BUY":
-                proportion = quantity / intent_qty
-                quote_locked_to_release = (intent_price * quantity) + (fee_reserve * proportion)
+                fee_release = (fee_reserve * (curr_filled + quantity) / intent_qty
+                               - fee_reserve * curr_filled / intent_qty)
+                quote_locked_to_release = intent_price * quantity + fee_release
                 quote_cost = price * quantity
 
                 q_bal = db.execute(
@@ -481,7 +529,9 @@ class Ledger:
                 ).fetchone()
                 q_free, q_locked = Decimal(q_bal[0]), Decimal(q_bal[1])
 
-                effective_release = min(q_locked, quote_locked_to_release)
+                effective_release = quote_locked_to_release
+                if q_locked < effective_release:
+                    raise ValueError("Reservation mismatch; refusing settlement")
                 new_q_locked = q_locked - effective_release
 
                 if fee_asset == quote_asset:
@@ -572,6 +622,8 @@ class Ledger:
 
                 gross_quote = price * quantity
                 net_quote_received = gross_quote - (fee if fee_asset == quote_asset else Decimal(0))
+                if net_quote_received < 0:
+                    raise ValueError("SELL fee exceeds proceeds")
 
                 q_bal = db.execute(
                     "SELECT free, locked FROM balances WHERE asset = ?", (quote_asset,)

@@ -143,3 +143,17 @@ Reviewed defd88b before publication. The twelve-configuration diagnostic and twe
 - Next: complete offline fill/fee reconciliation first; then a genuinely prospective AI/no-AI experiment and current Shadow. No promise of stable profits and no live activation by environment flags alone.
 
 Final review checks: 194 tests passed (24.760s), Ruff clean, compileall exit 0, wheel built, git diff --check clean. Local transcript: .local/parallel/execution-review-tests.txt (ignored).
+
+
+## Offline execution accounting — 2026-10-22 phase 1
+
+Intent/reserve/SUBMITTING and full cumulative fixture settlement are now atomic;
+partial cancel idempotence, conflicting timestamp, terminal-fill and LIMIT checks
+are fixed in shared Ledger. Mock-only transport and production block remain.
+See docs/offline-execution-accounting.md for source hashes, exact monetary oracles,
+local operation-lock scope and unresolved real fill identity/finality. Source R/S/D/U
+remain separate; fixture multiset IDs are explicitly offline-only. No paid call or
+private account/order HTTP. Next: prospective AI ledger-state replay infrastructure;
+no approved candidate or new holdout is established.
+
+Phase 1 checks: 203/203 unittest PASS (9.012s); Ruff PASS; compileall exit0; git diff --check clean. No skip or BLOCKED counted as a pass. Revision: phase-1 commit containing this entry (exact hash in ignored final report).

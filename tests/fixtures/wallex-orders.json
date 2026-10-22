@@ -1,0 +1,74 @@
+{
+  "evidence_kind": "SYNTHETIC_SCHEMA_FIXTURE_NOT_CAPTURE",
+  "new": {
+    "clientOrderId": "order_1",
+    "symbol": "USDTTMN",
+    "side": "BUY",
+    "type": "LIMIT",
+    "price": "230000",
+    "origQty": "6.50",
+    "executedQty": "0",
+    "executedSum": "0",
+    "active": true,
+    "status": "NEW",
+    "fills": []
+  },
+  "partial": {
+    "clientOrderId": "order_1",
+    "symbol": "USDTTMN",
+    "side": "BUY",
+    "type": "LIMIT",
+    "price": "230000",
+    "origQty": "6.50",
+    "executedQty": "2",
+    "executedSum": "458000",
+    "active": true,
+    "status": "PARTIALLY_FILLED",
+    "fills": [
+      {
+        "symbol": "USDTTMN",
+        "isBuyer": true,
+        "price": "229000",
+        "quantity": "2",
+        "sum": "458000",
+        "fee": "1374",
+        "feeAsset": "TMN",
+        "timestamp": "2026-09-01T00:00:01Z"
+      }
+    ]
+  },
+  "canceled": {
+    "clientOrderId": "order_1",
+    "symbol": "USDTTMN",
+    "side": "BUY",
+    "type": "LIMIT",
+    "price": "230000",
+    "origQty": "6.50",
+    "executedQty": "3",
+    "executedSum": "688000",
+    "active": false,
+    "status": "CANCELED",
+    "fills": [
+      {
+        "symbol": "USDTTMN",
+        "isBuyer": true,
+        "price": "230000",
+        "quantity": "1",
+        "sum": "230000",
+        "fee": "0.003",
+        "feeAsset": "USDT",
+        "timestamp": "2026-09-01T00:00:02Z"
+      },
+      {
+        "symbol": "USDTTMN",
+        "isBuyer": true,
+        "price": "229000",
+        "quantity": "2",
+        "sum": "458000",
+        "fee": "1374",
+        "feeAsset": "TMN",
+        "timestamp": "2026-09-01T00:00:01Z"
+      }
+    ]
+  }
+}

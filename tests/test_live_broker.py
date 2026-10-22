@@ -80,7 +80,19 @@ class WallexLiveBrokerTests(unittest.TestCase):
             code,
             json={
                 "success": True,
-                "result": {"clientOrderId": "order_1", "status": status, "executedQty": executed},
+                "result": {
+                    "clientOrderId": "order_1",
+                    "status": status,
+                    "executedQty": executed,
+                    "symbol": "USDTTMN",
+                    "side": "BUY",
+                    "type": "LIMIT",
+                    "price": "230000",
+                    "origQty": "6.50",
+                    "executedSum": "0",
+                    "fills": [],
+                    "active": True,
+                },
             },
         )
 

@@ -1,6 +1,12 @@
 """Offline Wallex order-contract prototype. Production transport is deliberately blocked."""
 
+import hashlib
+import json
 import re
+from collections import Counter
+from datetime import datetime
+from decimal import Decimal
+from functools import wraps
 from pathlib import Path
 
 import httpx
@@ -20,11 +26,20 @@ class LiveTradingSafetyGateError(RuntimeError):
     """Production execution is not approved."""
 
 
+def single_worker(method):
+    @wraps(method)
+    def run(self, *args, **kwargs):
+        with self.ledger.worker():
+            return method(self, *args, **kwargs)
+
+    return run
+
+
 class WallexLiveBroker:
     """Mock-transport contract harness, not a live execution engine.
 
-    Filled/canceled exchange observations need fill/fee reconciliation that this
-    prototype does not implement. Reservations remain locked and status UNKNOWN.
+    Complete cumulative synthetic snapshots reconcile atomically. Undocumented
+    server fill identity/finality semantics remain a production blocker.
     Flags/constructor overrides never authorize real network transport.
     """
 
@@ -48,7 +63,7 @@ class WallexLiveBroker:
         )
         self.run_mode = config.RUN_MODE if run_mode is None else run_mode
         self.timeout_seconds = timeout_seconds
-        with ledger.connection() as db, db:
+        with ledger.transaction() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS live_broker_orders (
                 client_id TEXT PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL,
                 order_type TEXT NOT NULL, price TEXT NOT NULL, quantity TEXT NOT NULL,
@@ -88,12 +103,15 @@ class WallexLiveBroker:
             raise LiveOrderError("Unknown local order; refusing unscoped exchange request")
 
     def _set_status(self, client_id, timestamp, status, exchange_id=None):
-        with self.ledger.connection() as db, db:
+        with self.ledger.transaction() as db:
             db.execute(
                 "UPDATE live_broker_orders SET status=?,exchange_order_id=?,updated_at=? WHERE client_id=?",
                 (status, exchange_id, timestamp, client_id),
             )
-            db.execute("UPDATE order_intents SET status=? WHERE client_id=?", (status, client_id))
+            if status != "UNKNOWN":
+                db.execute(
+                    "UPDATE order_intents SET status=? WHERE client_id=?", (status, client_id)
+                )
 
     def _request(self, method, client_id, timestamp, payload=None):
         headers = {
@@ -128,25 +146,119 @@ class WallexLiveBroker:
                     "client_id": client_id,
                     "reconciliation_required": True,
                 }
-            raw_status = str(result.get("status", "")).upper()
-            executed = decimal_number(result["executedQty"])
-            # An acknowledgement is not a fill; terminal/partial states retain reservations.
-            status = (
-                "OPEN"
-                if method != "DELETE" and executed == 0 and raw_status in ("NEW", "OPEN", "ACTIVE")
-                else "UNKNOWN"
-            )
-            self._set_status(client_id, timestamp, status, client_id)
+            status = self._settle_snapshot(client_id, timestamp, result, method)
             return {
                 "status": status,
                 "client_id": client_id,
                 "exchange_order_id": client_id,
-                "observed_exchange_status": raw_status,
+                "observed_exchange_status": result.get("status"),
                 "reconciliation_required": status == "UNKNOWN",
             }
-        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, ArithmeticError):
             return {"status": "UNKNOWN", "client_id": client_id, "reconciliation_required": True}
 
+    def _settle_snapshot(self, client_id, timestamp, result, method):
+        """Accept a complete cumulative multiset, never infer fills from status alone."""
+        with self.ledger.transaction() as db:
+            row = db.execute(
+                "SELECT symbol,side,price,quantity,status FROM order_intents WHERE client_id=?",
+                (client_id,),
+            ).fetchone()
+            symbol, side, price, quantity, previous_status = row
+            if (result["symbol"], result["side"], result["type"]) != (symbol, side, "LIMIT"):
+                raise ValueError("Order identity mismatch")
+            if decimal_number(result["origQty"]) != Decimal(quantity) or decimal_number(
+                result["price"]
+            ) != Decimal(price):
+                raise ValueError("Order parameters mismatch")
+            executed = decimal_number(result["executedQty"])
+            total = decimal_number(result["executedSum"])
+            raw_status = result["status"]
+            if raw_status not in ("NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED"):
+                raise ValueError("Unknown exchange status")
+            terminal = raw_status in ("FILLED", "CANCELED")
+            if type(result["active"]) is not bool or result["active"] == terminal:
+                raise ValueError("Inconsistent active/status")
+            if not isinstance(result["fills"], list) or len(result["fills"]) > 1000:
+                raise ValueError("Missing/bounded cumulative fills required")
+            fills, occurrences = {}, Counter()
+            for fill in result["fills"]:
+                if (
+                    fill["symbol"] != symbol
+                    or type(fill["isBuyer"]) is not bool
+                    or fill["isBuyer"] != (side == "BUY")
+                ):
+                    raise ValueError("Fill identity mismatch")
+                p, q, fee = (decimal_number(fill[k]) for k in ("price", "quantity", "fee"))
+                if p <= 0 or q <= 0 or decimal_number(fill["sum"]) != p * q:
+                    raise ValueError("Invalid fill amounts")
+                instant = datetime.fromisoformat(fill["timestamp"].replace("Z", "+00:00"))
+                if instant.utcoffset() is None or instant.microsecond:
+                    raise ValueError("Fixture timestamps require offset and whole seconds")
+                t = int(instant.timestamp())
+                if t > timestamp:
+                    raise ValueError("Future fill")
+                canonical = json.dumps(
+                    [
+                        str(p.normalize()),
+                        str(q.normalize()),
+                        str(fee.normalize()),
+                        fill["feeAsset"],
+                        t,
+                    ]
+                )
+                # shortcut: content multiset IDs are offline-only; require exchange-attested identity before production.
+                digest = hashlib.sha256(canonical.encode()).hexdigest()
+                occurrences[digest] += 1
+                fid = f"{client_id}:{digest}:{occurrences[digest]}"
+                fills[fid] = dict(
+                    fill_id=fid,
+                    client_id=client_id,
+                    price=p,
+                    quantity=q,
+                    fee=fee,
+                    fee_asset=fill["feeAsset"],
+                    timestamp=t,
+                )
+            if (
+                sum((f["quantity"] for f in fills.values()), Decimal(0)) != executed
+                or sum((f["price"] * f["quantity"] for f in fills.values()), Decimal(0)) != total
+            ):
+                raise ValueError("Cumulative execution does not match fills")
+            if (
+                executed > Decimal(quantity)
+                or (raw_status == "FILLED" and executed != Decimal(quantity))
+                or (raw_status == "NEW" and executed != 0)
+                or (raw_status == "PARTIALLY_FILLED" and not 0 < executed < Decimal(quantity))
+            ):
+                raise ValueError("Status/quantity mismatch")
+            existing = {
+                r[0]
+                for r in db.execute("SELECT fill_id FROM fills WHERE client_id=?", (client_id,))
+            }
+            if not existing.issubset(fills):
+                raise ValueError("Stale or revised cumulative snapshot")
+            if previous_status in ("FILLED", "CANCELED", "PARTIALLY_FILLED_CANCELED"):
+                expected = "FILLED" if previous_status == "FILLED" else "CANCELED"
+                if set(fills) != existing or raw_status != expected:
+                    raise ValueError("Observation conflicts with settled terminal order")
+                self._set_status(client_id, timestamp, previous_status, client_id)
+                return previous_status
+            for f in sorted(fills.values(), key=lambda f: (f["timestamp"], f["fill_id"])):
+                self.ledger.record_fill(**f)
+            status = "OPEN" if executed == 0 else "PARTIALLY_FILLED"
+            if raw_status == "FILLED":
+                status = "FILLED"
+            elif raw_status == "CANCELED":
+                # DELETE acknowledgement alone cannot close the cancel/fill race.
+                if method != "GET":
+                    raise ValueError("Cancellation requires subsequent complete GET")
+                self.ledger.cancel_intent(client_id)
+                status = "CANCELED" if executed == 0 else "PARTIALLY_FILLED_CANCELED"
+            self._set_status(client_id, timestamp, status, client_id)
+            return status
+
+    @single_worker
     def submit_order(self, risk_result: RiskResult, *, client_id, timestamp, order_type="LIMIT"):
         if not risk_result.approved or risk_result.action == "WAIT":
             return {"status": "SKIPPED", "client_id": client_id}
@@ -178,19 +290,23 @@ class WallexLiveBroker:
         if risk_result.estimated_fee_quote < fee_floor:
             raise LiveOrderError("Fee reserve is below the conservative quote-fee fixture")
         side = "BUY" if risk_result.action == "ENTER" else "SELL"
-        self.ledger.record_intent(
-            client_id=client_id,
-            symbol=self.rules.symbol,
-            side=side,
-            order_type=order_type,
-            price=risk_result.price,
-            quantity=risk_result.quantity,
-            quote_fee_reserve=risk_result.estimated_fee_quote,
-            timestamp=timestamp,
-            quote_asset=self.rules.quote_asset,
-            base_asset=self.rules.base_asset,
-        )
-        with self.ledger.connection() as db, db:
+        with self.ledger.transaction() as db:
+            if db.execute(
+                "SELECT 1 FROM live_broker_orders WHERE status NOT IN ('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED')"
+            ).fetchone():
+                raise ValueError("Existing order requires reconciliation before new intent")
+            self.ledger.record_intent(
+                client_id=client_id,
+                symbol=self.rules.symbol,
+                side=side,
+                order_type=order_type,
+                price=risk_result.price,
+                quantity=risk_result.quantity,
+                quote_fee_reserve=risk_result.estimated_fee_quote,
+                timestamp=timestamp,
+                quote_asset=self.rules.quote_asset,
+                base_asset=self.rules.base_asset,
+            )
             db.execute(
                 """INSERT INTO live_broker_orders
                 (client_id,symbol,side,order_type,price,quantity,status,created_at,updated_at)
@@ -206,6 +322,9 @@ class WallexLiveBroker:
                     timestamp,
                 ),
             )
+            db.execute(
+                "UPDATE order_intents SET status='SUBMITTING' WHERE client_id=?", (client_id,)
+            )
         payload = {
             "symbol": self.rules.symbol,
             "side": side,
@@ -216,10 +335,12 @@ class WallexLiveBroker:
         }
         return self._request("POST", client_id, timestamp, payload)
 
+    @single_worker
     def reconcile_order(self, client_id, *, timestamp):
         self._known_order(client_id, timestamp)
         return self._request("GET", client_id, timestamp)
 
+    @single_worker
     def cancel_order(self, client_id, *, timestamp):
         self._known_order(client_id, timestamp)
         return self._request("DELETE", client_id, timestamp)
