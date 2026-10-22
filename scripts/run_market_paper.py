@@ -16,7 +16,7 @@ import signal
 import sys
 import tempfile
 import time
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pathlib import Path
 
 from royin.agent import (
@@ -63,23 +63,33 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Default parameters
 DEFAULT_CAPITAL_TMN = Decimal("5000000")
-DEFAULT_MAX_ORDER_TMN = Decimal("300000")
+DEFAULT_MAX_ORDER_TMN = Decimal("1500000")
 DEFAULT_MIN_NOTIONAL_TMN = Decimal("100000")
 DEFAULT_MIN_QUANTITY_USDT = Decimal("1.0")
 DEFAULT_TAKER_FEE_RATE = Decimal("0.0030")
 DEFAULT_SLIPPAGE_PCT = Decimal("0.0005")
-DEFAULT_HORIZON_MAX_SECONDS = 10800  # 3 hours
+DEFAULT_HORIZON_MAX_SECONDS = 259200  # 72 hours: trend horizon, still bounded by the deadline
+DEFAULT_STOP_PCT = Decimal("0.03")
+DEFAULT_TRAIL_PCT = Decimal("0.02")
+DEFAULT_CHECKPOINT_PCT = Decimal("0.03")
+DEFAULT_MAX_LOSS_TMN = Decimal("75000")
 
 
-def build_default_rules(symbol="USDTTMN", tick_size=Decimal("1"), step_size=Decimal("0.01")):
+def build_default_rules(symbol="USDTTMN", tick_size=Decimal("1"), step_size=None):
+    base = symbol.replace("TMN", "").replace("USDT", "") or "USDT"
+    # The USDT market's 1.0 minimum is account-reported; other bases use a conservative
+    # paper minimum/step until the exchange metadata is verified.
+    if step_size is None:
+        step_size = Decimal("0.01") if base == "USDT" else Decimal("0.00001")
+    min_quantity = DEFAULT_MIN_QUANTITY_USDT if base == "USDT" else Decimal("0.0001")
     return MarketRules(
         symbol=symbol,
-        base_asset=symbol.replace("TMN", "").replace("USDT", "") or "USDT",
+        base_asset=base,
         quote_asset="TMN" if symbol.endswith("TMN") else "USDT",
         tick_size=tick_size,
         step_size=step_size,
         min_notional=DEFAULT_MIN_NOTIONAL_TMN,
-        min_quantity=DEFAULT_MIN_QUANTITY_USDT,
+        min_quantity=min_quantity,
         maker_fee_rate=Decimal("0.0025"),
         taker_fee_rate=DEFAULT_TAKER_FEE_RATE,
     )
@@ -87,20 +97,24 @@ def build_default_rules(symbol="USDTTMN", tick_size=Decimal("1"), step_size=Deci
 
 def build_default_protection_policy(
     deadline_utc,
-    hard_holding_seconds=10800,
+    hard_holding_seconds=DEFAULT_HORIZON_MAX_SECONDS,
     retention_ratio=Decimal("0.5"),
     activation_fraction=Decimal("0.025"),
+    stop_pct=DEFAULT_STOP_PCT,
+    trailing_pct=DEFAULT_TRAIL_PCT,
+    checkpoint_pct=DEFAULT_CHECKPOINT_PCT,
+    max_loss_tmn=DEFAULT_MAX_LOSS_TMN,
 ):
     return PositionProtectionPolicy(
-        initial_stop_pct=Decimal("0.02"),
-        trailing_drawdown_pct=Decimal("0.01"),
-        checkpoint_profit_pct=Decimal("0.025"),
+        initial_stop_pct=stop_pct,
+        trailing_drawdown_pct=trailing_pct,
+        checkpoint_profit_pct=checkpoint_pct,
         review_interval_seconds=1800,
         hard_holding_seconds=hard_holding_seconds,
         deadline_utc=deadline_utc,
         exit_buffer_seconds=300,
         max_quote_age_seconds=120,
-        max_loss_tmn=Decimal("50000"),
+        max_loss_tmn=max_loss_tmn,
         profit_retention_ratio=retention_ratio,
         net_activation_fraction=activation_fraction,
     )
@@ -110,6 +124,30 @@ def public_symbols(feed, *, cutoff):
     payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=cutoff)
     catalog = parse_catalog(payload)
     return payload, received, {symbol for symbol in catalog}
+
+
+ROUND_TRIP_COST_FRACTION = Decimal("0.006") + 2 * DEFAULT_SLIPPAGE_PCT
+
+
+def fee_aware_entry(snapshot, *, hold_seconds: int, safety_factor: Decimal = Decimal("1.0")) -> bool:
+    """Require trend plus an expected move that clears round-trip costs.
+
+    ATR is a per-bar range estimate; scaling by sqrt(horizon bars) is a conservative
+    heuristic, not a guarantee. The strict trend spread avoids chop entries whose
+    gross move cannot clear the ~0.7% round-trip fee + slippage.
+    """
+    if "EV_TREND_BULLISH" not in snapshot.evidences or snapshot.last_close <= 0:
+        return False
+    if "EV_BB_EXPANDING" not in snapshot.evidences:
+        return False
+    bars = Decimal(hold_seconds) / Decimal(snapshot.interval_seconds)
+    if bars <= 0:
+        return False
+    with localcontext() as ctx:
+        ctx.prec = 36
+        expected_move = (snapshot.atr_14 / snapshot.last_close) * bars.sqrt()
+    return expected_move >= ROUND_TRIP_COST_FRACTION * safety_factor
+
 
 
 class MarketPaperOrchestrator:
@@ -127,6 +165,11 @@ class MarketPaperOrchestrator:
         horizon_max_seconds: int = DEFAULT_HORIZON_MAX_SECONDS,
         retention_ratio: Decimal = Decimal("0.5"),
         activation_fraction: Decimal = Decimal("0.025"),
+        order_tmn: Decimal = DEFAULT_MAX_ORDER_TMN,
+        stop_pct: Decimal = DEFAULT_STOP_PCT,
+        trail_pct: Decimal = DEFAULT_TRAIL_PCT,
+        checkpoint_pct: Decimal = DEFAULT_CHECKPOINT_PCT,
+        max_loss_tmn: Decimal = DEFAULT_MAX_LOSS_TMN,
         initial_capital: Decimal = DEFAULT_CAPITAL_TMN,
         dataset_path: Path | None = None,
         capture_dir: Path | None = None,
@@ -142,6 +185,11 @@ class MarketPaperOrchestrator:
         self.horizon_max_seconds = horizon_max_seconds
         self.retention_ratio = retention_ratio
         self.activation_fraction = activation_fraction
+        self.order_tmn = order_tmn
+        self.stop_pct = stop_pct
+        self.trail_pct = trail_pct
+        self.checkpoint_pct = checkpoint_pct
+        self.max_loss_tmn = max_loss_tmn
         self.initial_capital = initial_capital
         self.dataset_path = dataset_path
         self.config = config or load_config()
@@ -164,7 +212,7 @@ class MarketPaperOrchestrator:
         if self.model_mode == "REAL_MODEL":
             try:
                 self.budget = ModelBudget(self.config)
-                self.run_envelope = RoleRunEnvelope(self.budget, duration_seconds=self.duration_seconds)
+                self.run_envelope = RoleRunEnvelope(self.budget)
             except (BudgetBlocked, ValueError, OSError, RuntimeError) as exc:
                 logger.warning("Could not initialize real model budget: %s", exc)
 
@@ -179,12 +227,16 @@ class MarketPaperOrchestrator:
             hard_holding_seconds=self.horizon_max_seconds,
             retention_ratio=self.retention_ratio,
             activation_fraction=self.activation_fraction,
+            stop_pct=self.stop_pct,
+            trailing_pct=self.trail_pct,
+            checkpoint_pct=self.checkpoint_pct,
+            max_loss_tmn=self.max_loss_tmn,
         )
 
         self.risk_policy = RiskPolicy(
-            max_order_tmn=DEFAULT_MAX_ORDER_TMN,
-            max_exposure_tmn=Decimal("1000000"),
-            stop_loss_pct=Decimal("0.02"),
+            max_order_tmn=self.order_tmn,
+            max_exposure_tmn=self.order_tmn,
+            stop_loss_pct=self.stop_pct,
             max_drawdown_pct=Decimal("0.05"),
             deadline_utc=deadline,
             min_seconds_before_deadline=300,
@@ -220,11 +272,15 @@ class MarketPaperOrchestrator:
             hard_holding_seconds=self.horizon_max_seconds,
             retention_ratio=self.retention_ratio,
             activation_fraction=self.activation_fraction,
+            stop_pct=self.stop_pct,
+            trailing_pct=self.trail_pct,
+            checkpoint_pct=self.checkpoint_pct,
+            max_loss_tmn=self.max_loss_tmn,
         )
         self.risk_policy = RiskPolicy(
-            max_order_tmn=DEFAULT_MAX_ORDER_TMN,
-            max_exposure_tmn=Decimal("1000000"),
-            stop_loss_pct=Decimal("0.02"),
+            max_order_tmn=self.order_tmn,
+            max_exposure_tmn=self.order_tmn,
+            stop_loss_pct=self.stop_pct,
             max_drawdown_pct=Decimal("0.05"),
             deadline_utc=end_time,
             min_seconds_before_deadline=300,
@@ -334,25 +390,12 @@ class MarketPaperOrchestrator:
                     depth_received_at=cutoff,
                     observed_at=cutoff,
                 )
-                # Causal entry decision: enter if bullish trend
-                action = "ENTER" if ("EV_TREND_BULLISH" in snap.evidences and available_cash >= DEFAULT_MIN_NOTIONAL_TMN) else "WAIT"
+                # Fee-aware causal entry: trend plus expected move above round-trip costs.
+                action = "ENTER" if (
+                    fee_aware_entry(snap, hold_seconds=self.horizon_max_seconds)
+                    and available_cash >= DEFAULT_MIN_NOTIONAL_TMN
+                ) else "WAIT"
                 fc = None
-                if action == "ENTER":
-                    fc = {
-                        "forecast_id": f"fc_{cutoff}",
-                        "symbol": symbol,
-                        "cutoff": cutoff,
-                        "reference_price": str(snap.last_close),
-                        "reference_kind": "LAST_CLOSE",
-                        "horizon_seconds": min(7200, self.horizon_max_seconds),
-                        "return_q10": "-0.005",
-                        "return_q50": "0.015",
-                        "return_q90": "0.035",
-                        "target_return_fraction": "0.025",
-                        "review_after_seconds": 1800,
-                        "invalidation": "Trend weakens below SMA",
-                        "evidence_ids": ("EV_DATA_FRESH", "EV_TREND_BULLISH"),
-                    }
                 proposal = RoleDecisionProposal(
                     role="ENTRY_ANALYST",
                     action=action,
@@ -412,6 +455,13 @@ class MarketPaperOrchestrator:
             self._checkpoint_and_export(cutoff)
 
         final_cutoff = candles[min(warmup + total_steps - 1, len(candles) - 1)].open_time + interval
+        if pending_entry is not None:
+            self.broker.reconcile_order(
+                pending_entry["client_id"],
+                simulated_state="CANCELED",
+                timestamp=final_cutoff,
+            )
+            pending_entry = None
         prot_state = json.loads(self.ledger.get_meta("protection_" + self.rules.symbol) or "null")
         if prot_state and prot_state.get("status") == "OPEN":
             self.broker.finalize_portfolio(
@@ -544,40 +594,42 @@ class MarketPaperOrchestrator:
                     reason=f"Model budget blocked: {exc}",
                     invalidation="Next budget replenishment",
                 )
-        else:
-            # Fake model simulation: ENTER if primary candidate has bullish evidence and positive volume
-            should_enter = "EV_TREND_BULLISH" in primary_snap.evidences and available_cash >= DEFAULT_MIN_NOTIONAL_TMN
-            action = "ENTER" if should_enter else "WAIT"
-            fc = None
-            if action == "ENTER":
-                fc = {
-                    "forecast_id": f"fc_{now}",
-                    "symbol": primary_snap.symbol,
-                    "cutoff": primary_snap.cutoff,
-                    "reference_price": str(primary_snap.last_close),
-                    "reference_kind": "LAST_CLOSE",
-                    "horizon_seconds": min(7200, self.horizon_max_seconds),
-                    "return_q10": "-0.005",
-                    "return_q50": "0.015",
-                    "return_q90": "0.035",
-                    "target_return_fraction": "0.025",
-                    "review_after_seconds": 1800,
-                    "invalidation": "Price drops below slow SMA",
-                    "evidence_ids": ("EV_DATA_FRESH", "EV_TREND_BULLISH"),
-                }
+        elif self.model_mode == "REAL_MODEL":
+            # No silent fake fallback: missing model runtime means no entry.
+            self.ledger.set_meta("entry_block_reason", "MODEL_RUNTIME_UNAVAILABLE")
             decision = RoleDecisionProposal(
                 role="ENTRY_ANALYST",
-                action=action,
+                action="WAIT",
                 symbol=primary_snap.symbol,
                 cutoff=primary_snap.cutoff,
                 snapshot_sha256=primary_snap.snapshot_sha256,
-                opportunity_sha256=primary_opp.sha256,
-                evidence_ids=tuple(primary_snap.evidences.keys())[:3] or ("EV_DATA_FRESH",),
-                reason="Simulated deterministic market entry policy" if action == "ENTER" else "Waiting for momentum",
+                evidence_ids=("EV_POSITION_FLAT",),
+                reason="REAL_MODEL requested but the shared model runtime is unavailable",
+                invalidation="Model runtime restored",
+            )
+        else:
+            chosen = next(
+                (item for item in batch_list
+                 if fee_aware_entry(item.snapshot, hold_seconds=self.horizon_max_seconds)),
+                None,
+            )
+            action = "ENTER" if chosen and available_cash >= DEFAULT_MIN_NOTIONAL_TMN else "WAIT"
+            base_snap = chosen.snapshot if chosen else primary_snap
+            base_opp = chosen.opportunity if chosen else primary_opp
+            decision = RoleDecisionProposal(
+                role="ENTRY_ANALYST",
+                action=action,
+                symbol=base_snap.symbol,
+                cutoff=base_snap.cutoff,
+                snapshot_sha256=base_snap.snapshot_sha256,
+                opportunity_sha256=base_opp.sha256,
+                evidence_ids=tuple(base_snap.evidences.keys())[:3] or ("EV_DATA_FRESH",),
+                reason=(
+                    "Fee-aware trend entry: expected move clears round-trip costs"
+                    if action == "ENTER"
+                    else "Waiting: no candidate clears the fee-aware trend gate"
+                ),
                 invalidation="Next closed candle",
-                forecast=fc,  # type: ignore
-                horizon_seconds=7200 if action == "ENTER" else None,
-                review_after_seconds=1800 if action == "ENTER" else None,
             )
 
         # Host risk evaluation
@@ -599,6 +651,9 @@ class MarketPaperOrchestrator:
             )
 
             if risk_result.approved:
+                # Rebind execution rules/broker to the model-selected market.
+                self.rules = target_rules
+                self.broker = PaperBroker(self.ledger, target_rules)
                 client_id = f"paper_enter_{now}_{decision.symbol}"
                 order = self.broker.submit_order(risk_result, client_id=client_id, timestamp=now)
                 # Taker fill simulation at current price
@@ -814,7 +869,13 @@ class MarketPaperOrchestrator:
             "warnings": ["PUBLIC_MARKET_PAPER_SIMULATION"],
         }
         engine_snap_tmp.write_text(json.dumps(engine_snapshot, indent=2, default=str), encoding="utf8")
-        engine_snap_tmp.replace(engine_snap_path)
+        try:
+            engine_snap_tmp.replace(engine_snap_path)
+        except PermissionError:
+            # A running dashboard can briefly hold the snapshot on Windows; the run's
+            # own manifest/DB remain authoritative, so do not abort the replay.
+            logger.warning("Dashboard snapshot is locked; keeping the previous copy")
+            engine_snap_tmp.unlink(missing_ok=True)
 
     def generate_summary(self):
         tmn_bal = self.ledger.get_balance("TMN")
@@ -911,6 +972,11 @@ def main(argv=None):
     parser.add_argument("--capture-dir", type=str, default=None, help="Directory for paper artifacts")
     parser.add_argument("--db-path", type=str, default=None, help="SQLite database path")
     parser.add_argument("--dataset-path", type=str, default=None, help="Dataset path for HISTORICAL_REPLAY")
+    parser.add_argument("--order-tmn", type=Decimal, default=DEFAULT_MAX_ORDER_TMN, help="Paper order notional in TMN")
+    parser.add_argument("--stop-pct", type=Decimal, default=DEFAULT_STOP_PCT, help="Initial hard stop fraction")
+    parser.add_argument("--trail-pct", type=Decimal, default=DEFAULT_TRAIL_PCT, help="Trailing drawdown fraction")
+    parser.add_argument("--checkpoint-pct", type=Decimal, default=DEFAULT_CHECKPOINT_PCT, help="Profit checkpoint fraction")
+    parser.add_argument("--max-loss-tmn", type=Decimal, default=DEFAULT_MAX_LOSS_TMN, help="Max net position loss in TMN")
     parser.add_argument("--self-check", action="store_true", help="Run offline functional checks and hand oracles")
     parser.add_argument("--run-id", type=str, default=None, help="Explicit run ID")
 
@@ -936,6 +1002,11 @@ def main(argv=None):
         horizon_max_seconds=args.horizon_max,
         retention_ratio=args.retention_ratio,
         activation_fraction=args.activation_fraction,
+        order_tmn=args.order_tmn,
+        stop_pct=args.stop_pct,
+        trail_pct=args.trail_pct,
+        checkpoint_pct=args.checkpoint_pct,
+        max_loss_tmn=args.max_loss_tmn,
         dataset_path=Path(args.dataset_path) if args.dataset_path else None,
         capture_dir=capture_dir,
         db_path=db_path,

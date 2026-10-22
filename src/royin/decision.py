@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import re
 from decimal import Decimal
 from typing import Literal
@@ -105,7 +105,7 @@ class ReturnForecast(BaseModel):
     cutoff: int = Field(strict=True, ge=0)
     reference_price: Decimal
     reference_kind: Literal["LAST_CLOSE"]
-    horizon_seconds: int = Field(strict=True, ge=60, le=21600)
+    horizon_seconds: int = Field(strict=True, ge=60, le=259200)
     return_q10: Decimal
     return_q50: Decimal
     return_q90: Decimal
@@ -217,7 +217,7 @@ class RoleDecisionProposal(DecisionProposal):
     position_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     opportunity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     symbol: str | None = None
-    horizon_seconds: int | None = Field(default=None, strict=True, ge=60, le=21600)
+    horizon_seconds: int | None = Field(default=None, strict=True, ge=60, le=259200)
     review_after_seconds: int | None = Field(default=None, strict=True, ge=0)
     forecast: ReturnForecast | None = None
 
@@ -235,7 +235,7 @@ class MarketEntryProposal(RoleDecisionProposal):
     """Batch entry output: a forecast is mandatory even when the model waits."""
 
     forecast: ReturnForecast
-    horizon_seconds: int = Field(strict=True, ge=60, le=21600)
+    horizon_seconds: int = Field(strict=True, ge=60, le=259200)
     review_after_seconds: int = Field(strict=True, ge=0)
 
 
@@ -323,7 +323,7 @@ def validate_role_proposal(
         validate_forecast(
             proposal.forecast, snapshot=snapshot,
             horizon_min_seconds=horizon_bounds[0] if horizon_bounds else 60,
-            horizon_max_seconds=horizon_bounds[1] if horizon_bounds else 21600,
+            horizon_max_seconds=horizon_bounds[1] if horizon_bounds else 259200,
             remaining_seconds=remaining_seconds,
         )
 
@@ -439,3 +439,4 @@ def bind_decision(
         review_after_seconds=getattr(proposal, "review_after_seconds", None),
         forecast=getattr(proposal, "forecast", None),
     )
+
