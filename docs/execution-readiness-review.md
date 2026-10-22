@@ -29,3 +29,17 @@ manifest موجود `artifacts/candidate-evaluation/20261021T223852Z_e0c286e3/ma
 4. پس از پذیرش مراحل بالا، برنامه مالی صریح برای حداقل حجم قابل خرید و فروش و کنترل خروج انتهای مسابقه. دو متغیر محیطی به‌تنهایی دستور معتبر فعال‌سازی نیستند.
 
 تعداد تست، توافق مدل یا مشاهده یک کندل هیچ‌کدام این گیت‌ها را باز نمی‌کنند. نتیجه دقیق آزمون نهایی و نسخه تحویل در TASKS و پیام چندخطی commit ثبت می‌شود.
+
+
+## Follow-up implementation, 2026-10-22
+
+Phase1 commit8279105 supersedes the offline accounting incompleteness above only for
+complete synthetic cumulative snapshots: intent/reserve/state and fill/fee settlement
+are atomic, exact monetary/fault/restart oracles pass. Exchange fill identity,
+completeness and finality remain unverified; production transport is still blocked.
+See offline-execution-accounting.md. Phase2 commit4b9fab0 adds own-ledger four-arm
+fake/recorded-fake replay and complete traces; primary AI advantage and real recorded
+portfolio replay remain BLOCKED_DATA (portfolio-ai-evaluation.md). The final211 tests
+include paper restart/disconnect/stop without model or HTTP. Candidate approval is
+not fabricated: all Candidate execution stays denied before I/O, and a future accepting
+validator still needs independent acceptance (shadow-execution-contract.md).

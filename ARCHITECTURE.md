@@ -146,3 +146,16 @@ Audit موجود در مرز داده/تصمیم/ریسک/intent/fill/ledger/sto
 ### Execution contract prototype (2026-10-22)
 
 WallexLiveBroker is offline-only (MockTransport without mounts). It persists intent and order observations, accepts documented create-order HTTP 201, and conservatively retains reservations for ambiguous/partial/terminal observations. Fill/fee settlement and atomic intent/state recovery are not complete; real transport is blocked. OBSERVE_ONLY remains the sole runner mode. The twelve-configuration diagnostic plan is separate from the original six-configuration plan; see docs/execution-readiness-review.md for evidence corrections and current gates.
+
+
+### Offline accounting follow-up (2026-10-22)
+
+The incomplete harness paragraph above is superseded for synthetic cumulative order
+fixtures by8279105: atomic intent/state/reserve and fill/fee/cancel accounting, local
+operation exclusion and restart/fault tests now exist. Content-multiset fill identity
+is explicitly offline-only; production remains blocked by exchange-attested identity,
+completeness/finality and all subsequent gates. Four-arm own-ledger fake replay and
+full traces landed in4b9fab0; real-model benefit/OOS remain BLOCKED_DATA. No accepting
+approval validator or Candidate execution is enabled. Follow-up contracts:
+docs/offline-execution-accounting.md, docs/portfolio-ai-evaluation.md and
+docs/shadow-execution-contract.md. No framework, strategy family or dependency added.

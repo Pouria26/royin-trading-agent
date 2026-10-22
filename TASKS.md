@@ -173,3 +173,24 @@ prepare honest five-minute demo evidence. Phase2 revision is the commit containi
 this entry; exact SHA and manifest paths are recorded in the ignored final report.
 
 Phase2 final checks: 209/209 unittest PASS (21.250s); six portfolio tests PASS; Ruff PASS; compileall exit0; diff check clean. Default portfolio CLI BLOCKED_DATA exit2 is not a pass. Real/recorded-real benefit remains unverified.
+
+
+## Closed candidate and recovery evidence — 2026-10-22 phase 3
+
+Phase2 revision4b9fab0 passed209 tests. No accepted candidate exists: Candidate
+Shadow remains denied before I/O. Required future approval bindings and the fact
+that no accepting validator exists are explicit in docs/shadow-execution-contract.md.
+Two additional tests cover universal-deny artifact tampering and durable PaperBroker
+restart/disconnect/host stop/finalization without model or HTTP. They do not verify
+a live current strategy worker. Human video shot list is prepared under ignored
+.local/parallel/video-evidence-plan.md; no video or delivery claim. Current public
+observation manifests and final revision/checks are in the ignored final report.
+
+Phase3 final checks: 211/211 unittest PASS (17.449s), Ruff PASS, compileall exit0,
+wheel built, check-config example/local VALID_CONFIG_ONLY with network/trading false,
+CLI/audit/model help exit0, diff check clean. Paid --run/--eval, private account probe,
+and previously exhausted validation collectors were intentionally not executed.
+Candidate execution/accepting approval validator/current strategy Shadow remain BLOCKED.
+One-cycle public observation and isolated public quality-audit results are recorded
+in .local/parallel/next-validation-and-execution-report.md after this commit; neither
+can approve a candidate or prove multi-hour stability. No push, deployment or video upload.
