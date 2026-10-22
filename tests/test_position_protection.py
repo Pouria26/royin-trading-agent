@@ -122,6 +122,18 @@ class ProtectionTests(unittest.TestCase):
         self.assertEqual(state["trailing_stop_price"],"98.00")
         self.assertNotIn("pending_exit_reason",state)
 
+    def test_finalization_closes_protection_and_allows_a_new_fill_binding(self):
+        result = self.broker.finalize_portfolio(D(105),timestamp=1010)
+        self.assertEqual(result["status"],"FINALIZED")
+        self.assertEqual(json.loads(self.ledger.get_meta("protection_USDTTMN"))["status"],"CLOSED")
+        risk = RiskResult(True,"next technical entry","ENTER","USDTTMN",D(1),D(100),D(98),D(".3"))
+        self.broker.submit_order(risk,client_id="second-buy",timestamp=1020)
+        self.broker.reconcile_order("second-buy",simulated_state="FILLED",timestamp=1020)
+        state = self.broker.arm_protection(policy(),opened_at=1020,entry_price=D(100))
+        self.assertEqual(state["opened_at"],1020)
+        self.assertEqual(state["status"],"OPEN")
+        self.assertEqual(state["high_water"],"100")
+
     def test_gap_through_stop_uses_seen_bid_not_promised_stop_price(self):
         self.tick("90",1010)
         self.assertEqual(self.ledger.get_balance("TMN").free,D("989.385135"))

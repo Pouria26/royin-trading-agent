@@ -1003,6 +1003,11 @@ class MarketPaperOrchestrator:
                 "snapshot":snap.to_canonical_dict(),"snapshot_sha256":snap.snapshot_sha256}
             self.decision_traces.append(trace)
             if decision.action == "EXIT":
+                protection_key = "protection_"+self.rules.symbol
+                current = json.loads(self.ledger.get_meta(protection_key) or "null")
+                if current and self.ledger.get_balance(self.rules.base_asset).total > 0:
+                    current["pending_exit_reason"] = "MODEL_EXIT"
+                    self.ledger.set_meta(protection_key,json.dumps(current,sort_keys=True))
                 observed = int(time.time())
                 depth, received = feed.get("/v1/depth",{"symbol":self.rules.symbol},cutoff=observed,max_age_seconds=0)
                 if depth.get("success") is not True:

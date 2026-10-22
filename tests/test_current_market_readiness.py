@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 from royin.agent import RoleRunEnvelope
 from royin.config import RuntimeConfig
-from royin.decision import MarketEntryProposal, bind_decision
+from royin.decision import Decision, MarketEntryProposal, bind_decision
 from royin.market_data import Candle
 from royin.model_budget import BudgetBlocked, ModelBudget
 from royin.risk import RiskResult
@@ -343,6 +343,42 @@ class CurrentMarketReadinessTests(unittest.TestCase):
             self.assertEqual(restarted.protection_policy.sha256,saved_hash)
         finally:
             restarted.close()
+
+    def test_model_exit_survives_missing_book_and_recovers_without_a_second_model_call(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        risk = RiskResult(True,"technical position","ENTER","USDTTMN",D(1),D(250000),D(242500),D(750))
+        o.broker.submit_order(risk,client_id="technical-buy",timestamp=1000)
+        o.broker.reconcile_order("technical-buy",simulated_state="FILLED",timestamp=1000)
+        o.broker.arm_protection(o.protection_policy,opened_at=1000,entry_price=D(250000))
+        async def exit_model(snap,**kwargs):
+            return Decision(decision_id="synthetic-exit",symbol=snap.symbol,action="EXIT",cutoff=snap.cutoff,
+                snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_POSITION_LONG",),
+                reason="synthetic reviewer requests exit",invalidation="closed position")
+        def get(endpoint,params,**kwargs):
+            if endpoint == "/v1/udf/history":
+                times = list(range(params["from"],params["to"],60))
+                return dict(s="ok",t=times,o=["250000"]*len(times),h=["250000"]*len(times),
+                    l=["250000"]*len(times),c=["250000"]*len(times),v=["1000"]*len(times)),15005
+            raise OSError("temporary exit book failure")
+        feed = MagicMock()
+        feed.get.side_effect = get
+        state = json.loads(o.ledger.get_meta("protection_USDTTMN"))
+        state["hard_exit_at"] = 37000
+        with patch.object(runner,"decide_role",side_effect=exit_model) as model,patch("time.time",return_value=15005):
+            asyncio.run(o._review_position(feed,15005,D(250000),state))
+            self.assertEqual(model.call_count,1)
+        self.assertEqual(o.ledger.get_balance("USDT").total,D(1))
+        self.assertEqual(json.loads(o.ledger.get_meta("protection_USDTTMN"))["pending_exit_reason"],"MODEL_EXIT")
+        feed.get.side_effect = None
+        feed.get.return_value = ({"success":True,"result":{
+            "bid":[{"price":"260000","quantity":"10"}],"ask":[{"price":"260001","quantity":"10"}]}},15010)
+        with patch.object(runner,"decide_role") as model:
+            _,result = asyncio.run(o._handle_position_cycle(feed,15010,json.loads(o.ledger.get_meta("protection_USDTTMN"))))
+            model.assert_not_called()
+        self.assertEqual(result["exit_reason"],"MODEL_EXIT")
+        self.assertEqual(o.ledger.get_balance("USDT").total,D(0))
+        self.assertEqual(json.loads(o.ledger.get_meta("protection_USDTTMN"))["status"],"CLOSED")
 
     def test_unfillable_or_expired_entry_does_not_reserve_or_create_a_paper_order(self):
         for failure in ("shallow","outside_limit","expired"):

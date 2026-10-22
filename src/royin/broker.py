@@ -585,6 +585,11 @@ class PaperBroker:
 
         final_tmn = self.ledger.get_balance(self.rules.quote_asset).free
         residual_base = self.ledger.get_balance(self.rules.base_asset).free
+        protection_key = "protection_" + self.rules.symbol
+        protection = json.loads(self.ledger.get_meta(protection_key) or "null")
+        if protection is not None:
+            protection["status"] = "EXIT_REQUIRED_RESIDUAL" if residual_base else "CLOSED"
+            self.ledger.set_meta(protection_key,json.dumps(protection,sort_keys=True))
         realized_pnl = self.ledger.get_realized_pnl(self.rules.symbol)
         net_return_pct = ((final_tmn / initial_capital) - Decimal(1)) * Decimal(100)
 
