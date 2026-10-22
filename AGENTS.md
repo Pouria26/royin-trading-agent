@@ -166,3 +166,12 @@ pilot. Before execution require a clean revision and successful current prefligh
 one BUY/one SELL/eight order attempts; persistent account-scoped state under the operator home must
 never be reset. Failed or residual outcomes are not successful fully realized strategy trades.
 Do not enable this lane for arbitrary symbols, size or autonomous strategy runs.
+
+## Current forecast outcomes (2026-10-22)
+
+docs/current-forecast-evaluation.md records the public-only scorer. Use `python -m
+scripts.score_market_forecast --paper-manifest <manifest...> --score` for current REAL_MODEL
+manifests; never relabel fake/historical runs. It validates recorded provider/snapshot bindings
+before GET, retains pending/missing outcomes and never overwrites source manifests. At most32
+public outcome GETs, no retry/model/private account access. A zero baseline without a separate
+development interval has point errors only; fitting interval bounds on evaluation returns is forbidden.

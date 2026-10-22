@@ -42,7 +42,7 @@ from royin.market_data import (
     aggregate_closed,
     parse_history,
 )
-from royin.markets import parse_catalog
+from royin.markets import load_restrictions, parse_catalog
 from royin.model_budget import BudgetBlocked, ModelBudget
 from royin.risk import (
     MarketRules,
@@ -82,8 +82,7 @@ DEFAULT_MAX_LOSS_TMN = Decimal("75000")
 
 def build_default_rules(symbol="USDTTMN", tick_size=Decimal("1"), step_size=None):
     base = symbol.replace("TMN", "").replace("USDT", "") or "USDT"
-    # The USDT market's 1.0 minimum is account-reported; other bases use a conservative
-    # paper minimum/step until the exchange metadata is verified.
+    # Historical fixture assumptions only; current entries require observed spot rules.
     if step_size is None:
         step_size = Decimal("0.01") if base == "USDT" else Decimal("0.00001")
     min_quantity = DEFAULT_MIN_QUANTITY_USDT if base == "USDT" else Decimal("0.0001")
@@ -499,7 +498,7 @@ class MarketPaperOrchestrator:
                         snapshot_sha256=snap.snapshot_sha256,
                         candle_close_time=cutoff,
                         current_price=snap.last_close,
-                        denied_markets=frozenset(),
+                        denied_markets=load_restrictions(ROOT/"config/wallex-credit-market-policy.json"),
                     )
                     if risk_res.approved:
                         cid = f"ord_replay_{cutoff}"
@@ -743,7 +742,7 @@ class MarketPaperOrchestrator:
                 snapshot_sha256=chosen_snap.snapshot_sha256,
                 candle_close_time=chosen_snap.cutoff,
                 current_price=execution_price,
-                denied_markets=frozenset(),
+                denied_markets=load_restrictions(ROOT/"config/wallex-credit-market-policy.json"),
             )
 
             if risk_result.approved:

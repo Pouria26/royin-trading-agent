@@ -70,6 +70,13 @@ class ForecastValidationTests(unittest.TestCase):
 
 
 class WinklerTests(unittest.TestCase):
+    def test_baseline_never_fits_its_interval_to_evaluation_outcomes(self):
+        result = score_zero_baseline([D(".05")])
+        self.assertEqual(result["median_abs_error"],D(".05"))
+        self.assertIsNone(result["coverage"])
+        self.assertIsNone(result["q90"])
+        self.assertEqual(result["interval_status"],"BLOCKED_NO_DEVELOPMENT_INTERVAL")
+
     def test_hand_example_outside_upper(self):
         # l=-.01, u=.03, y=.04 => .04 + 10*(.01) = .14
         self.assertEqual(winkler_score(D("-.01"), D(".03"), D(".04")), D(".14"))

@@ -1642,8 +1642,12 @@ def score_zero_baseline(outcome_returns, *, interval=None):
     values = [Decimal(v) for v in outcome_returns]
     if not values:
         raise ValueError("Baseline needs outcomes")
-    q10, q90 = interval if interval is not None else empirical_interval(values)
     errors = [abs(v) for v in values]
+    if interval is None:
+        return dict(n=len(values),median_abs_error=_median(errors),bias=sum(values,Decimal(0))/len(values),
+                    coverage=None,mean_width=None,mean_winkler=None,q10=None,q90=None,
+                    interval_status="BLOCKED_NO_DEVELOPMENT_INTERVAL")
+    q10, q90 = interval
     return dict(
         n=len(values),
         median_abs_error=_median(errors),

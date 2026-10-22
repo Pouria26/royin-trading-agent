@@ -261,3 +261,23 @@ Follow-up verification:325 core tests passed (41.291s), Ruff/compileall passed; 
 regression preserves empty-body failures without refunding or reissuing an ambiguous attempt.
 
 Source and operating limits: docs/credit-canary.md. A technical pilot incurs fees and does not prove alpha.
+
+## Current forecast outcomes and credential replacement - 2026-10-22
+
+- [x] Replace only the local Wallex key as requested; .env remains ignored. New-key read-only credit preparation passed; trading permission remains unconfirmed.
+- [x] Preserve the previous financial intent/reserve and eight-attempt cap; no new financial attempt.
+- [x] Score all existing real current forecasts with provider/snapshot hashes, pre-outcome issuance and exact terminal-minute validation.
+- [x] Fix zero-baseline interval leakage; recheck market denylist at host entry even if the scanner proposes a banned symbol.
+- [x] Initial outcome observation:1 public GET,3 valid forecasts,1 scored/2 pending; second maturity check used2 GETs and scored2/pending1. No model call or order.
+- [x] Recorded-data replay reproduced both returns/metrics with0 HTTP/model/order calls. The model's median error was worse than zero-point baseline on these2 observations; no alpha claim.
+- [x] Final checks:336 core tests passed (36.050s), Ruff/compileall/wheel passed; record this phase in a multiline commit.
+- [ ] Collect the remaining ten-hour outcome without overwriting prior evidence; a fresh validation cohort is needed for any forecast change.
+- [ ] Resolve the financial UNKNOWN with exchange evidence; then complete bounded forward strategy execution and independent net-performance comparison.
+
+See docs/current-forecast-evaluation.md. One forecast outcome does not establish calibration or alpha.
+
+After the operator credential replacement, one separately bounded read-only audit GET of the
+existing order returned404. No POST/DELETE was sent. The original execution counter stayed8,
+the local reserve/UNKNOWN stayed intact, and the new key's read-only credit balance was5M TMN
+available/zero locked. This adds1 diagnostic GET to the8 earlier execution requests, not a new
+execution allowance. Actual key trading permission remains pending operator confirmation.

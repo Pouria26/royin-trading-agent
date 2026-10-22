@@ -78,3 +78,12 @@ trading permission is still unconfirmed. The official key guide distinguishes de
 from separately enabled trading access; knowing supported order types does not verify key permission.
 Source: https://developers.wallex.ir/docs/create-api-key . Follow-up checks:325 core tests passed;
 Ruff and compileall passed. The existing9 dashboard tests passed before this transport-only change.
+
+After an operator-requested credential replacement, read-only preparation passed again with5M TMN
+available and0 locked. A separate single-GET diagnostic audit of the same existing order returned404.
+No POST/DELETE was added; the8-attempt execution counter and UNKNOWN reserve remained unchanged.
+There have therefore been8 original execution requests plus1 separately recorded diagnostic order
+GET. The diagnostic is not a cap reset, rejection receipt or approval for a second BUY.
+Trading permission of the replacement key remains unconfirmed. The official spot introduction also
+requires the credit-account key plus `sub-account-client-id`; supported Limit/Market order types
+alone establish neither condition: https://developers.wallex.ir/docs/spot-intro .

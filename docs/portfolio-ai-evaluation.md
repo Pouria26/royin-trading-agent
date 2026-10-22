@@ -285,6 +285,10 @@ later host ticks. Official account/source critical unknowns still close real rel
 
 ## Market selection and terminal forecast — first real-model run, 2026-10-22
 
+Follow-up implementation: docs/current-forecast-evaluation.md adds hash/provider-bound scoring
+for current paper manifests. The zero-baseline helper now actually blocks interval metrics when
+no development interval is supplied; older raw artifacts remain unchanged.
+
 This section supersedes nothing above; it adds a separate, bounded protocol
 (`config/market-ai-forecast-protocol-v1.json`, frozen 17:08 Tehran before the outcome).
 

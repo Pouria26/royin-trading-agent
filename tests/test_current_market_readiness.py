@@ -122,6 +122,24 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         with closing(sqlite3.connect(budget.path)) as db:
             self.assertEqual(db.execute("SELECT agent_runs FROM role_run_envelopes").fetchone()[0],12)
 
+    def test_host_rechecks_denied_symbol_even_if_scanner_proposes_it(self):
+        o = self.make_runner()
+        snap = snapshot("TONTMN")
+        opp = opportunity().model_copy(update={"symbol":"TONTMN","best_ask":D(101),"best_bid":D(100)})
+        proposal = enter_proposal(snap,horizon=7200)
+        proposal["opportunity_sha256"] = opp.sha256
+        decision = bind_decision(MarketEntryProposal.model_validate(proposal),decision_id="banned-candidate",
+            symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,available_evidence_ids=tuple(snap.evidences))
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        with patch.object(runner,"public_symbols",return_value=({},8105,{"TONTMN"})), \
+             patch.object(runner,"scan_current_market",return_value={"batch":[ScanCandidate(snap,D(0),opp)],
+                 "market_rules":{"TONTMN":runner.build_default_rules("TONTMN")}}), \
+             patch.object(runner,"decide_role",return_value=decision),patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
+        self.assertFalse(o.decision_traces[-1]["risk"]["approved"])
+        self.assertIn("denied",o.decision_traces[-1]["risk"]["reason"])
+
     def test_host_protection_continues_and_cancels_a_slow_position_model(self):
         o = self.make_runner()
         o.ledger.set_balance("USDT",D(1))

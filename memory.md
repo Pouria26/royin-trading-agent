@@ -177,3 +177,22 @@ before reading/decoding the body. Never fabricate the old status or reset/reissu
 Operator reported no new visible order/trade. Official create-api-key guidance distinguishes default
 read permission from separately enabled trading permission; Limit/Market/Easy Spot descriptions
 do not establish the actual key's permission. Permission remains unconfirmed, not an inferred root cause.
+
+2026-10-22: User-requested local key replacement passed read-only dedicated-account preparation.
+No key/account ID was added to tracked files; previous financial intent/cap was not reset.
+Current forecast scorer now validates original provider output, snapshot/batch hashes and pre-outcome
+issue time; WAIT may echo a null symbol while its forecast binds the selected snapshot. Exact terminal
+minute only; pending/missing data is not forward-filled. Zero baseline must not fit its interval on
+evaluation outcomes. First matured diagnostic: USOONTMN predicted+0.2%, observed+0.3870547%,N=1;
+not a strategy profit/calibration claim. Host entry now independently reloads the existing denylist.
+
+Second matured outcome: PUMPTMN predicted-0.8% but observed+0.8064516%; sign was wrong.
+Across2 same-session observations, median absolute error model0.8967532pp versus zero0.5967532pp.
+Broad interval coverage is not point accuracy or calibrated probability. Preserve these failures;
+do not tune the same outcomes into a reported improvement. Source/capture replay reproduced both
+returns and metrics with no network/model/order call. Ten-hour PEPETMN forecast remains pending.
+
+Replacement-key audit: one separately bounded GET of the same existing order still returned404.
+Original financial counter8 and UNKNOWN reserve are unchanged; no POST/DELETE added. New read-only
+credit preparation observed5M TMN available/zero locked. An account read does not prove trading
+permission; source spot-intro additionally requires the credit-account key and sub-account header.
