@@ -73,6 +73,8 @@ ROLE_INSTRUCTIONS = {
         "and independently supported bullish evidence. A 24-hour mover is not a forecast. "
         "List the strongest supporting evidence and the strongest counterevidence in your concise reason. "
         "Decline rather than inflate a forecast to meet the objective. "
+        "For ENTER, forecast.target_return_fraction must be strictly greater than 0.02; otherwise WAIT. "
+        "Leave the legacy target_profit_pct and stop_loss_pct fields null; they are not forecasts. "
         "Never size, price, stop, leverage, or submit an order. A WAIT research forecast may outlive the diagnostic "
         "session, but an ENTER horizon must fit remaining_seconds. For WAIT, explain which "
         "candidates you rejected and why. Always include exactly one forecast: for ENTER it must bind the "
@@ -348,16 +350,22 @@ async def decide(
                         chosen_snapshot, chosen_opportunity = market_batch[proposal.symbol]
                     else:
                         raise ValueError("Model did not select a symbol from the bounded batch")
-                validate_role_proposal(
-                    proposal, role=role_context["role"], snapshot=chosen_snapshot,
-                    position=position, opportunity=chosen_opportunity,
-                    market_batch=market_batch if role_context["role"] == "ENTRY_ANALYST" else None,
-                    horizon_bounds=(batch_context or {}).get("horizon_bounds") or horizon_bounds,
-                    remaining_seconds=(
-                        (batch_context or {}).get("remaining_seconds")
-                        if batch_context is not None else remaining_seconds
-                    ),
-                )
+                try:
+                    validate_role_proposal(
+                        proposal, role=role_context["role"], snapshot=chosen_snapshot,
+                        position=position, opportunity=chosen_opportunity,
+                        market_batch=market_batch if role_context["role"] == "ENTRY_ANALYST" else None,
+                        horizon_bounds=(batch_context or {}).get("horizon_bounds") or horizon_bounds,
+                        remaining_seconds=(
+                            (batch_context or {}).get("remaining_seconds")
+                            if batch_context is not None else remaining_seconds
+                        ),
+                    )
+                except ValueError as exc:
+                    if model_trace is not None:
+                        # This validator emits fixed host messages, never raw provider exceptions.
+                        model_trace["host_validation_error"] = str(exc)
+                    raise
             if audit:
                 usage = (
                     run_result.usage()

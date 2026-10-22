@@ -265,6 +265,8 @@ class MarketPaperOrchestrator:
         self.broker = PaperBroker(self.ledger, self.rules)
 
         deadline = self.run_started_at + self.duration_seconds
+        if self.mode == "CURRENT_PAPER":
+            deadline = min(deadline, self.run_started_at + (self.max_cycles-1)*self.interval_seconds)
         if self.config.CHALLENGE_END_AT:
             deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
         self.protection_policy = build_default_protection_policy(
@@ -598,7 +600,7 @@ class MarketPaperOrchestrator:
 
             self.completed_cycles += 1
             self.ledger.set_meta("engine_completed_cycles", str(self.completed_cycles))
-            self._checkpoint_and_export(now_ts)
+            self._checkpoint_and_export(int(time.time()))
 
             if self.completed_cycles < self.max_cycles:
                 sleep_time = max(0.5, self.interval_seconds - (time.time() - cycle_start))
@@ -1143,6 +1145,10 @@ class MarketPaperOrchestrator:
             "final_equity_tmn": str(equity),
             "net_return_pct": str(round(net_ret, 4)),
             "decisions_count": len(self.decision_traces),
+            "valid_model_decisions": sum((row.get("model_trace") or {}).get("host_outcome") == "MODEL_DECISION"
+                for row in self.decision_traces),
+            "model_host_fallbacks": sum((row.get("model_trace") or {}).get("host_outcome") == "HOST_FALLBACK"
+                for row in self.decision_traces),
             "manifest_path": str(self.capture_dir / "manifest.json"),
         }
     def close(self):

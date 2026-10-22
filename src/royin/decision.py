@@ -218,6 +218,9 @@ def validate_forecast(
 
 
 class RoleDecisionProposal(DecisionProposal):
+    # Role agents forecast returns; execution risk parameters belong to the host.
+    target_profit_pct: None = None
+    stop_loss_pct: None = None
     role: Literal["ENTRY_ANALYST", "POSITION_REVIEWER"]
     cutoff: int = Field(strict=True, ge=0)
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

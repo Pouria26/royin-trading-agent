@@ -144,6 +144,21 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertEqual(manifest["public_get_cap"],32)
         self.assertEqual(manifest["public_get_attempts"],0)
 
+    def test_cycle_limit_bounds_funded_horizon_and_checkpoint_is_after_decision(self):
+        o = self.make_runner(duration_seconds=36000,cycles=2,interval_seconds=30)
+        self.assertEqual(o.protection_policy.deadline_utc,o.run_started_at+30)
+        single = self.make_runner(duration_seconds=36000,cycles=1)
+        self.assertEqual(single.protection_policy.deadline_utc,single.run_started_at)
+        clock = [o.run_started_at]
+        async def decide(*args):
+            clock[0] += 12
+            o.request_shutdown()
+        with patch.object(o,"_execute_cycle",side_effect=decide), \
+             patch.object(o,"_finish_current"),patch.object(o,"_checkpoint_and_export") as checkpoint, \
+             patch.object(runner.time,"time",side_effect=lambda:clock[0]):
+            asyncio.run(o.run())
+        self.assertEqual(checkpoint.call_args_list[0].args[0],o.run_started_at+12)
+
     def test_dashboard_balance_uses_selected_base_asset(self):
         o = self.make_runner()
         o.rules = runner.build_default_rules("ETHTMN")

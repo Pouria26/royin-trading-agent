@@ -215,3 +215,10 @@ as forecast issuance.342 core regressions passed. Financial UNKNOWN/cap/reserve 
 access. Do not keep asking the same permission/origin question or claim either caused the old failure.
 Dashboard API now retains non-USDT assets, validates free+locked=total and requires an explicit equity
 valuation for noncash holdings. Paper/archived-account labels replace the fixed5M/credit claim.
+
+2026-10-22:15-cycle real-feed/real-model paper trial completed flat:48 public GETs,8 model
+HTTPs,3 accepted model decisions/1 host fallback,0 orders/0% return. Host correctly rejected
+a raw ENTER carrying legacy target_profit_pct=2. Null-only role risk fields now align the
+advertised schema with the existing host constraint. Preserve original failed evidence;
+no claim of alpha improvement. Cycle cap bounds funded horizons and checkpoint time follows
+model completion.344 core tests passed; original financial UNKNOWN remains unresolved.

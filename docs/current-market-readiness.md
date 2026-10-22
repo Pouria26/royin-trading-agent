@@ -117,3 +117,35 @@ WAIT remains a valid outcome and this short trial cannot validate ten-hour retur
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m scripts.run_market_paper --mode CURRENT_PAPER --model-mode REAL_MODEL --duration-seconds 900 --cycles 15 --interval-seconds 60 --public-get-cap 160 --order-tmn 100000 --horizon-max 36000
 ```
+
+## Forward observation and output-contract correction
+
+The predeclared trial completed at2026-10-22T18:35:50Z after15 cycles (elapsed883 seconds
+from the persisted start). It used48 public GETs and8 real model HTTP requests. Three
+model decisions were accepted; one ENTER proposal became HOST_FALLBACK. No paper
+order/fill occurred; cash remained5M TMN and paper return0%. This is runtime evidence,
+not profitable trading, win-rate measurement or superiority over cash.
+
+Original manifest SHA256: ac047e6468051f7021a1af45adade82fc880a21379061f414778f5202b7828db.
+Raw/provider/account data remain ignored. An offline source revalidation accepted3
+pre-outcome forecasts and skipped the fallback; their horizons have not matured.
+Provider-reported aggregate usage:14449 input/2045 output tokens. Eight worst-case
+reservations at the frozen tariff imply USD0.01601536, not an invoice.
+
+Offline replay of the rejected provider output found target_profit_pct=2 in the legacy
+execution-risk field. The role schema had advertised optional numeric fields that the
+host correctly prohibited. They now have null-only types; the host rejection stays.
+The prompt distinguishes forecast.target_return_fraction (>0.02 for ENTER) from these
+host-owned fields and explicitly says not to inflate estimates. Fixed host-validation
+messages are captured separately from raw provider errors. This is a protocol repair,
+not evidence of an improved forecast.
+
+The cycle limit also bounds funded holding time; a one-cycle diagnostic cannot claim
+to fund a longer position merely by declaring a long wall-clock duration. Current
+checkpoint timestamps are recorded after decision processing. Summary counts separate
+valid model decisions from host fallback.344 core tests passed, plus Ruff, compileall,
+wheel and diff check. A fresh real-provider diagnostic is still needed for this revision.
+
+Remaining: broaden model-directed market screening beyond the five researched markets;
+obtain fresh matured outcome/own-state baseline comparisons; resolve the original
+financial UNKNOWN without resetting its reserve/cap; verify actual fills before scaling.

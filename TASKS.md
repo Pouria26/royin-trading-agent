@@ -297,10 +297,15 @@ Verification: real read-only HTTP observations; no code changes or model calls i
 - [x] Finish bounded paper sessions with fresh depth or explicit PARTIAL/residual; report stopped worker and actual base asset.
 - [x] Record per-decision issuance for long-session outcome scoring.
 - [x] Verification:342 core tests, Ruff, compileall, wheel and diff check passed.
-- [ ] Run the predeclared15-minute real-model/current-public-data trial and inspect its full traces; no financial order in this trial.
+- [x] Complete the predeclared900-second/15-cycle bounded trial:15 cycles,48 public GETs,8 model HTTPs,3 valid decisions/1 host fallback,0 orders,0% paper return; no financial order.
 
 The original financial UNKNOWN remains a separate unresolved incident; paper evidence is not live readiness.
 
 - [x] Fix dashboard API/UI projections for actual asset balances, observed equity and paper/account labels;10 dashboard tests, Ruff, compileall and node --check passed.
 - [x] Isolate the runner lifecycle test snapshot in its temporary root; targeted regression passed.
 - [x] Operator confirmed replacement key was created inside the credit account and trading access is enabled. Neither permission nor key origin is a demonstrated cause of the earlier empty POST.
+
+- [x] Diagnose the real fallback from the recorded provider output: legacy target_profit_pct=2 violated host-owned risk policy. Make role risk fields null-only in the advertised schema, retain host validation, and clarify fractional forecast targets without inflating estimates.
+- [x] Bound funded holding time by the cycle limit as well as wall time; export current checkpoints after the decision rather than at cycle start.
+- [x]344 core tests passed in38.873s, Ruff/compileall/wheel/diff check passed. The prior10 dashboard tests remain applicable; dashboard source unchanged in this phase.
+- [ ] Run a fresh real-provider contract diagnostic on the corrected schema; this does not prove alpha or authorize financial recovery.

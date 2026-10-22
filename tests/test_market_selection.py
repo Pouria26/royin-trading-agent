@@ -11,7 +11,7 @@ import httpx2
 
 from royin.agent import decide_role
 from royin.config import RuntimeConfig
-from royin.decision import EntryOpportunityContext
+from royin.decision import EntryOpportunityContext, MarketEntryProposal
 from royin.features import extract_features
 from royin.market_data import Candle, CandleSeries
 
@@ -66,6 +66,14 @@ def enter_proposal(snap, *, horizon=10800):
 
 class MarketSelectionTests(unittest.IsolatedAsyncioTestCase):
     config = RuntimeConfig(BOXAPI_API_KEY="fake")
+
+    async def test_role_schema_cannot_advertise_host_owned_legacy_risk_fields(self):
+        schema = MarketEntryProposal.model_json_schema()
+        proposal = enter_proposal(snapshot("BTCTMN"))
+        for field in ("target_profit_pct","stop_loss_pct"):
+            self.assertEqual(schema["properties"][field]["type"],"null")
+            with self.subTest(field=field),self.assertRaises(ValueError):
+                MarketEntryProposal.model_validate({**proposal,field:"0.02"})
 
     async def call(self, proposal, market_batch, *, trace=None, remaining_seconds=None):
         bodies = []
