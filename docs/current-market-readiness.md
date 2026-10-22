@@ -234,3 +234,27 @@ trades or proof that the WAIT decision was wrong. One ten-hour forecast remains 
 Evidence: artifacts/forecast-outcomes/20261022T221422Z_a37c2c7c/report.json (ignored raw artifact).
 No stable-profit or calibration claim follows from correlated observations. Financial canary
 UNKNOWN remains unresolved; this research-capacity change does not authorize a fresh order ID.
+
+
+### Verified capacity trial and account recheck — 2026-10-23
+
+Source e96249b; run model-universe-capacity-20261023-1 terminated STOPPED_FLAT,
+PASS_DATA_ONLY, no errors.8 public GETs,4 actual provider HTTPs,2 valid WAIT decisions,
+0 fallbacks/orders/fills,0.0000% virtual return. Model saw54 eligible liquid TMN catalog
+rows and explicitly selected USDTTMN twice. Provider usage9622 input/1005 output tokens.
+Manifest SHA256 cbb9f7f81acd79cdbc94784013fb717df44263ce287badf410a3ccfa9e5702c9.
+The420-second/7-cycle session has only360 scheduled seconds before the300-second exit
+buffer; research latency left28 seconds at first tool return. This is a connectivity/selection
+trial, NOT a fair test of entry profitability or a reason to force trades. A trading-performance
+trial must reserve the intended holding horizon PLUS exit buffer and collection latency;
+keep protection and full fee accounting. No runtime source was edited during this trial.
+
+Separate fresh private read-only inspection:6 GETs, explicit active credit identity matched,
+TMN5,000,000 free/0 locked, USDT0, unfiltered complete order history0, open orders0,
+original client ID404. No POST/DELETE and no financial-state/counter reset. The5 available
+Wallex MCP tools expose public markets/candles/depth/trades only, not private account access.
+Original payload matches documented create-order fields and headers; captured minNotional
+was50,000 TMN, not a guessed100,000/300,000. Missing historic POST status prevents a proven
+root-cause diagnosis. Key revocation, write rejection or network/server interference are hypotheses.
+Private raw evidence stays ignored: data/private/order-recheck-1792707544/report.json.
+No financial loss observed; historic UNKNOWN is not silently rewritten as REJECTED.

@@ -330,3 +330,7 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x] Expand input/run capacity while preserving old scope counters/caps and financial risk controls.
 - [ ] Verify new broader-market model trial and its terminal paper state; financial UNKNOWN still open.
 - [x]357 core tests passed (66.598s); Ruff, compileall and diff check passed.
+
+- [x]Capacity trial stopped flat:54 catalog rows,8 public GETs,4 real model HTTPs,2 valid WAITs,0 orders/fills,0% paper return. Not a profitability trial due to short funded horizon.
+- [x]Rechecked credit identity, balances, full order history, open orders and original client ID with6 read-only GETs; no exchange order observable,5M cash intact.
+- [ ]Run a source-bound forward trial with holding horizon plus exit buffer funded; score its pre-issued forecasts after maturity. No positive-alpha or real-trade readiness claim.

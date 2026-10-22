@@ -248,3 +248,9 @@ Do not reset reservations. Compact screening retains exact catalog values in tra
 current-market-readiness.md for evidence. Three matured positive USOON point forecasts had
 negative terminal outcomes; zero-change baseline was closer. WAIT forecasts are not fills.
 Financial UNKNOWN remains unresolved; budget changes do not authorize new financial IDs.
+
+2026-10-23: Capacity trial validated54-row model selection without budget fallback (4 model HTTP,
+2 WAITs,0 trades).420s wall time with7 cycles and300s exit buffer leaves almost no tradable
+horizon; budget total holding duration+buffer+latency explicitly before calling this a performance
+experiment. Fresh6-GET private audit found complete empty order history and5M free cash;
+original same-ID404 does not reconstruct the missing historic POST HTTP status.
