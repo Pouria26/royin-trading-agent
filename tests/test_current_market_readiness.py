@@ -284,6 +284,19 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         with closing(sqlite3.connect(budget.path)) as db:
             self.assertEqual(db.execute("SELECT agent_runs FROM role_run_envelopes").fetchone()[0],12)
 
+    def test_legacy_envelope_keeps_original_cost_cap(self):
+        o = self.make_runner()
+        cfg = RuntimeConfig(LLM_COST_BUDGET=D(".5"),LLM_TOKEN_BUDGET=100000,LLM_COST_CURRENCY="USD")
+        budget = ModelBudget(cfg,o.capture_dir/"legacy-budget.sqlite3")
+        import time
+        with closing(sqlite3.connect(budget.path)) as db, db:
+            db.execute("CREATE TABLE role_run_envelopes (scope TEXT PRIMARY KEY, started REAL, duration INTEGER, agent_runs INTEGER, http_attempts INTEGER, reserved TEXT)")
+            db.execute("INSERT INTO role_run_envelopes VALUES (?,?,3600,2,4,'0.008')",("legacy",time.time()))
+        resumed = RoleRunEnvelope(budget,duration_seconds=3600,scope_id="legacy")
+        self.assertEqual(resumed.cost_limit_usd,D(".04"))
+        self.assertEqual(resumed.http_attempts,4)
+        self.assertEqual(RoleRunEnvelope(budget,duration_seconds=3600,scope_id="fresh").cost_limit_usd,D(".20"))
+
     def test_host_rechecks_denied_symbol_even_if_scanner_proposes_it(self):
         o = self.make_runner()
         snap = snapshot("TONTMN")

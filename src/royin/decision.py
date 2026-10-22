@@ -1,6 +1,6 @@
 ﻿import hashlib
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -123,6 +123,16 @@ class MarketResearchUniverse(BaseModel):
         if len({row.symbol for row in self.markets}) != len(self.markets):
             raise ValueError("Research universe symbols must be unique")
         return self
+
+    def screening_view(self):
+        # Absolute price is unnecessary for catalog triage; exact values remain in the source trace.
+        with localcontext() as ctx:
+            ctx.prec = 160
+            rows = [[row.symbol, int(row.turnover_tmn // Decimal(1000000)),
+                str(row.return_24h.quantize(Decimal("0.0001"),rounding=ROUND_HALF_EVEN))
+                    if row.return_24h is not None else None] for row in self.markets]
+        return dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
+            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp"],rows=rows)
 
 
 class ReturnForecast(BaseModel):

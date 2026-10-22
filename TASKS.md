@@ -322,3 +322,11 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x] First wider-universe real attempt failed before model/order I/O; preserve its original state/raws and external exit1 observation.
 - [x] Fix post-receipt freshness clock and empty-universe handling;19 readiness tests, Ruff/compileall/diff check passed.
 - [ ] Re-run the same predeclared trial with a new revision-bound run ID; the failed attempt is not a successful trial.
+
+
+## Research capacity and realized forecast checks — 2026-10-23
+
+- [x] Score3 matured real forecasts with3 public GETs; all positive point forecasts missed direction; preserve negative evidence.
+- [x] Expand input/run capacity while preserving old scope counters/caps and financial risk controls.
+- [ ] Verify new broader-market model trial and its terminal paper state; financial UNKNOWN still open.
+- [x]357 core tests passed (66.598s); Ruff, compileall and diff check passed.

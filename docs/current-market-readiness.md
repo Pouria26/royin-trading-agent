@@ -210,3 +210,27 @@ empty universe without paid/deep research, and records cycle IndexError as a fai
 cycle instead of escaping without a session result.19 readiness tests, including a
 one-second receipt delay and an empty-universe case, passed; Ruff/compileall/diff passed.
 Retry uses a new source-bound run ID and the same predeclared monetary/model/public caps.
+
+
+## Research capacity update — 2026-10-23
+
+User prioritizes net profitability over minimizing model spend and reports provider charges below
+USD0.05. Provider charges are not the durable worst-case reservations. Policy v3 raises the input
+reservation to32768 tokens so the broader catalog and researched snapshots can reach the model.
+New role scopes reserve at most USD0.20, still12 role runs/24 HTTP; global USD2.40 total/USD0.80
+per-day limits remain. Existing scopes retain their saved allowance (legacy migration USD0.04);
+no counters or reservations are reset. Luna worst-case reservation is USD0.00435712 per HTTP.
+Compact catalog screening uses explicit million-TMN turnover floors and rounded four-decimal
+return fractions; exact values remain in the immutable trace and deep research.
+
+The previous broad-universe attempt2 was intentionally stopped after its first pre-HTTP input
+budget rejection:4 public GETs, no provider HTTP, no paper orders. Its stale RUNNING manifest
+is not completion evidence. Fresh source-bound trials must use a new ID.
+
+Three matured earlier USOON forecasts were scored using3 real public GETs; actual terminal
+returns were -0.15171%, -0.03750%, -0.68186%. All three positive point forecasts had the wrong
+sign; the zero-change baseline was closer. These were WAIT research forecasts, not executed
+trades or proof that the WAIT decision was wrong. One ten-hour forecast remains pending.
+Evidence: artifacts/forecast-outcomes/20261022T221422Z_a37c2c7c/report.json (ignored raw artifact).
+No stable-profit or calibration claim follows from correlated observations. Financial canary
+UNKNOWN remains unresolved; this research-capacity change does not authorize a fresh order ID.

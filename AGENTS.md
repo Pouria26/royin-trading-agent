@@ -184,3 +184,8 @@ final decisions must bind the returned accepted batch. Catalog visibility is not
 of every market or private-account permission. Preserve the existing two-request/tool/model
 budgets and the financial UNKNOWN/cap; see docs/current-market-readiness.md. Positive unpriced
 assets must raise at valuation, never disappear as zero. Join the owned collector on cancellation.
+
+
+Research capacity supersedes the earlier role-input checkpoint: read the2026-10-23 section in
+docs/current-market-readiness.md. Policy v3 reserves32768 input/1024 output tokens; new role
+scopes USD0.20, existing scopes preserve their saved cap. Global counters are never reset.

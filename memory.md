@@ -240,3 +240,11 @@ claim; original financial UNKNOWN/counter/reserve remain intact.
 can precede catalog received_at. Use actual post-receipt time for current freshness, not
 the old cycle-start timestamp. Empty universe must skip paid/deep research. Preserve the
 failed pre-model attempt; a saved RUNNING flag is not an active process after exit1.
+
+
+2026-10-23: User prioritizes profitable market selection over tiny provider savings. Policy v3
+allows32768 reserved input tokens; new role scopes USD0.20, legacy scopes preserve USD0.04.
+Do not reset reservations. Compact screening retains exact catalog values in trace. See
+current-market-readiness.md for evidence. Three matured positive USOON point forecasts had
+negative terminal outcomes; zero-change baseline was closer. WAIT forecasts are not fills.
+Financial UNKNOWN remains unresolved; budget changes do not authorize new financial IDs.

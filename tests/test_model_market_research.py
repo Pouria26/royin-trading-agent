@@ -13,6 +13,15 @@ from tests.test_market_selection import enter_proposal, opportunity, snapshot
 
 
 class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
+    def test_screening_view_preserves_universe_and_explicit_units(self):
+        universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,
+            markets=(MarketCatalogCandidate(symbol="SOLTMN",price_tmn=D(101),
+                turnover_tmn=D(299999999),return_24h=D(".012345")),))
+        view = universe.screening_view()
+        self.assertEqual(view["rows"],[["SOLTMN",299,"0.0123"]])
+        self.assertEqual(universe.markets[0].turnover_tmn,D(299999999))
+        self.assertIn("turnover_million_tmn_floor",view["columns"])
+
     async def run_case(self, *, selection=None, loaded_symbol="SOLTMN", skip_tool=False, bad_catalog=False):
         symbols = ("BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN")
         universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,

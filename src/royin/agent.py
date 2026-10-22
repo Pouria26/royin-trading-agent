@@ -115,6 +115,7 @@ class RoleRunEnvelope:
         self.started = time.monotonic()
         self.agent_runs = self.http_attempts = 0
         self.reservation_ceiling_usd = Decimal(0)
+        self.cost_limit_usd = Decimal(".20")
         if self.scope_id is not None:
             age = self._durable_claim()
             self.started -= age
@@ -127,15 +128,19 @@ class RoleRunEnvelope:
                 scope TEXT PRIMARY KEY, started REAL NOT NULL, duration INTEGER NOT NULL,
                 agent_runs INTEGER NOT NULL, http_attempts INTEGER NOT NULL, reserved TEXT NOT NULL)""")
             db.execute("BEGIN IMMEDIATE")
+            if "cost_limit" not in {row[1] for row in db.execute("PRAGMA table_info(role_run_envelopes)")}:
+                db.execute("ALTER TABLE role_run_envelopes ADD COLUMN cost_limit TEXT NOT NULL DEFAULT '0.04'")
             now = time.time()
-            db.execute("INSERT OR IGNORE INTO role_run_envelopes VALUES (?,?,?,0,0,'0')",
-                       (self.scope_id, now, self.duration_seconds))
-            started, duration, runs, attempts, reserved = db.execute(
-                "SELECT started,duration,agent_runs,http_attempts,reserved FROM role_run_envelopes WHERE scope=?",
+            db.execute("INSERT OR IGNORE INTO role_run_envelopes "
+                       "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit) VALUES (?,?,?,0,0,'0',?)",
+                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd)))
+            started, duration, runs, attempts, reserved, cost_limit = db.execute(
+                "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit FROM role_run_envelopes WHERE scope=?",
                 (self.scope_id,)).fetchone()
+            self.cost_limit_usd = Decimal(cost_limit)
             reserved = Decimal(reserved) + cost
             if (duration != self.duration_seconds or not 0 <= now-started < duration
-                    or runs+agent_runs > 12 or attempts+http_attempts > 24 or reserved > Decimal(".04")):
+                    or runs+agent_runs > 12 or attempts+http_attempts > 24 or reserved > self.cost_limit_usd):
                 raise BudgetBlocked("Durable run/model budget exhausted or binding changed")
             db.execute("UPDATE role_run_envelopes SET agent_runs=?,http_attempts=?,reserved=? WHERE scope=?",
                        (runs+agent_runs, attempts+http_attempts, str(reserved), self.scope_id))
@@ -155,7 +160,7 @@ class RoleRunEnvelope:
         b = self.budget
         cost = (b.policy["max_input_tokens"] * b.input_rate
                 + b.policy["max_output_tokens"] * b.output_rate) / Decimal(1_000_000)
-        if self.http_attempts >= 24 or self.reservation_ceiling_usd + cost > Decimal("0.04") or (
+        if self.http_attempts >= 24 or self.reservation_ceiling_usd + cost > self.cost_limit_usd or (
             time.monotonic() - self.started >= self.duration_seconds
         ):
             raise BudgetBlocked("Shared HTTP/USD/time pilot envelope exhausted")
@@ -327,8 +332,10 @@ async def decide(
             async with asyncio.timeout(timeout_seconds):
                 prompt = f"Evaluate market snapshot for {snapshot.symbol} at cutoff {snapshot.cutoff}."
                 if role_context and role_context.get("research_universe"):
-                    prompt += "\nResearch selection context: " + json.dumps(
-                        {key:value for key,value in role_context.items() if key != "candidates"},separators=(",",":"))
+                    preview = {key:value for key,value in role_context.items()
+                        if key not in ("candidates","research_universe","research_view")}
+                    preview["research_universe"] = role_context["research_view"]
+                    prompt += "\nResearch selection context: " + json.dumps(preview,separators=(",",":"))
                 run_result = await agent.run(
                     prompt,
                     deps=snapshot,
@@ -638,7 +645,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             if remaining_seconds is not None:
                 context["remaining_seconds"] = max(0, remaining_seconds-int(time.monotonic()-started))
                 batch_context["remaining_seconds"] = context["remaining_seconds"]
-            return {key:value for key,value in context.items() if key != "research_universe"}
+            return {key:value for key,value in context.items() if key not in ("research_universe","research_view")}
         if market_universe is not None:
             universe_symbols = {row.symbol for row in market_universe.markets}
             if (not set(market_batch).issubset(universe_symbols)
@@ -647,6 +654,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             if kwargs.get("client") is None and not 0 <= int(time.time())-market_universe.observed_at <= 60:
                 raise ValueError("Research catalog is stale or future")
             context["research_universe"] = market_universe.model_dump(mode="json")
+            context["research_view"] = market_universe.screening_view()
         trace = kwargs.get("model_trace")
         if trace is not None:
             from royin.evaluation import source_bundle_sha256
