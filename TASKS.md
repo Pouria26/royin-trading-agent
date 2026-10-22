@@ -348,4 +348,5 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x]First sustained attempt exposed mandatory-USDTTMN bootstrap failure before AI; intentionally stopped, raw evidence and original state preserved.
 - [x]Isolate bad seed data with at most3 permitted liquid bootstrap attempts; expose current-cutoff unavailability without changing permanent market policy.
 - [x]360 core tests (52.071s),29 focused tests, Ruff/compileall/diff checks passed.
-- [ ]Inspect fresh source-bound net-return-forward-20261023-2 first checkpoint and eventual terminal performance; no financial order enabled.
+- [x]Inspect net-return-forward-20261023-2 first checkpoint:54 visible markets, model requested5,3 accepted,2 real model HTTPs, valid WAIT,0 orders/fills; process confirmed live.
+- [ ]Inspect its eventual terminal performance and matured forecast outcomes; no financial order enabled.

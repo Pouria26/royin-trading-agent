@@ -10,13 +10,13 @@ blocked; preserve the unresolved intent and caps. The technical exception is not
 | Requirement | Evidence | Remaining work |
 |---|---|---|
 | Review TradingAgents | Source commit e8f5503e9b86d5c2710b0c76b1f686703968c9df: researchers, manager, trader, backtest | Evaluate adaptations on Wallex |
-| Broad permitted-market screening | Real catalog469; diagnostic120 eligible,5 researched,4 accepted | Forward observations; public catalog is not private account permission |
+| Broad permitted-market screening | Fresh catalog469,120 eligible,54 liquid TMN rows shown to model; it requested5 and3 passed deep checks | Continued prospective outcomes; public catalog is not private account permission |
 | Real AI selection | Real BoxAPI decision and provider usage, not a disguised rule | Prospective outcomes and reviewed live adapter |
 | >2% gross opportunities,5min–10h | Host target/horizon checks and a valid WAIT path | Calibration and net economic evaluation |
 | Bearish market and relative strength | Currency-adjusted observed breadth/median, countertrend evidence gate | Validate the heuristic across regimes |
 | Position control | Durable selected horizon/rules, model reviewer and independent host protection | Multi-hour forward/fault/restart evidence |
 | Accurate execution evidence | Prefix, symbol, bid-key, freshness and valuation regressions | Restricted production release and real fill/fee reconciliation |
-| Small real pilot | Active credit account and public spot-rule observations | Clean reviewed revision, scoped transport and canary |
+| Small real pilot | Restricted attempted BUY_UNKNOWN; fresh complete empty order history and5M cash | Resolve historic ambiguity and verify a reviewed write/fill/fee path |
 
 ## Architecture and policy
 
@@ -50,7 +50,7 @@ hashes and budget-policy hashes are exported. Host protection is labeled HOST_PR
 Historical REAL_MODEL/RECORDED modes without matching decision dispatch are rejected. Restart
 preserves the original session deadline and avoids repeatedly billing the same entry candle.
 
-## Budget and real observations
+## Historical budget and diagnostic observations (superseded below)
 
 Budget policy v2 reserves12288 input tokens and1024 output tokens per HTTP. Actual multi-market
 tests exposed a blocked second request under the old conservative byte bound and truncated output
@@ -309,3 +309,26 @@ skip the model rather than fabricating market data or looping without bounds.
 New source-bound run net-return-forward-20261023-2 uses the same predeclared3-hour/181-cycle/
 1200-public-GET/100k-virtual-order protocol. Its first checkpoint and terminal state must still be
 inspected; no future result or profitability is assumed. Financial UNKNOWN remains unchanged.
+
+
+### Sustained run first verified checkpoint — source3799e4a
+
+net-return-forward-20261023-2 is confirmed running, not completed. First checkpoint22:38:12Z:
+11 public GETs,2 real provider HTTPs (5697 input/515 output tokens),0 orders/fills,0% paper return,
+no cycle errors. BTC passed initialization; model viewed54 liquid eligible TMN markets and requested
+USOONTMN,BNBTMN,TRXTMN,BTCTMN,USDTTMN. Three deep candidates passed. Host did not choose
+the investment symbol. Model returned WAIT with an independently recorded30-minute USOON
+research forecast (q50 -0.004); it is not a trade. It has about10,471 funded holding seconds,
+so the prior short-session-time blocker is absent. Forecast maturity is23:05Z plus the exact-minute
+finality buffer; do not score early or equate WAIT with a failed system.
+
+Source bundle679ded0dd092780ec41720411f5a1b61fbb676e34277f3c28f96873abcb1fb8e,
+run profile and budget counters remain fixed. The3-hour terminal state is still pending. No live
+financial transport is enabled. Continue polling the confirmed process rather than launching a
+second worker or treating an observation timeout as process termination.
+
+Remaining execution-review concern before real strategy release: the entry tool currently exposes
+last closed price, spread and depth but does not expose best_bid/best_ask explicitly, while the host
+executes at the observed ask. Entry economics must be assessed from executable prices and full
+fees, not merely a target fraction relative to an older candle close. Review this after the frozen
+run, without altering its source midstream or claiming terminal median is an expected trade payoff.

@@ -267,3 +267,8 @@ seed symbols unavailable only for that cutoff. Host initialization is not the mo
 selection. Preserve failed run and distinguish stale RUNNING metadata from a confirmed process.
 360 core tests passed. MCP trade timestamps showed market-specific inactivity, not a proven
 exchange-wide halt or explanation of the prior empty financial POST.
+
+2026-10-23: Source3799e4a sustained forward run reached a real model-selected5-market research
+call (54 visible,3 accepted) and valid WAIT, with~10471 funded seconds. Keep source frozen.
+An observation timeout is not a stopped process; use the saved owned session/PIDs. First forecast
+matures23:05Z; no early scoring or profit claim. Review executable bid/ask exposure before live.
