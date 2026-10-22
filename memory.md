@@ -20,6 +20,10 @@
 
 ## پیگیری فعال
 
+2026-10-23: طبق دستور تازه، PR قبلی روی main ادغام و شاخهٔ remote حذف شد؛ ادامه روی main و شاخهٔ بعدی بدون پیشوند codex. HANDOFF.md انتقال خودبسنده است؛ شواهد زمان‌دار آن باید بازبینی شوند. تغییر MD منبع3799e4a اجرای فعال را تغییر نداد.
+
+سنجش23:11UTC از کپی بایتی ثابت manifest،۱GET و۱outcomeاز۵forecast (۴pending) داد. USOON30min با q50−۰٫۴٪، outcome−۰٫۰۵۳۲۵٪ و point error بیشتر ازصفر؛ جهت درست مزیت مقدار را ثابت نکرد. گزارش ignored در artifacts/forecast-outcomes/20261022T231125Z_142a366e/report.json. سنجش manifest فعال باید روی کپی ثابت باشد تا sourcehash حین درخواست عوض نشود.
+
 `net-return-forward-20261023-2` از source3799e4a در حال آزمون۳ساعته است؛ handle و PID محلی در `.local/review/market-readiness/active-forward-process.json` ثبت‌اند. snapshot RUNNING به‌تنهایی کافی نیست. آخرین checkpoint و نتیجهٔ نهایی از فرایند/manifest واقعی بررسی شوند. پس از پایان، بررسی executable bid/ask در برابر close، خطاهای مدل، outcome و گیت مالی ادامه دارد.
 
 2026-10-23: مستندات فعال از۳۲به۱۸Markdown تلخیص شدند. گزارش مرحله/Blueprint محلی آرشیو است؛ clone همکاران به آن وابسته نیست. قرارداد داده، canary و scorer در Git باقی‌اند. لینک‌های داخلی و hash آرشیو بررسی شدند؛ گزارش قدیمی fake با سود AI جاری یکی نشود.
