@@ -52,6 +52,17 @@ conflicting duplicate fill timestamps reject; fills after terminal settlement re
 LIMIT violations and negative sell proceeds reject. Decimal cumulative fee allocation
 retains exact remainder rather than independent proportional rounding of each fill.
 
+Audit and timeline regression resolutions:
+1. Event staging on transaction boundary: Ledger stages audit events (`INTENT`, `FILL`,
+   `LEDGER_RECONCILIATION`) in-memory during active database transactions. Events are flushed
+   to the durable audit sink only after SQLite `db.commit()` succeeds. If an outer transaction
+   aborts or rolls back (e.g. second-fill INSERT failure or trigger abort), staged events are
+   cleared, leaving zero false audit claims.
+2. Fill timestamp lower bound: Both `Ledger.record_fill` and `WallexLiveBroker._settle_snapshot`
+   enforce `fill.timestamp >= intent.created_at`. Fills preceding intent creation are rejected
+   fail-closed with `ValueError`, closing the pre-intent inventory loophole while allowing
+   same-second execution (`timestamp == intent.created_at`).
+
 ## Independent monetary oracles and fault evidence
 
 Initial cash 5,000,000 TMN. Buy limit230,000 qty6.5 reserve fee4,485 => locked1,499,485.
@@ -64,10 +75,22 @@ basis40.4, realized12.2, equity1015.8 at110 (unrealized3.6).
 
 Fault checks include aborted state INSERT before HTTP, crash after intent commit
 before HTTP, second-fill INSERT failure rolling back both fills, stale/revised/future
-snapshots, cancel/fill race, duplicate terminal GET and process-kill lock recovery.
-SQLite trigger failures simulate storage errors; no physical disk-full/power-loss
-experiment or private account response was performed. Existing database fixtures are
-reopened; no migration or destructive reset is needed.
+snapshots, pre-intent fill timestamps, audit emission rollback, cancel/fill race,
+duplicate terminal GET and process-kill lock recovery. SQLite trigger failures simulate
+storage errors; no physical disk-full/power-loss experiment was performed. Existing database
+fixtures are reopened; no migration or destructive reset is needed.
 
-Phase status: OFFLINE_CONTRACT_VERIFIED; production contract BLOCKED_SEMANTICS.
+## Read-only account and market contract verification (2026-10-22)
+
+Authenticated read-only verification executed 5 GET requests (against the 8 GET cap, 0 docs GETs):
+- Sub-account: Verified single active prop account (`isActive=True`, `isSuspend=False`).
+- Balances: 5,000,000 TMN available, 0 TMN locked; 0 USDT available, 0 USDT locked.
+- Fee schedule: Maker fee 0.25%, Taker fee 0.30% for USDTTMN.
+- Open orders: 0 active orders on sub-account.
+- Market rules: USDTTMN spot enabled (`amount_precision=2`, `price_precision=0`, price ~266,721 TMN).
+- Proposed pilot envelope (200,000 TMN): At current market price (~266,721 TMN), 200,000 TMN yields
+  0.74 USDT, which is strictly below the exchange spot minimum order quantity of 1.0 USDT. Status
+  is `BLOCKED_MINIMUM`. The ceiling is not raised without explicit human/organizer authorization.
+
+Phase status: OFFLINE_CONTRACT_VERIFIED; read-only account confirmed; pilot execution BLOCKED_MINIMUM & BLOCKED_SAFETY_GATE.
 This is not live readiness or evidence of strategy profit.

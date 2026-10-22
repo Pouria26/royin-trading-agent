@@ -161,10 +161,10 @@ class WallexLiveBroker:
         """Accept a complete cumulative multiset, never infer fills from status alone."""
         with self.ledger.transaction() as db:
             row = db.execute(
-                "SELECT symbol,side,price,quantity,status FROM order_intents WHERE client_id=?",
+                "SELECT symbol,side,price,quantity,status,created_at FROM order_intents WHERE client_id=?",
                 (client_id,),
             ).fetchone()
-            symbol, side, price, quantity, previous_status = row
+            symbol, side, price, quantity, previous_status, intent_created_at = row
             if (result["symbol"], result["side"], result["type"]) != (symbol, side, "LIMIT"):
                 raise ValueError("Order identity mismatch")
             if decimal_number(result["origQty"]) != Decimal(quantity) or decimal_number(
@@ -198,6 +198,10 @@ class WallexLiveBroker:
                 t = int(instant.timestamp())
                 if t > timestamp:
                     raise ValueError("Future fill")
+                if t < intent_created_at:
+                    raise ValueError(
+                        f"Fill timestamp {t} precedes intent creation time {intent_created_at}"
+                    )
                 canonical = json.dumps(
                     [
                         str(p.normalize()),

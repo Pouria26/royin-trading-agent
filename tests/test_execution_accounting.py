@@ -11,7 +11,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import httpx
-import test_live_broker as helpers
+
+try:
+    import test_live_broker as helpers
+except ModuleNotFoundError:
+    from tests import test_live_broker as helpers
 
 from royin.ledger import Ledger
 
@@ -275,3 +279,151 @@ class LedgerCancellationOracles(unittest.TestCase):
             ledger.record_fill(**dict(fill, fill_id="new"))
         with self.assertRaises(ValueError):
             ledger.record_fill(**dict(fill, timestamp=1002))
+
+    def test_audit_emits_no_tentative_fill_or_intent_on_rollback(self):
+        from royin.logger import AuditLogger
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_dir = Path(temp_dir) / "audit"
+            audit = AuditLogger(
+                log_dir=log_dir,
+                enable_console=False,
+                run_id="audit_rollback_test",
+                mode="paper",
+                source="PAPER",
+            )
+            ledger = Ledger(Path(temp_dir) / "audit_test.db", audit=audit)
+            ledger.set_balance("TMN", D("5000000"))
+
+            # 1. Rollback on second fill failure: no FILL or RECONCILIATION in audit
+            with ledger.transaction() as db:
+                db.execute(
+                    "CREATE TRIGGER test_fill_disk_fail BEFORE INSERT ON fills "
+                    "WHEN NEW.quantity='1' BEGIN SELECT RAISE(ABORT, 'fill disk failure'); END"
+                )
+
+            with self.assertRaises(sqlite3.DatabaseError), ledger.transaction():
+                ledger.record_intent(
+                    client_id="tx_ord_1",
+                    symbol="USDTTMN",
+                    side="BUY",
+                    order_type="LIMIT",
+                    price=D("100"),
+                    quantity=D("3"),
+                    timestamp=1000,
+                )
+                ledger.record_fill(
+                    fill_id="f1",
+                    client_id="tx_ord_1",
+                    price=D("100"),
+                    quantity=D("2"),
+                    fee=D("0"),
+                    fee_asset="TMN",
+                    timestamp=1001,
+                )
+                ledger.record_fill(
+                    fill_id="f2",
+                    client_id="tx_ord_1",
+                    price=D("100"),
+                    quantity=D("1"),
+                    fee=D("0"),
+                    fee_asset="TMN",
+                    timestamp=1002,
+                )
+
+            with ledger.connection() as db:
+                self.assertEqual(db.execute("SELECT count(*) FROM fills").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT count(*) FROM order_intents").fetchone()[0], 0)
+
+            audit.close()
+            events = (
+                [json.loads(line)["event_type"] for line in Path(audit.audit_path).read_text(encoding="utf-8").splitlines()]
+                if Path(audit.audit_path).exists()
+                else []
+            )
+            self.assertEqual(events, [], "Rollback must leave zero tentative audit events")
+
+            # 2. Successful commit produces matching events
+            audit2 = AuditLogger(
+                log_dir=log_dir,
+                enable_console=False,
+                run_id="audit_commit_test",
+                mode="paper",
+                source="PAPER",
+            )
+            ledger.audit = audit2
+            with ledger.transaction():
+                ledger.record_intent(
+                    client_id="comm_ord",
+                    symbol="USDTTMN",
+                    side="BUY",
+                    order_type="LIMIT",
+                    price=D("100"),
+                    quantity=D("2"),
+                    timestamp=2000,
+                )
+                ledger.record_fill(
+                    fill_id="cf1",
+                    client_id="comm_ord",
+                    price=D("100"),
+                    quantity=D("2"),
+                    fee=D("0"),
+                    fee_asset="TMN",
+                    timestamp=2001,
+                )
+
+            audit2.close()
+            committed_events = [
+                json.loads(line)["event_type"]
+                for line in Path(audit2.audit_path).read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(committed_events, ["INTENT", "FILL", "LEDGER_RECONCILIATION"])
+
+    def test_pre_intent_fill_is_rejected_lower_bound(self):
+        ledger = Ledger()
+        ledger.set_balance("TMN", D("1000000"))
+        ledger.record_intent(
+            client_id="t_bound_ord",
+            symbol="USDTTMN",
+            side="BUY",
+            order_type="LIMIT",
+            price=D("100"),
+            quantity=D("5"),
+            timestamp=1000,
+        )
+
+        # Before intent (999) must be rejected
+        with self.assertRaisesRegex(ValueError, "precedes intent created_at"):
+            ledger.record_fill(
+                fill_id="f_before",
+                client_id="t_bound_ord",
+                price=D("100"),
+                quantity=D("1"),
+                fee=D("0"),
+                fee_asset="TMN",
+                timestamp=999,
+            )
+
+        # Equal (1000) is accepted
+        f_eq = ledger.record_fill(
+            fill_id="f_equal",
+            client_id="t_bound_ord",
+            price=D("100"),
+            quantity=D("1"),
+            fee=D("0"),
+            fee_asset="TMN",
+            timestamp=1000,
+        )
+        self.assertEqual(f_eq.timestamp, 1000)
+
+        # After (1001) is accepted
+        f_after = ledger.record_fill(
+            fill_id="f_after",
+            client_id="t_bound_ord",
+            price=D("100"),
+            quantity=D("1"),
+            fee=D("0"),
+            fee_asset="TMN",
+            timestamp=1001,
+        )
+        self.assertEqual(f_after.timestamp, 1001)

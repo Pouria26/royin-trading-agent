@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal, Inexact, localcontext
 from pathlib import Path
+from typing import Any
 
 
 def validate_decimal(
@@ -73,6 +74,7 @@ class Ledger:
         self.db_path = str(db_path)
         self._memory_conn = None
         self._transaction_conn = None
+        self._transaction_events: list[tuple[str, str, dict[str, Any]]] | None = None
         self._worker_active = False
         if self.db_path == ":memory:":
             self._memory_conn = sqlite3.connect(":memory:", timeout=10)
@@ -80,6 +82,12 @@ class Ledger:
         else:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+
+    def _stage_event(self, event_type: str, category: str, payload: dict[str, Any]):
+        if self._transaction_events is not None:
+            self._transaction_events.append((event_type, category, payload))
+        elif self.audit:
+            self.audit.record_event(event_type, category, payload)
 
     @contextmanager
     def connection(self):
@@ -105,14 +113,28 @@ class Ledger:
             db.execute("PRAGMA synchronous = FULL")
             db.execute("BEGIN IMMEDIATE")
             self._transaction_conn = db
+            self._transaction_events = []
+            committed = False
             try:
                 yield db
                 db.commit()
+                committed = True
             except BaseException:
                 db.rollback()
+                self._transaction_events.clear()
                 raise
             finally:
+                events_to_emit = (
+                    list(self._transaction_events)
+                    if (committed and self._transaction_events)
+                    else []
+                )
                 self._transaction_conn = None
+                self._transaction_events = None
+
+            if self.audit and events_to_emit:
+                for event_type, category, payload in events_to_emit:
+                    self.audit.record_event(event_type, category, payload)
 
     @contextmanager
     def worker(self):
@@ -324,20 +346,19 @@ class Ledger:
                 ),
             )
 
-        if self.audit:
-            self.audit.record_event(
-                "INTENT",
-                "LEDGER",
-                {
-                    "client_id": client_id,
-                    "symbol": symbol,
-                    "side": side,
-                    "price": price,
-                    "quantity": quantity,
-                    "timestamp": timestamp,
-                    "order_type": order_type,
-                },
-            )
+        self._stage_event(
+            "INTENT",
+            "LEDGER",
+            {
+                "client_id": client_id,
+                "symbol": symbol,
+                "side": side,
+                "price": price,
+                "quantity": quantity,
+                "timestamp": timestamp,
+                "order_type": order_type,
+            },
+        )
         return OrderIntent(
             client_id=client_id,
             symbol=symbol,
@@ -467,7 +488,7 @@ class Ledger:
                 )
 
             intent = db.execute(
-                "SELECT symbol, side, price, quantity, quote_fee_reserve, quote_asset, base_asset, status "
+                "SELECT symbol, side, price, quantity, quote_fee_reserve, quote_asset, base_asset, status, created_at "
                 "FROM order_intents WHERE client_id = ?",
                 (client_id,),
             ).fetchone()
@@ -483,9 +504,14 @@ class Ledger:
                 quote_asset,
                 base_asset,
                 intent_status,
+                intent_created_at,
             ) = intent
             if intent_status in ("CANCELED", "REJECTED", "PARTIALLY_FILLED_CANCELED", "FILLED"):
                 raise ValueError("New fill after terminal settlement requires reconciliation")
+            if timestamp < intent_created_at:
+                raise ValueError(
+                    f"Fill timestamp {timestamp} precedes intent created_at {intent_created_at}"
+                )
             if (side == "BUY" and price > Decimal(intent_price_str)) or (side == "SELL" and price < Decimal(intent_price_str)):
                 raise ValueError("Fill violates LIMIT price")
             position_row = db.execute(
@@ -692,37 +718,36 @@ class Ledger:
                     (client_id, client_id),
                 )
 
-        if self.audit:
-            self.audit.record_event(
-                "FILL",
-                "LEDGER",
-                {
-                    "fill_id": fill_id,
-                    "position_id": position_id,
-                    "client_id": client_id,
-                    "symbol": symbol,
-                    "side": side,
-                    "price": price,
-                    "quantity": quantity,
-                    "fee": fee,
-                    "fee_asset": fee_asset,
-                    "timestamp": timestamp,
+        self._stage_event(
+            "FILL",
+            "LEDGER",
+            {
+                "fill_id": fill_id,
+                "position_id": position_id,
+                "client_id": client_id,
+                "symbol": symbol,
+                "side": side,
+                "price": price,
+                "quantity": quantity,
+                "fee": fee,
+                "fee_asset": fee_asset,
+                "timestamp": timestamp,
+            },
+        )
+        self._stage_event(
+            "LEDGER_RECONCILIATION",
+            "LEDGER",
+            {
+                "client_id": client_id,
+                "fill_id": fill_id,
+                "realized_pnl_tmn": self.get_realized_pnl(symbol),
+                "position_id": position_id,
+                "balance": {
+                    k: {"free": v.free, "locked": v.locked}
+                    for k, v in self.get_all_balances().items()
                 },
-            )
-            self.audit.record_event(
-                "LEDGER_RECONCILIATION",
-                "LEDGER",
-                {
-                    "client_id": client_id,
-                    "fill_id": fill_id,
-                    "realized_pnl_tmn": self.get_realized_pnl(symbol),
-                    "position_id": position_id,
-                    "balance": {
-                        k: {"free": v.free, "locked": v.locked}
-                        for k, v in self.get_all_balances().items()
-                    },
-                },
-            )
+            },
+        )
         return FillRecord(
             fill_id=fill_id,
             client_id=client_id,
