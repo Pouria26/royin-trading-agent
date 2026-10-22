@@ -235,3 +235,8 @@ unchanged. Catalog return is past performance. Collector cancellation must join 
 before releasing the worker. Positive unpriced inventory now raises; residual inventory blocks
 paid re-entry.352 core tests passed plus a targeted collector-cancellation regression. No alpha/live
 claim; original financial UNKNOWN/counter/reserve remain intact.
+
+2026-10-22: The first wider-universe public trial exposed a receipt-clock bug: cycle start
+can precede catalog received_at. Use actual post-receipt time for current freshness, not
+the old cycle-start timestamp. Empty universe must skip paid/deep research. Preserve the
+failed pre-model attempt; a saved RUNNING flag is not an active process after exit1.

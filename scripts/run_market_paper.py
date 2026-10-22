@@ -599,7 +599,7 @@ class MarketPaperOrchestrator:
             now_ts = int(cycle_start)
             try:
                 await self._execute_cycle(feed, now_ts)
-            except (ValueError, OSError, RuntimeError, TypeError, KeyError, ArithmeticError) as exc:
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, IndexError, ArithmeticError) as exc:
                 logger.error("Paper cycle failed: %s", type(exc).__name__)
                 self.errors.append({"cycle": self.completed_cycles, "error_type": type(exc).__name__, "timestamp": now_ts})
 
@@ -694,13 +694,16 @@ class MarketPaperOrchestrator:
         )
         liquid = ()
         if self.model_mode == "REAL_MODEL":
-            liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=now,
+            liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
                 received_at=received,account_as_of=received,tmn_only=True)
         anchor_symbols = None
         if liquid:
             anchor_symbols = ["USDTTMN" if any(row.symbol == "USDTTMN" for row in liquid) else liquid[0].symbol]
-        report = scan_current_market(feed, **scan_options,
-            batch_limit=1 if self.model_mode == "REAL_MODEL" else 5, selected_symbols=anchor_symbols)
+        if self.model_mode == "REAL_MODEL" and not liquid:
+            report = {"status":"NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE", "batch":()}
+        else:
+            report = scan_current_market(feed, **scan_options,
+                batch_limit=1 if self.model_mode == "REAL_MODEL" else 5, selected_symbols=anchor_symbols)
 
         batch_list = [
             item for item in report.get("batch", [])

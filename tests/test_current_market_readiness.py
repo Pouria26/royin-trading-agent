@@ -98,6 +98,31 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertIsNone(feed.deadline_monotonic)
         self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
 
+    def test_catalog_received_after_cycle_start_is_not_mislabeled_future(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        snap = snapshot("ETHTMN")
+        decision = runner.RoleDecisionProposal(role="ENTRY_ANALYST",action="WAIT",symbol=snap.symbol,
+            cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+            reason="synthetic clock boundary",invalidation="next cycle")
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8106,{"ETHTMN"})), \
+             patch.object(runner,"scan_current_market",return_value=dict(batch=[ScanCandidate(snap,D(0),opportunity())],
+                market_rules={"ETHTMN":runner.build_default_rules("ETHTMN")})), \
+             patch.object(runner,"decide_role",return_value=decision) as infer,patch("time.time",return_value=8106):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual([row.symbol for row in infer.call_args.kwargs["market_universe"].markets],["ETHTMN"])
+
+    def test_empty_research_universe_skips_deep_scan_and_paid_model(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,set())), \
+             patch.object(runner,"scan_current_market") as scan,patch.object(runner,"decide_role") as infer, \
+             patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        scan.assert_not_called()
+        infer.assert_not_awaited()
+        self.assertIn("NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE",o.decision_traces[-1]["decision"]["reason"])
+
     def test_quote_failure_preserves_old_timestamp_instead_of_refreshing_it(self):
         o = self.make_runner()
         feed = MagicMock()

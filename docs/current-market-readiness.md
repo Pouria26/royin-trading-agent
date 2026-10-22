@@ -196,3 +196,17 @@ real-provider/current-data observation is required before claiming operational c
 Predeclared next public-only trial:900 seconds/15 cycles/60-second polling/160 GET cap,
 100000 TMN virtual order ceiling, REAL_MODEL and existing shared model budget. No forced entry,
 no early forecast outcome retrieval and no change to the financial UNKNOWN/counter/reserve.
+
+### First wider-universe real attempt: failed before model I/O
+
+Run model-universe-forward-20261022-1 at e043fe5 exited1 before a model call or order.
+Public catalog receipt could occur after cycle start; using that older start as the
+current freshness clock incorrectly produced an empty liquid universe. The following
+indexing then failed. The original SQLite/raw captures and external terminal-process
+observation are preserved; its persisted RUNNING flag is not proof of a live process.
+
+The caller now checks freshness at the actual post-receipt time, explicitly handles an
+empty universe without paid/deep research, and records cycle IndexError as a failed
+cycle instead of escaping without a session result.19 readiness tests, including a
+one-second receipt delay and an empty-universe case, passed; Ruff/compileall/diff passed.
+Retry uses a new source-bound run ID and the same predeclared monetary/model/public caps.

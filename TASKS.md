@@ -318,3 +318,7 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x] Reject missing prices for positive inventory; prevent paid re-entry scans on residual/unprotected inventory.
 - [x]352-test full core suite passed; added cancellation regression passed separately. Ruff/compileall/wheel/diff check passed.
 - [ ] Run the predeclared real-model public-data trial and inspect catalog choice, tool transcript, terminal state and model usage. No financial-order authorization added.
+
+- [x] First wider-universe real attempt failed before model/order I/O; preserve its original state/raws and external exit1 observation.
+- [x] Fix post-receipt freshness clock and empty-universe handling;19 readiness tests, Ruff/compileall/diff check passed.
+- [ ] Re-run the same predeclared trial with a new revision-bound run ID; the failed attempt is not a successful trial.
