@@ -128,3 +128,14 @@ Candidate execution/accepting approval validator/current strategy Shadow remain 
 One-cycle public observation and isolated public quality-audit results are recorded
 in .local/parallel/next-validation-and-execution-report.md after this commit; neither
 can approve a candidate or prove multi-hour stability. No push, deployment or video upload.
+
+
+## یکپارچه‌سازی ماژول‌های اجرایی، ارزیابی و مانیتورینگ — ۲۰۲۶-۱۰-۲۲
+
+ماژول‌های حسابداری اتمیک و پایلوت، بازپخش علّی سبد دارایی و داشبورد مانیتورینگ به مخزن اضافه شدند:
+- **تحلیل کارمزد و اصطکاک (Fee Friction):** طبق probe واقعی حساب، کارمزد maker=0.0025 و taker=0.0030 است؛ هر دور معامله تیکر 0.60% اصطکاک قطعی ایجاد می‌کند. استراتژی اسکالپ یا پرتکرار بازده منفی می‌دهد؛ استراتژی باید بر پایلوت سویینگ/مومنتوم با نسبت ریسک/ریوارد بالا و افق زمانی چندساعته متمرکز باشد.
+- **مانع حداقل سفارش (Minimum Order Gate):** سقف ۲۰۰ هزار تومانی در قیمت فعلی تتر (~۲۶۶٬۷۲۱ تومان) معادل ۰.۷۴ تتر بوده و زیر حداقل سفارش ۱.۰ تتر والکس است (BLOCKED_MINIMUM). اجرای فنی پایلوت نیازمند افزایش کنترل‌شده سقف به حداقل ۲۶۸٬۰۰۰ تا ۳۰۰٬۰۰۰ تومان است.
+- **حسابداری و بروکر:** رویدادهای Audit در زمان تراکنش پایگاه‌داده Staged می‌شوند تا Rollback نشت لاگ ایجاد نکند. قید زمانی fill.timestamp >= intent.created_at تضمین شد.
+- **داشبورد:** اتاق پایش محلی RTL در پورت ۸۷۶۵ برای داوری و ویدئوی ۵ دقیقه‌ای (R20/R21) بدون دسترسی شبکه بیرونی یا ایجاد سفارش راه‌اندازی شد.
+- بررسی‌ها: ۲۴۰ تست کامل (۲۳۲ واحد + ۸ داشبورد) PASS؛ Ruff و compileall کاملاً پاک؛ گیت اجرای زنده همچنان مسدود تا اتمام بازبینی و تأیید سقف جدید.
+

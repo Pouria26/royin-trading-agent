@@ -194,3 +194,14 @@ Candidate execution/accepting approval validator/current strategy Shadow remain 
 One-cycle public observation and isolated public quality-audit results are recorded
 in .local/parallel/next-validation-and-execution-report.md after this commit; neither
 can approve a candidate or prove multi-hour stability. No push, deployment or video upload.
+
+
+## یکپارچه‌سازی ماژول‌های اجرایی، ارزیابی و مانیتورینگ — ۲۰۲۶-۱۰-۲۲
+
+- **یکپارچه‌سازی:** ماژول‌های حسابداری اتمیک و پایلوت خرد، تحقیقات سبد و بازپخش دیتای نیتِیو، و داشبورد پایش محلی ادغام و تثبیت شدند.
+- **تست‌ها و کیفیت:** ۲۴۰ تست آزموده شد (۲۳۲ تست هسته + ۸ تست داشبورد) در ۱۶ ثانیه با نتیجه ۱۰۰٪ PASS، بدون خطای لینتر یا کامپایل.
+- **گیت پایلوت فنی (T10):** استعلام حساب فعال اختصاصی ۵ میلیون تومانی را با کارمزد 0.25%/0.30% تأیید کرد. سقف پیشنهادی ۲۰۰ هزار تومان زیر حداقل سفارش ۱.۰ تتر والکس ماند (BLOCKED_MINIMUM)؛ تصمیم بر افزایش سقف به حداقل ۲۶۸٬۰۰۰ تا ۳۰۰٬۰۰۰ تومان است.
+- **فاز بعدی R&D:** تقسیم مأموریت به دو محور موازی:
+  1. محور A (استراتژی مومنتوم/سویینگ و فیلتر رژیم با AI برای غلبه بر اصطکاک 0.60%).
+  2. محور B (اجرای پایلوت کنترل‌شده فنی، اتصال داشبورد به موتور و نهایی‌سازی شواهد ویدئویی ۵ دقیقه‌ای).
+
