@@ -290,3 +290,13 @@ execution allowance. Actual key trading permission remains pending operator conf
 - [ ] Resolve the existing intent under a reviewed exchange recovery/finality contract before another financial attempt.
 
 Verification: real read-only HTTP observations; no code changes or model calls in this checkpoint.
+
+## Bounded forward session — 2026-10-22
+
+- [x] Persist failed public attempts and completed cycles; freeze poll/GET settings across restarts.
+- [x] Finish bounded paper sessions with fresh depth or explicit PARTIAL/residual; report stopped worker and actual base asset.
+- [x] Record per-decision issuance for long-session outcome scoring.
+- [x] Verification:342 core tests, Ruff, compileall, wheel and diff check passed.
+- [ ] Run the predeclared15-minute real-model/current-public-data trial and inspect its full traces; no financial order in this trial.
+
+The original financial UNKNOWN remains a separate unresolved incident; paper evidence is not live readiness.

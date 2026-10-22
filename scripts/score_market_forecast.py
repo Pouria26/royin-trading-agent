@@ -27,15 +27,16 @@ def current_forecasts(manifest_path):
     if manifest.get("mode") != "CURRENT_PAPER" or manifest.get("model_mode") != "REAL_MODEL":
         raise ValueError("Current forecast scoring requires an explicit real-model current run")
     sha = hashlib.sha256(raw).hexdigest()
-    issued_at = datetime.fromisoformat(manifest["created_at_utc"].replace("Z","+00:00"))
-    if issued_at.utcoffset() is None:
-        raise ValueError("Manifest timestamp needs an explicit offset")
     records, skipped = [], []
     for index, row in enumerate(manifest["arms"]["paper_portfolio"]["decision_traces"]):
         decision = row["decision"]
         if decision.get("forecast") is None:
             skipped.append(dict(run_id=manifest["run_id"],trace_index=index,reason="NO_ISSUED_MODEL_FORECAST"))
             continue
+        issued_at = datetime.fromisoformat(row.get("issued_at_utc", manifest["created_at_utc"]).replace("Z","+00:00"))
+        manifest_at = datetime.fromisoformat(manifest["created_at_utc"].replace("Z","+00:00"))
+        if issued_at.utcoffset() is None or manifest_at.utcoffset() is None or issued_at > manifest_at:
+            raise ValueError("Invalid recorded issuance timestamp")
         model = row.get("model_trace") or {}
         if (model.get("host_outcome") != "MODEL_DECISION" or model.get("evidence_kind") != "REAL_MODEL_ATTEMPT"
                 or model.get("provider") != "boxapi" or not model.get("responses")):

@@ -203,3 +203,10 @@ order history empty, has_more_pages=false; no open orders;5M TMN available,0 loc
 This is4 separate diagnostic GETs cumulatively after8 original execution requests. No financial
 counter reset/reserve release/new client ID. Original empty POST status and exchange finality remain
 unattested; do not infer a rejected order or diagnose missing permission from older observations.
+
+2026-10-22: Continuous paper runs now reserve failed public HTTP attempts durably and preserve
+cycle/poll/GET settings across restart. Explicit public cap default32/max4096 does not increase
+the existing model/global budgets. Bounded stop uses uncached sufficient top bid or returns
+PARTIAL with residual; never fabricate liquidation from a stale price. Dashboard base assets and
+worker terminal states are accurate. Per-decision issued_at_utc avoids using final export time
+as forecast issuance.342 core regressions passed. Financial UNKNOWN/cap/reserve unchanged.

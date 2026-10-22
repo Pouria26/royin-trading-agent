@@ -16,7 +16,7 @@ from royin.market_data import Candle
 from royin.model_budget import BudgetBlocked, ModelBudget
 from royin.risk import RiskResult
 from scripts import run_market_paper as runner
-from scripts.run_paper_trader import ScanCandidate
+from scripts.run_paper_trader import ScanCandidate, ScannerPublicFeed
 from tests.test_market_selection import enter_proposal, opportunity, snapshot
 
 
@@ -75,6 +75,83 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         o.ledger.set_balance("USDT", D(2))
         o.ledger.set_meta("protection_USDTTMN", json.dumps({"last_bid":"250000"}))
         self.assertEqual(D(o.generate_summary()["final_equity_tmn"]), D(5500000))
+        self.assertEqual(o.generate_summary()["status"], "PARTIAL")
+
+    def test_failed_public_attempt_is_durable_before_network_and_not_refunded(self):
+        o = self.make_runner(public_get_cap=48)
+        feed = ScannerPublicFeed(o.capture_dir/"raw", max_requests=48, before_request=o._reserve_public_request)
+        def network(*args, **kwargs):
+            self.assertEqual(o.ledger.get_meta("engine_public_attempts"), "1")
+            raise OSError("timeout")
+        with patch("urllib.request.urlopen", side_effect=network), patch("time.time", return_value=8100), self.assertRaises(OSError):
+            feed.get("/v1/depth", {"symbol":"USDTTMN"}, cutoff=8100)
+        o.close()
+        restored = runner.MarketPaperOrchestrator(run_id=o.run_id, capture_dir=o.capture_dir,
+            config=RuntimeConfig(), public_get_cap=48)
+        self.addCleanup(restored.close)
+        self.assertEqual(restored.ledger.get_meta("engine_public_attempts"), "1")
+        restored.ledger.set_meta("engine_public_attempts", "48")
+        with self.assertRaisesRegex(ValueError, "cap"):
+            restored._reserve_public_request()
+
+    def test_terminal_liquidation_has_hand_calculated_cash_and_stopped_worker(self):
+        o = self.make_runner()
+        o.ledger.record_intent(client_id="entry",symbol="USDTTMN",side="BUY",order_type="LIMIT",
+            price=D(250000),quantity=D(1),timestamp=1000,quote_asset="TMN",base_asset="USDT")
+        o.ledger.record_fill(fill_id="entry-fill",client_id="entry",price=D(250000),quantity=D(1),
+            fee=D(750),fee_asset="TMN",timestamp=1001)
+        o.ledger.set_meta("protection_USDTTMN",json.dumps({"last_bid":"250000", "status":"OPEN"}))
+        feed = MagicMock()
+        feed.get.return_value = ({"success":True,"result":{"bid":[{"price":"260000","quantity":"10"}]}},2000)
+        with patch("time.time",return_value=2000):
+            o._finish_current(feed)
+        # 5M -250000 -750 +260000*(1-.0005)*(1-.003).
+        self.assertEqual(o.ledger.get_balance("TMN").free,D("5008340.3900000"))
+        self.assertEqual(o.ledger.get_balance("USDT").total,D(0))
+        self.assertEqual(o.ledger.get_meta("engine_lifecycle"),"STOPPED_FLAT")
+        self.assertEqual(json.loads(o.ledger.get_meta("protection_USDTTMN"))["status"],"CLOSED")
+        self.assertEqual(feed.get.call_args.kwargs["max_age_seconds"],0)
+        self.assertEqual(o.generate_summary()["status"],"COMPLETED")
+
+    def test_terminal_failed_or_shallow_quote_cannot_fake_liquidate(self):
+        for response in (None, {"success":True,"result":{"bid":[{"price":"260000","quantity":".1"}]}}):
+            with self.subTest(response=response):
+                o = self.make_runner()
+                o.ledger.set_balance("USDT",D(1))
+                o.ledger.set_meta("protection_USDTTMN",json.dumps({"last_bid":"250000"}))
+                feed = MagicMock()
+                if response is None:
+                    feed.get.side_effect = OSError("no quote")
+                else:
+                    feed.get.return_value = (response,2000)
+                with patch("time.time",return_value=2000):
+                    o._finish_current(feed)
+                self.assertEqual(o.ledger.get_balance("USDT").total,D(1))
+                self.assertEqual(o.ledger.get_meta("engine_lifecycle"),"STOPPED_OPEN")
+                self.assertEqual(o.generate_summary()["status"],"PARTIAL")
+
+    def test_current_loop_finishes_and_persists_cycles_and_manifest_budget(self):
+        o = self.make_runner()
+        with patch.object(o,"_execute_cycle") as cycle, patch.object(o,"_finish_current", wraps=o._finish_current) as finish:
+            result = asyncio.run(o.run())
+        cycle.assert_awaited_once()
+        finish.assert_called_once()
+        self.assertEqual(o.ledger.get_meta("engine_completed_cycles"),"1")
+        self.assertEqual(result["status"],"COMPLETED")
+        manifest = json.loads((o.capture_dir/"manifest.json").read_text())
+        self.assertEqual(manifest["worker_state"],"STOPPED_FLAT")
+        self.assertEqual(manifest["public_get_cap"],32)
+        self.assertEqual(manifest["public_get_attempts"],0)
+
+    def test_dashboard_balance_uses_selected_base_asset(self):
+        o = self.make_runner()
+        o.rules = runner.build_default_rules("ETHTMN")
+        o.broker = runner.PaperBroker(o.ledger,o.rules)
+        with patch.object(runner,"ROOT",o.capture_dir):
+            o._checkpoint_and_export(2000)
+        dashboard = json.loads((o.capture_dir/".local/dashboard/engine-snapshot.json").read_text())
+        self.assertIn("ETH",dashboard["account"]["balances"])
+        self.assertNotIn("USDT",dashboard["account"]["balances"])
 
     def test_real_entry_binds_selected_symbol_horizon_and_restarts_same_policy(self):
         o = self.make_runner()

@@ -48,6 +48,18 @@ class CurrentForecastOutcomeTests(unittest.TestCase):
         self.assertEqual(rows[0]["forecast"].symbol,"USDTTMN")
         self.assertFalse(skipped)
 
+    def test_trace_issuance_survives_later_long_session_manifest_write(self):
+        self.row["issued_at_utc"] = datetime.fromtimestamp(8101,UTC).isoformat()
+        self.manifest["created_at_utc"] = datetime.fromtimestamp(9000,UTC).isoformat()
+        _,rows,_ = scorer.current_forecasts(self.source())
+        self.assertTrue(rows[0]["issued_before_outcome"])
+        self.row["issued_at_utc"] = datetime.fromtimestamp(8401,UTC).isoformat()
+        with self.assertRaisesRegex(ValueError,"pre-outcome"):
+            scorer.current_forecasts(self.source())
+        self.row["issued_at_utc"] = datetime.fromtimestamp(9001,UTC).isoformat()
+        with self.assertRaisesRegex(ValueError,"issuance"):
+            scorer.current_forecasts(self.source())
+
     def test_changed_forecast_snapshot_and_post_outcome_issuance_are_rejected(self):
         for mode in ("forecast","snapshot","late"):
             with self.subTest(mode=mode):

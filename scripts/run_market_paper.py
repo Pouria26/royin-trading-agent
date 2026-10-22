@@ -40,6 +40,7 @@ from royin.logger import AuditLogger
 from royin.market_data import (
     CandleSeries,
     aggregate_closed,
+    decimal_number,
     parse_history,
 )
 from royin.markets import load_restrictions, parse_catalog
@@ -166,6 +167,7 @@ class MarketPaperOrchestrator:
         duration_seconds: int = 300,
         cycles: int = 1,
         interval_seconds: int = 60,
+        public_get_cap: int = 32,
         horizon_max_seconds: int = DEFAULT_HORIZON_MAX_SECONDS,
         retention_ratio: Decimal = Decimal("0.5"),
         activation_fraction: Decimal = Decimal("0.025"),
@@ -188,6 +190,10 @@ class MarketPaperOrchestrator:
             raise ValueError("Invalid bounded execution limits")
         if mode == "CURRENT_PAPER" and (type(horizon_max_seconds) is not int or not 300 <= horizon_max_seconds <= 36000):
             raise ValueError("Current holding policy must stay between five minutes and ten hours")
+        if type(public_get_cap) is not int or not 16 <= public_get_cap <= 4096:
+            raise ValueError("Public GET cap must be 16..4096")
+        if mode == "CURRENT_PAPER" and interval_seconds > 60:
+            raise ValueError("Current position protection must poll at least every60 seconds")
         if model_mode == "RECORDED" or (mode == "HISTORICAL_REPLAY" and model_mode != "FAKE_MODEL"):
             raise ValueError("This replay requires an explicit rule; recorded/model portfolio dispatch is not implemented")
         self.run_id = run_id
@@ -196,6 +202,7 @@ class MarketPaperOrchestrator:
         self.duration_seconds = duration_seconds
         self.max_cycles = cycles
         self.interval_seconds = interval_seconds
+        self.public_get_cap = public_get_cap
         self.horizon_max_seconds = horizon_max_seconds
         self.retention_ratio = retention_ratio
         self.activation_fraction = activation_fraction
@@ -234,6 +241,11 @@ class MarketPaperOrchestrator:
             self.audit.close()
             raise ValueError("Run settings changed; do not reinterpret an existing portfolio")
         self.ledger.set_meta("engine_profile",profile)
+        polling_profile = json.dumps([cycles, interval_seconds, public_get_cap])
+        previous_polling = self.ledger.get_meta("engine_polling_profile")
+        if previous_polling is not None and previous_polling != polling_profile:
+            raise ValueError("Run polling/budget settings changed; use a new run")
+        self.ledger.set_meta("engine_polling_profile", polling_profile)
         created = self.ledger.get_meta("engine_started_at")
         self.run_started_at = int(created) if created is not None else int(time.time())
         if created is None:
@@ -314,7 +326,13 @@ class MarketPaperOrchestrator:
             self.restored_captures = []
         self.shutdown_requested = False
         self.start_time = None
-        self.completed_cycles = 0
+        self.completed_cycles = int(self.ledger.get_meta("engine_completed_cycles") or "0")
+
+    def _reserve_public_request(self):
+        attempts = int(self.ledger.get_meta("engine_public_attempts") or "0")
+        if attempts >= self.public_get_cap:
+            raise ValueError("Durable public GET cap reached")
+        self.ledger.set_meta("engine_public_attempts", str(attempts + 1))
 
     def request_shutdown(self, *args):
         self.shutdown_requested = True
@@ -552,16 +570,22 @@ class MarketPaperOrchestrator:
             return await self.run_historical_replay(ds_path)
 
         self.start_time = time.monotonic() - max(0,int(time.time())-self.run_started_at)
-        feed = ScannerPublicFeed(self.capture_dir / "raw", max_requests=32)
+        feed = ScannerPublicFeed(self.capture_dir / "raw", max_requests=self.public_get_cap,
+            before_request=self._reserve_public_request)
         feed.captures = list(self.restored_captures)
-        feed.requests = len(feed.captures)
+        feed.requests = int(self.ledger.get_meta("engine_public_attempts") or len(feed.captures))
+        self.ledger.set_meta("engine_public_attempts", str(feed.requests))
         self.public_feed = feed
+        self.ledger.set_meta("engine_lifecycle", "RUNNING")
         now_ts = int(time.time())
         self.ledger.set_meta("engine_heartbeat", str(now_ts))
 
         while not self.shutdown_requested and self.completed_cycles < self.max_cycles:
             elapsed = time.monotonic() - self.start_time
             if elapsed >= self.duration_seconds:
+                break
+            # Leave room for a position review and a fresh terminal liquidation quote.
+            if feed.requests >= self.public_get_cap - 8:
                 break
 
             cycle_start = time.time()
@@ -573,6 +597,7 @@ class MarketPaperOrchestrator:
                 self.errors.append({"cycle": self.completed_cycles, "error_type": type(exc).__name__, "timestamp": now_ts})
 
             self.completed_cycles += 1
+            self.ledger.set_meta("engine_completed_cycles", str(self.completed_cycles))
             self._checkpoint_and_export(now_ts)
 
             if self.completed_cycles < self.max_cycles:
@@ -583,8 +608,44 @@ class MarketPaperOrchestrator:
                         break
                     await asyncio.sleep(0.5)
 
+        self._finish_current(feed)
         self._checkpoint_and_export(int(time.time()))
         return self.generate_summary()
+
+    def _finish_current(self, feed):
+        """End a paper session using a fresh executable bid, never an old valuation."""
+        quantity = self.ledger.get_balance(self.rules.base_asset).total
+        if quantity > 0:
+            try:
+                now = int(time.time())
+                depth, received = feed.get("/v1/depth", {"symbol":self.rules.symbol},
+                    cutoff=now, max_age_seconds=0)
+                if depth.get("success") is not True or not 0 <= int(time.time())-received <= 60:
+                    raise ValueError("No fresh terminal quote")
+                top = depth["result"]["bid"][0]
+                bid = decimal_number(top["price"], positive=True)
+                available = decimal_number(top["quantity"], positive=True)
+                if available < quantity:
+                    raise ValueError("Terminal top bid cannot fill the held paper quantity")
+                settlement = self.broker.finalize_portfolio(bid, timestamp=received,
+                    initial_capital=self.initial_capital, slippage_pct=DEFAULT_SLIPPAGE_PCT)
+                key = "protection_" + self.rules.symbol
+                state = json.loads(self.ledger.get_meta(key) or "null")
+                if state:
+                    state.update(last_bid=str(bid), last_source_time=received,
+                        status="CLOSED" if settlement["status"] == "FINALIZED" else "RESIDUAL")
+                    self.ledger.set_meta(key, json.dumps(state))
+                self.decision_traces.append({"decision":{"action":"EXIT", "role":"HOST_SESSION_END",
+                    "symbol":self.rules.symbol, "cutoff":received, "reason":"Bounded paper session ended"},
+                    "settlement":settlement})
+            except (ValueError, OSError, RuntimeError, KeyError, IndexError, TypeError, ArithmeticError) as exc:
+                self.errors.append({"phase":"SESSION_FINALIZATION", "error_type":type(exc).__name__,
+                    "timestamp":int(time.time())})
+        residual = self.ledger.get_balance(self.rules.base_asset).total
+        self.ledger.set_meta("engine_lifecycle", "STOPPED_OPEN" if residual else "STOPPED_FLAT")
+        if residual:
+            self.errors.append({"phase":"SESSION_RESIDUAL", "error_type":"UnliquidatedPaperAsset",
+                "timestamp":int(time.time())})
 
     async def _execute_cycle(self, feed: ScannerPublicFeed, now: int):
         self.ledger.set_meta("engine_heartbeat", str(now))
@@ -598,6 +659,8 @@ class MarketPaperOrchestrator:
             await self._handle_position_cycle(feed, now, prot_state)
         else:
             # Flat: scanning & entry analysis
+            if feed.requests > self.public_get_cap - 16:
+                return
             cutoff = now // 300 * 300
             if self.ledger.get_meta("last_entry_cutoff") == str(cutoff):
                 return
@@ -775,6 +838,7 @@ class MarketPaperOrchestrator:
                     )
 
         trace = {
+            "issued_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "decision": decision.model_dump(mode="json"),
             "snapshot": batch_map.get(decision.symbol, (primary_snap, None))[0].to_canonical_dict(),
             "snapshot_sha256": decision.snapshot_sha256,
@@ -832,7 +896,8 @@ class MarketPaperOrchestrator:
                 if not model_task.done():
                     model_task.cancel()
                     await asyncio.gather(model_task,return_exceptions=True)
-            trace = {"decision":decision.model_dump(mode="json"),"model_trace":model_trace,
+            trace = {"issued_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "decision":decision.model_dump(mode="json"),"model_trace":model_trace,
                 "snapshot":snap.to_canonical_dict(),"snapshot_sha256":snap.snapshot_sha256}
             self.decision_traces.append(trace)
             if decision.action == "EXIT":
@@ -973,6 +1038,9 @@ class MarketPaperOrchestrator:
                 "data_sha256": self.dataset_sha256 or hashlib.sha256(json.dumps(captures,sort_keys=True).encode()).hexdigest(),
             },
             "public_captures": captures,
+            "public_get_attempts": int(self.ledger.get_meta("engine_public_attempts") or "0"),
+            "public_get_cap": self.public_get_cap,
+            "worker_state": self.ledger.get_meta("engine_lifecycle"),
             "errors": self.errors,
             "protection_policy": asdict(self.protection_policy),
             "risk_policy": asdict(self.risk_policy),
@@ -1024,13 +1092,13 @@ class MarketPaperOrchestrator:
             "run_id": self.run_id,
             "status": "AVAILABLE",
             "mode": self.mode,
-            "worker_state": "ACTIVE" if not self.shutdown_requested else "SHUTDOWN",
+            "worker_state": self.ledger.get_meta("engine_lifecycle") or "NOT_RUNNING",
             "heartbeat_at": timestamp,
             "observed_at": timestamp,
             "account": {
                 "balances": {
                     "TMN": {"free": str(tmn_bal.free), "locked": str(tmn_bal.locked), "total": str(tmn_bal.total)},
-                    "USDT": {"free": str(base_bal.free), "locked": str(base_bal.locked), "total": str(base_bal.total)},
+                    self.rules.base_asset: {"free": str(base_bal.free), "locked": str(base_bal.locked), "total": str(base_bal.total)},
                 },
                 "equity_tmn": str(equity),
                 "realized_pnl_tmn": exported.get("realized_pnl_tmn", "0"),
@@ -1066,7 +1134,7 @@ class MarketPaperOrchestrator:
 
         return {
             "run_id": self.run_id,
-            "status": "PARTIAL" if self.errors else "COMPLETED",
+            "status": "PARTIAL" if self.errors or self.ledger.get_balance(self.rules.base_asset).total else "COMPLETED",
             "mode": self.mode,
             "model_mode": self.model_mode,
             "completed_cycles": self.completed_cycles,
@@ -1148,6 +1216,7 @@ def main(argv=None):
     parser.add_argument("--duration-seconds", type=int, default=300, help="Bounded wall-clock execution time")
     parser.add_argument("--cycles", type=int, default=1, help="Maximum execution cycles")
     parser.add_argument("--interval-seconds", type=int, default=60, help="Cycle interval in seconds")
+    parser.add_argument("--public-get-cap", type=int, default=32, help="Durable public GET budget,16..4096; includes failed attempts")
     parser.add_argument("--horizon-max", type=int, default=DEFAULT_HORIZON_MAX_SECONDS, help="Max model horizon (seconds)")
     parser.add_argument("--retention-ratio", type=Decimal, default=Decimal("0.5"), help="Net profit retention ratio (0..1)")
     parser.add_argument("--activation-fraction", type=Decimal, default=Decimal("0.025"), help="Net profit activation fraction")
@@ -1181,6 +1250,7 @@ def main(argv=None):
         duration_seconds=args.duration_seconds,
         cycles=args.cycles,
         interval_seconds=args.interval_seconds,
+        public_get_cap=args.public_get_cap,
         horizon_max_seconds=args.horizon_max,
         retention_ratio=args.retention_ratio,
         activation_fraction=args.activation_fraction,
@@ -1202,7 +1272,7 @@ def main(argv=None):
     try:
         summary = asyncio.run(orch.run())
         print(json.dumps(summary, indent=2, default=str))
-        return 0
+        return 0 if summary["status"] == "COMPLETED" else 2
     finally:
         orch.close()
 

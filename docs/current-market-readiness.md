@@ -87,3 +87,33 @@ Complete a narrowly scoped real-execution release, verify cumulative fills/fees 
 freeze a clean revision and run a tiny technical canary if those checks pass. The paper1.5M default
 is not a live allowance. Then measure net strategy outcomes on fresh data with cash/rule baselines
 and each arm's own state. Stable profit and a perfect competition score are not established.
+
+## Bounded forward-session lifecycle — 2026-10-22
+
+The default remains32 public GETs. An explicit --public-get-cap (16..4096) funds a
+longer public-only session; it does not raise model or financial limits. The selected
+cycle count, poll interval and GET budget bind the run at initialization. Every HTTP
+attempt, including failures, is reserved durably before network access; restarts retain
+both attempts and completed cycles. Current protection polls at most60 seconds apart.
+The loop stops ahead of public-budget exhaustion to retain terminal quote capacity.
+
+A bounded stop (duration, cycle cap, public-budget limit or requested shutdown) attempts
+paper liquidation using a fresh uncached public bid with enough top-level quantity.
+Missing/stale/shallow quotes leave the asset explicit and return PARTIAL/exit2; residual
+dust is also PARTIAL. No previous valuation is reused to manufacture a successful exit.
+Worker state is STOPPED_FLAT or STOPPED_OPEN, not ACTIVE after completion. Dashboard
+balances use the actual selected base asset. These are paper fills, not exchange fills.
+
+Each new model decision records its own issuance timestamp so a later session export
+cannot erase pre-outcome evidence. Older diagnostic manifests retain their prior
+manifest-time fallback; this does not strengthen their original evidence.
+
+Verified:342 core tests passed in43.281s; Ruff, compileall, wheel and diff check passed.
+No financial transport or canary-state policy changed. Proposed forward trial before
+observing outcomes:900 seconds /15 cycles /60-second polling /160 public GETs /100000
+TMN virtual maximum order /existing USD0.04 durable model envelope. No forced entry:
+WAIT remains a valid outcome and this short trial cannot validate ten-hour returns.
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m scripts.run_market_paper --mode CURRENT_PAPER --model-mode REAL_MODEL --duration-seconds 900 --cycles 15 --interval-seconds 60 --public-get-cap 160 --order-tmn 100000 --horizon-max 36000
+```

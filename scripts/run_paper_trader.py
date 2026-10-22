@@ -171,11 +171,12 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
 class ScannerPublicFeed:
     """Public GET only, one attempt owner, bounded responses and age-limited cache."""
 
-    def __init__(self, capture_dir, *, max_requests=16):
-        if type(max_requests) is not int or not 1 <= max_requests <= 32:
-            raise ValueError("GET cap must be 1..32")
+    def __init__(self, capture_dir, *, max_requests=16, before_request=None):
+        if type(max_requests) is not int or not 1 <= max_requests <= 4096:
+            raise ValueError("GET cap must be 1..4096")
         self.capture_dir = Path(capture_dir)
         self.max_requests, self.requests = max_requests, 0
+        self.before_request = before_request
         self.cache, self.captures = {}, []
         self.last_request = None
 
@@ -199,6 +200,8 @@ class ScannerPublicFeed:
         if self.last_request is not None:
             time.sleep(max(0, 1 - (time.monotonic() - self.last_request)))
         self.requests += 1
+        if self.before_request is not None:
+            self.before_request()
         self.last_request = time.monotonic()
         url = "https://api.wallex.ir" + endpoint + "?" + urlencode(params)
         with urllib.request.urlopen(urllib.request.Request(url), timeout=10) as response:
