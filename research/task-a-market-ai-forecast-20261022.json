@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "profile": "PUBLIC_MARKET_PAPER",
+  "protocol": "config/market-ai-forecast-protocol-v1.json",
+  "run_id": "20261022T133127Z_761a922d",
+  "batch_symbols": [
+    "BTCTMN",
+    "PEPETMN"
+  ],
+  "model": "gpt-6-luna",
+  "usage": {
+    "input_tokens": 2390,
+    "output_tokens": 474,
+    "requests": 2
+  },
+  "reserved_usd_ceiling": "0.00247296",
+  "decision": {
+    "decision_id": "dec_c3b3a163cccc4d6d",
+    "symbol": "PEPETMN",
+    "action": "WAIT",
+    "cutoff": 1792675800,
+    "snapshot_sha256": "1f070b633fb87f6b3650d818291f2bc357f37ec2924541513739a240143eb7e0",
+    "evidence_ids": [
+      "EV_BB_SQUEEZE",
+      "EV_DATA_FRESH",
+      "EV_POSITION_FLAT",
+      "EV_RSI_NORMAL",
+      "EV_TREND_BULLISH",
+      "EV_VOLUME_HIGH",
+      "EV_WICK_REJECTION"
+    ],
+    "reason": "PEPETMN is the likeliest mover in the batch: price is above both trend averages and volume is elevated, but the squeeze offers no confirmed expansion and wick rejection adds reversal risk. Its 0.006 round-trip fee plus spread requires a meaningful follow-through; evidence is not strong enough to justify entry. BTCTMN was also rejected: trend is neutral, volume is subdued, and wick rejection is a headwind. No entry.",
+    "invalidation": "For the WAIT forecast, the bullish continuation view is invalidated if price falls below the fast and slow SMA levels; reassess at the stated review time.",
+    "target_profit_pct": null,
+    "stop_loss_pct": null,
+    "exit_reason": null
+  },
+  "forecast": {
+    "forecast_id": "pep-1792675800-wait",
+    "symbol": "PEPETMN",
+    "cutoff": 1792675800,
+    "reference_price": "1.2196",
+    "reference_kind": "LAST_CLOSE",
+    "horizon_seconds": 900,
+    "return_q10": "-0.018",
+    "return_q50": "0.002",
+    "return_q90": "0.022",
+    "target_return_fraction": "0.012",
+    "review_after_seconds": 600,
+    "invalidation": "Bullish continuation view weakens if price falls below both listed trend SMAs, especially with volume remaining elevated.",
+    "evidence_ids": [
+      "EV_BB_SQUEEZE",
+      "EV_DATA_FRESH",
+      "EV_POSITION_FLAT",
+      "EV_RSI_NORMAL",
+      "EV_TREND_BULLISH",
+      "EV_VOLUME_HIGH",
+      "EV_WICK_REJECTION"
+    ],
+    "parent_forecast_id": null
+  },
+  "reference_price": "1.2196",
+  "outcome_at": 1792676700,
+  "outcome_price": "1.2168",
+  "outcome_return": "-0.0022958346999016070842899311",
+  "scores": {
+    "issued": 1,
+    "scored": 1,
+    "pending": 0,
+    "missing_outcome": 0,
+    "median_abs_error": "0.0042958346999016070842899311",
+    "bias": "-0.0042958346999016070842899311",
+    "coverage": "1",
+    "mean_width": "0.040",
+    "mean_winkler": "0.040",
+    "per_horizon": {
+      "900": {
+        "n": 1,
+        "median_abs_error": "0.0042958346999016070842899311",
+        "bias": "-0.0042958346999016070842899311",
+        "coverage": "1",
+        "mean_width": "0.040",
+        "mean_winkler": "0.040"
+      }
+    },
+    "rows": [
+      {
+        "forecast_id": "pep-1792675800-wait",
+        "horizon_seconds": 900,
+        "outcome": "-0.0022958346999016070842899311",
+        "q10": "-0.018",
+        "q50": "0.002",
+        "q90": "0.022",
+        "abs_error": "0.0042958346999016070842899311",
+        "bias": "-0.0042958346999016070842899311",
+        "covered": true,
+        "width": "0.040",
+        "winkler": "0.040"
+      }
+    ]
+  },
+  "zero_baseline": {
+    "n": 1,
+    "median_abs_error": "0.0022958346999016070842899311",
+    "bias": "-0.0022958346999016070842899311",
+    "coverage": "1",
+    "mean_width": "0E-29",
+    "mean_winkler": "0E-29",
+    "q10": "-0.00229583469990160708428993110",
+    "q90": "-0.00229583469990160708428993110"
+  },
+  "replay": {
+    "run_id": "20261022T133127Z_761a922d",
+    "status": "PASS",
+    "checks": {
+      "proposal_snapshot_hash": true,
+      "proposal_opportunity_hash": true,
+      "proposal_cutoff": true,
+      "batch_sha256": true,
+      "forecast_bound": true
+    },
+    "forecast_id": "pep-1792675800-wait"
+  },
+  "limits": [
+    "N=1 diagnostic; not calibration, superiority or profitability",
+    "catalog universe is current, not historical causal membership",
+    "no account-verified minimum/feeAsset/finality",
+    "WAIT creates no order; realized PnL is zero"
+  ],
+  "prompt_sha256": "a9b08f09b63ef5ac9f224e62c8c491bebeb2978de0b56da9048e9e0b440bfb29",
+  "code_sha256": "4538b589ba50514a8c2e703793cecde2d7a4eb3c940fe1aed1d8c7f35adc33dd",
+  "config_sha256": "58f2420cff56d675a95bae62d28cd519307ae9b0414ebd6950c7436890ffa0be",
+  "batch_sha256": "9abe6b53c246f80016c91c64afd04cd1d64276e781a69ce6dd704050350c69e9",
+  "status": "REAL_MODEL_DECISION",
+  "host_outcome": "MODEL_DECISION"
+}

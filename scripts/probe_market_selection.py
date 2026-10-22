@@ -61,7 +61,7 @@ async def main(argv=None):
         feed, account_symbols=symbols, account_as_of=received,
         interval_seconds=300, round_trip_fee_pct=Decimal(".006"),
         min_depth_tmn=Decimal("1000000"), max_spread_pct=Decimal(".003"),
-        available_tmn_cash=Decimal("5000000"), batch_limit=3,
+        available_tmn_cash=Decimal("5000000"), batch_limit=2,
     )
     (run_dir / "scan.json").write_text(json.dumps(
         {"status": report["status"], "cutoff": report["cutoff"], "errors": report["errors"],

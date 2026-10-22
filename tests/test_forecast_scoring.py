@@ -42,7 +42,7 @@ class ForecastValidationTests(unittest.TestCase):
             dict(return_q10=".02", return_q50=".01"),
             dict(return_q50=".04", return_q90=".03"),
             dict(return_q50=D("2.5")),  # 2.5 percent written as a fraction
-            dict(return_q50=0.012),  # raw float
+            dict(return_q50=2.5),  # numeric percent, not a fraction
             dict(horizon_seconds=30),
             dict(review_after_seconds=20000),
         ):

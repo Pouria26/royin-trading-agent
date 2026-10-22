@@ -154,12 +154,6 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
     return tuple(sorted(accepted, key=lambda c: (-c.score, c.snapshot.symbol))[:limit])
 
 
-def select_candidate(shortlist, **kwargs):
-    """Deprecated host-winner helper; kept only for internal ordering tests."""
-    batch = build_candidate_batch(shortlist, **kwargs)
-    return batch[0] if batch else None
-
-
 class ScannerPublicFeed:
     """Public GET only, one attempt owner, bounded responses and age-limited cache."""
 

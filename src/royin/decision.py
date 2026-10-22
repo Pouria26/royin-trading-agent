@@ -125,13 +125,20 @@ class ReturnForecast(BaseModel):
     @field_validator("reference_price", mode="before")
     @classmethod
     def positive_reference(cls, value):
+        if isinstance(value, float):
+            value = str(value)
         return decimal_number(value, positive=True)
 
     @field_validator("return_q10", "return_q50", "return_q90", mode="before")
     @classmethod
     def signed_return_fraction(cls, value):
+        if isinstance(value, float):
+            # JSON models emit numbers; the forecast is a research estimate, not money.
+            if value != value or value in (float("inf"), float("-inf")):
+                raise ValueError("Return must be finite")
+            value = str(value)
         if isinstance(value, bool) or not isinstance(value, (str, int, Decimal)):
-            raise ValueError("Return must be an exact decimal, never a float")
+            raise ValueError("Return must be an exact decimal, never an arbitrary object")
         number = Decimal(value)
         if not number.is_finite() or abs(number) > 1:
             raise ValueError("Return fraction must be finite and within [-1, 1]")
@@ -142,7 +149,11 @@ class ReturnForecast(BaseModel):
     @field_validator("target_return_fraction", mode="before")
     @classmethod
     def positive_target(cls, value):
-        return None if value is None else decimal_number(value, positive=True)
+        if value is None:
+            return None
+        if isinstance(value, float):
+            value = str(value)
+        return decimal_number(value, positive=True)
 
     @field_validator("forecast_id", "invalidation", mode="before")
     @classmethod
@@ -220,6 +231,13 @@ class RoleDecisionProposal(DecisionProposal):
         return value
 
 
+class MarketEntryProposal(RoleDecisionProposal):
+    """Batch entry output: a forecast is mandatory even when the model waits."""
+
+    forecast: ReturnForecast
+    horizon_seconds: int = Field(strict=True, ge=60, le=21600)
+    review_after_seconds: int = Field(strict=True, ge=0)
+
 
 def validate_role_proposal(
     proposal, *, role, snapshot, position, opportunity,
@@ -234,7 +252,10 @@ def validate_role_proposal(
         proposal.role != role or proposal.cutoff != snapshot.cutoff
         or proposal.snapshot_sha256 != snapshot.snapshot_sha256
         or proposal.position_sha256 != (position.sha256 if position else None)
-        or proposal.opportunity_sha256 != (opportunity.sha256 if opportunity else None)
+        or (
+            not (market_batch is not None and proposal.action == "WAIT")
+            and proposal.opportunity_sha256 != (opportunity.sha256 if opportunity else None)
+        )
     ):
         raise ValueError("Role/cutoff/snapshot/position mismatch")
     allowed = {"WAIT", "ENTER"} if role == "ENTRY_ANALYST" else {"WAIT", "EXIT"}
@@ -263,6 +284,24 @@ def validate_role_proposal(
             if (
                 proposal.horizon_seconds != proposal.forecast.horizon_seconds
                 or proposal.review_after_seconds != proposal.forecast.review_after_seconds
+            ):
+                raise ValueError("Horizon fields disagree with the forecast")
+        elif proposal.forecast is not None:
+            # A WAIT may carry one research forecast; it never creates a position.
+            if proposal.forecast.symbol != snapshot.symbol:
+                raise ValueError("WAIT research forecast must bind the echoed snapshot")
+            if horizon_bounds is None:
+                raise ValueError("Host horizon bounds required")
+            validate_forecast(
+                proposal.forecast, snapshot=snapshot,
+                horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
+                remaining_seconds=remaining_seconds,
+            )
+            if (
+                (proposal.horizon_seconds is not None
+                 and proposal.horizon_seconds != proposal.forecast.horizon_seconds)
+                or (proposal.review_after_seconds is not None
+                    and proposal.review_after_seconds != proposal.forecast.review_after_seconds)
             ):
                 raise ValueError("Horizon fields disagree with the forecast")
     elif require_forecast and proposal.action == "ENTER":
@@ -304,6 +343,9 @@ class Decision(BaseModel):
     target_profit_pct: Decimal | None = None
     stop_loss_pct: Decimal | None = None
     exit_reason: str | None = None
+    horizon_seconds: int | None = None
+    review_after_seconds: int | None = None
+    forecast: ReturnForecast | None = None
 
     @field_validator("decision_id", "symbol", mode="before")
     @classmethod
@@ -393,4 +435,7 @@ def bind_decision(
         target_profit_pct=target_profit,
         stop_loss_pct=stop_loss,
         exit_reason=proposal.exit_reason,
+        horizon_seconds=getattr(proposal, "horizon_seconds", None),
+        review_after_seconds=getattr(proposal, "review_after_seconds", None),
+        forecast=getattr(proposal, "forecast", None),
     )

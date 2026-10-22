@@ -282,3 +282,52 @@ exit2.99@101949 after gap/slippage, sell fee914.48253 => realized4016.02747TMN,
 cash5004016.02747/base0. It is FAKE_MODEL/synthetic data, not an AI profit estimate.
 No future price is included in either role's input; future observations only drive
 later host ticks. Official account/source critical unknowns still close real release.
+
+## Market selection and terminal forecast — first real-model run, 2026-10-22
+
+This section supersedes nothing above; it adds a separate, bounded protocol
+(`config/market-ai-forecast-protocol-v1.json`, frozen 17:08 Tehran before the outcome).
+
+**Profile:** `PUBLIC_MARKET_PAPER` on current Wallex public data. The universe is the
+current catalog after the existing denylist/TON exclusion, not an account-verified
+universe; no order, account write or private endpoint was used.
+
+**What the model did:** host verified catalog, depth, uniform 5m closed cutoff, fee
+(0.006 round trip) and freshness, then exposed two liquidity-valid candidates
+(BTCTMN, PEPETMN) in host order. The Entry Analyst chose PEPETMN over the first
+candidate, returned WAIT, and issued a 900-second terminal forecast:
+q10 -0.018, q50 0.002, q90 0.022, target 0.012, reference 1.2196.
+The host accepted the decision (no fallback), bound it to the PEPETMN snapshot hash
+and opportunity hash, and recorded the provider request/response trace.
+Model: `gpt-6-luna`; 2390 input / 474 output tokens, 2 HTTP attempts,
+USD 0.00247296 reserved ceiling.
+
+**Outcome and scoring (N=1, diagnostic only):** the 1-minute close at cutoff+900s
+was 1.2168, a terminal return of **-0.0022958** (-0.2296%). The model's q50 was
++0.002, so absolute q50 error is 0.0042958 (0.4296%). The -0.2296% outcome lies
+inside q10..q90 (coverage 1), interval width 0.04, Winkler score 0.040. A zero-point
+forecast had absolute error 0.0022958. An empirical-interval baseline is **BLOCKED**:
+one outcome cannot estimate development quantiles, and fitting on this outcome would
+be leakage. No calibration, superiority, profitability or future-accuracy claim follows.
+
+**Replay:** `scripts/score_market_forecast.py --replay` recomputes the batch SHA256
+from the recorded candidate view, re-checks the chosen snapshot/opportunity hashes
+and cutoff, and re-validates the forecast against the recorded snapshot: **PASS**.
+The outcome step (`--score`) fetches only the 1-minute close at the exact horizon;
+it returns `MISSING_OUTCOME` rather than interpolating a missing quote.
+
+**Operational findings retained as engineering facts:**
+- The provider's second request carries the tool result; with three full candidates
+  it exceeded the policy's 7,168-byte safe input bound (8,158 bytes) and was correctly
+  blocked by `ModelBudget` before HTTP. The candidate view is now compact (IDs, key
+  features, cost) and the probe uses two candidates.
+- JSON numbers in the model forecast (e.g. `-0.018`) are accepted only for forecast
+  *estimates*, converted through their shortest decimal string; price/quantity money
+  paths remain exact-string/Decimal and unchanged.
+- WAIT with a forecast is a research record, not a position. The scored forecast did
+  not create an order; realized trading P&L for this run is zero because no trade
+  occurred, and is reported separately from forecast error.
+
+Limits: single forecast; current catalog (not historical causal membership); absolute
+timestamps visible to the model; no account minimum/feeAsset/finality verification;
+no independent-exposure sample. The positive-result gate remains **not established**.

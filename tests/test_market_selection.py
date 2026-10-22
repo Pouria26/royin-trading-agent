@@ -149,12 +149,15 @@ class MarketSelectionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_model_wait_is_preserved_without_fallback_symbol(self):
         market_batch = batch()
+        snap = market_batch["BTCTMN"][0]
         proposal = {
             "role": "ENTRY_ANALYST", "action": "WAIT", "symbol": None,
-            "cutoff": 8100, "snapshot_sha256": market_batch["BTCTMN"][0].snapshot_sha256,
+            "cutoff": 8100, "snapshot_sha256": snap.snapshot_sha256,
             "position_sha256": None, "opportunity_sha256": None,
             "evidence_ids": ["EV_DATA_FRESH"], "reason": "no attractive candidate",
             "invalidation": "next candle",
+            "horizon_seconds": 10800, "review_after_seconds": 1800,
+            "forecast": forecast(snap),
         }
         decision, trace, _ = await self.call(proposal, market_batch)
         self.assertEqual(decision.action, "WAIT")
