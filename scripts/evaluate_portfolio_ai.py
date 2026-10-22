@@ -59,17 +59,8 @@ def synthetic_scenario():
     return candles, rules, policy
 
 
-def run_self_check(protocol_path=PROTOCOL):
-    candles, rules, policy = synthetic_scenario()
-    initial, interval, slip = Decimal(5000000), 3600, Decimal(".0005")
-    bindings = portfolio_bindings(candles, rules, policy, initial, interval, slip)
-    protocol = json.loads(Path(protocol_path).read_text(encoding="utf8"))
-    if protocol["offline_bindings"] != bindings:
-        raise ValueError(
-            "Protocol/source/config/data hash mismatch; freeze a new version before outcomes"
-        )
-    records = []
-    record_bindings = bindings
+def fake_portfolio_producer(records, bindings):
+    """SDK fake only; recorded metadata can never establish real provider lineage."""
     skip_first_entry = True
 
     def fake(snapshot):
@@ -116,13 +107,32 @@ def run_self_check(protocol_path=PROTOCOL):
         records.append(
             {
                 "source": "FAKE_MODEL",
-                "manifest": record_bindings,
+                "origin_kind": "SDK_TEST_MODEL",
+                "manifest": bindings,
                 "snapshot_sha256": snapshot.snapshot_sha256,
                 "snapshot": snapshot.to_canonical_dict(),
                 "decision": decision.model_dump(mode="json"),
             }
         )
         return decision
+
+    return fake
+
+
+def run_self_check(protocol_path=PROTOCOL):
+    candles, rules, policy = synthetic_scenario()
+    initial, interval, slip = Decimal(5000000), 3600, Decimal(".0005")
+    protocol = json.loads(Path(protocol_path).read_text(encoding="utf8"))
+    version = protocol["offline_bindings"].get("binding_schema_version", 1)
+    bindings = portfolio_bindings(
+        candles, rules, policy, initial, interval, slip, binding_schema_version=version
+    )
+    if protocol["offline_bindings"] != bindings:
+        raise ValueError(
+            "Protocol/source/config/data hash mismatch; freeze a new version before outcomes"
+        )
+    records = []
+    fake = fake_portfolio_producer(records, bindings)
 
     old_requests = models.ALLOW_MODEL_REQUESTS
     models.ALLOW_MODEL_REQUESTS = False
@@ -139,9 +149,15 @@ def run_self_check(protocol_path=PROTOCOL):
         # Real decisions from a different cost scenario must be generated on that own-state path.
         # Reusing the base-cost records would be an invalid sensitivity experiment.
         record_bindings = portfolio_bindings(
-            candles, rules, policy, initial, interval, Decimal(".002")
+            candles,
+            rules,
+            policy,
+            initial,
+            interval,
+            Decimal(".002"),
+            binding_schema_version=version,
         )
-        skip_first_entry = True
+        fake = fake_portfolio_producer([], record_bindings)
         stress = run_portfolio_ablation(
             candles, rules, policy, fake, slippage_pct=Decimal(".002"), source="FAKE_MODEL"
         )
@@ -150,6 +166,7 @@ def run_self_check(protocol_path=PROTOCOL):
     return {
         "status": "PASS_OFFLINE_WIRING_ONLY",
         "primary_status": "BLOCKED_DATA",
+        "binding_stage": protocol.get("binding_stage", "LEGACY_FROZEN_SYNTHETIC"),
         "created_at_utc": datetime.now(UTC).isoformat(),
         "bindings": bindings,
         "protocol_sha256": hashlib.sha256(Path(protocol_path).read_bytes()).hexdigest(),
@@ -175,13 +192,19 @@ def main(argv=None):
         action="store_true",
         help="Synthetic data and fake SDK model only; zero HTTP",
     )
+    parser.add_argument(
+        "--protocol",
+        type=Path,
+        default=PROTOCOL,
+        help="Explicit protocol; legacy files remain immutable",
+    )
     args = parser.parse_args(argv)
     if not args.self_check:
         print(
             "BLOCKED_DATA: no semantics-approved prospective splits or exact own-ledger model records; no paid mode"
         )
         return 2
-    report = run_self_check()
+    report = run_self_check(args.protocol)
     directory = (
         ROOT
         / "artifacts/portfolio-ai"
@@ -195,6 +218,7 @@ def main(argv=None):
             {
                 "status": report["status"],
                 "primary_status": report["primary_status"],
+                "binding_stage": report["binding_stage"],
                 "manifest": str(path),
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }

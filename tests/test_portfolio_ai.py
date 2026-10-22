@@ -1,19 +1,40 @@
 """Portfolio wiring evidence only; synthetic prices and fake SDK model."""
 
 import copy
+import json
+import tempfile
 import unittest
 from dataclasses import replace
 from decimal import Decimal as D
+from pathlib import Path
 from unittest.mock import patch
 
-from royin.evaluation import always_wait_decision, recorded_portfolio_producer, run_simulation
+from royin.evaluation import (
+    always_wait_decision,
+    portfolio_bindings,
+    recorded_portfolio_producer,
+    run_simulation,
+)
 from scripts.evaluate_portfolio_ai import main, run_self_check, synthetic_scenario
 
 
 class PortfolioReplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.report = run_self_check()
+        candles, rules, policy = synthetic_scenario()
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "temporary-logic-protocol.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "binding_stage": "TEMPORARY_LOGIC_ONLY_NOT_FINAL_FREEZE",
+                        "offline_bindings": portfolio_bindings(
+                            candles, rules, policy, D(5000000), 3600, D(".0005")
+                        ),
+                    }
+                )
+            )
+            cls.report = run_self_check(path)
 
     def test_fake_replay_cash_oracle_and_each_arm_own_cash_path(self):
         report = self.report

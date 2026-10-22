@@ -199,3 +199,44 @@ with explicit requested/actual coverage and enough contiguous closed warmup bars
 internal gaps, invalid cadence and missing recent closed bars remain rejected.
 This does not relax the historical manifest contract or establish finality.
 See candidate-evaluation.md for the diagnostic outcomes and closed execution gates.
+
+
+## Independent research recheck — 2026-10-22, zero new GET
+
+Agent1 re-read the existing official candle-page capture (no new current-document
+fetch), installed SDK/source contracts, parent capture and each raw source used by
+the normalized segments. `scripts/research_portfolio.py` reproduces exact normalized
+row equality with native raw OHLCV, pinned query/source/hash and parent/catalog
+lineage. Both517/106-bar contiguous pieces remain separate; missing hour
+2026-09-22 13:00UTC is retained, with no forward-fill, dropped worst window or
+unknown minute conversion. Source-only ACCEPTED never becomes primary acceptance.
+
+| Dataset SHA256 prefix | Structural quality | Time | Finality | Volume | Feature/financial use |
+|---|---|---|---|---|---|
+| 8529bd60af25 (517 bars) | PASS_RAW_RECONCILED | interval-start assumption only | UNKNOWN | asset UNKNOWN | native price/relative-volume diagnostics; conditional financial scenario only |
+| c533c03aa284 (106 bars) | PASS_RAW_RECONCILED | interval-start assumption only | UNKNOWN | asset UNKNOWN | same; development/exposed, no holdout/selection |
+
+Price unit TMN per USDT is declared from symbol/catalog; no rial conversion is made.
+Feature cutoff is assumed t+3600 and each used bar must already be closed at capture,
+not merely closed today. The raw final endpoint remains excluded under [from,to).
+Volume is never silently treated as verified liquidity: the diagnostic explicitly
+assumes base USDT for the existing simulator's volume>=quantity condition. That
+assumption is required in the input plan and prevents a primary/executable claim;
+missing/UNKNOWN unit declarations reject. Relative volume features are provisional,
+not proof of units/finality or size available to our order. Historical prices cannot
+serve as current pilot quotes or executable depth.
+
+The minute/native example at1789347600 was independently re-parsed from pinned raw:
+all60 minute rows aggregate open232814; native open232719; first positive-volume
+minute open232719. Fourteen minute rows have zero volume; no row was removed.
+High233575/low232499/close233000/volume48881.08740582 match in this example. Different
+bar-construction contracts are plausible; exchange bugs, exact construction rules and
+cause are not established. Existing /docs/basic-services-candles capture documents
+resolution60 as one-hour grouping but does not attest interval labels, finality or
+volume asset. Detailed hashes/queries/versions: .local/parallel/research-source-recheck.json.
+
+Public research eligibility: pinned catalog61c697093ab4 reports USDTTMN spot and
+USDT/TMN is absent from the unchanged denylist. This is not a fresh account allowlist
+or live approval. Final code/schema/source freeze awaits both agents stopping and
+integration. See portfolio-ai-evaluation.md for actual diagnostic losses, no-fills,
+blocked real-AI arm and the separately prepared paid compatibility pilot.

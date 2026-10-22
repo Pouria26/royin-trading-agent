@@ -1031,6 +1031,7 @@ def run_simulation(
                     "snapshot": snap.to_canonical_dict(),
                     "snapshot_sha256": snap.snapshot_sha256,
                     "decision": decision.model_dump(mode="json"),
+                    "client_id": None,
                     "risk": {
                         k: str(v) if isinstance(v, Decimal) else v
                         for k, v in asdict(risk_res).items()
@@ -1060,6 +1061,7 @@ def run_simulation(
                     timestamp=current_time,
                 )
                 if order:
+                    decision_traces[-1]["client_id"] = order.client_id
                     orders_submitted += 1
                     passive_submitted = passive_submitted or passive
                     if logger:
@@ -1119,9 +1121,15 @@ def run_simulation(
             )
         ]
         orders = [
-            dict(zip(("client_id", "side", "price", "quantity", "status"), row, strict=True))
+            dict(
+                zip(
+                    ("client_id", "side", "price", "quantity", "status", "created_at"),
+                    row,
+                    strict=True,
+                )
+            )
             for row in db.execute(
-                "SELECT client_id,side,price,quantity,status FROM order_intents ORDER BY rowid"
+                "SELECT client_id,side,price,quantity,status,created_at FROM order_intents ORDER BY rowid"
             )
         ]
         total_fees_tmn = sum(Decimal(r[0]) for r in fee_rows if r[1] == "TMN")
@@ -1129,6 +1137,7 @@ def run_simulation(
 
     metrics = position_metrics(ledger, rules)
     final_equity = ledger.get_equity({rules.symbol: final_candle.close}, rules.quote_asset)
+    best_episode = max((Decimal(p) for p in metrics["round_trip_pnls"]), default=None)
     peak_equity = max(peak_equity, final_equity)
     max_drawdown = max(max_drawdown, (peak_equity - final_equity) / peak_equity)
     if own_logger:
@@ -1160,6 +1169,24 @@ def run_simulation(
         "cash_return_pct": fin_report["net_return_pct"],
         "gross_pnl_before_quote_fees_tmn": str(final_equity - initial_capital + total_fees_tmn),
         "net_pnl_mtm_tmn": str(final_equity - initial_capital),
+        "best_closed_episode_pnl_tmn": str(best_episode) if best_episode is not None else None,
+        "best_closed_episode_fraction_of_net_pnl": str(
+            best_episode / (final_equity - initial_capital)
+        )
+        if best_episode is not None and final_equity != initial_capital
+        else None,
+        "net_return_without_best_closed_episode_pct": str(
+            (final_equity - initial_capital - best_episode) / initial_capital * 100
+        )
+        if best_episode is not None
+        else None,
+        "net_pnl_without_best_closed_episode_tmn": str(
+            final_equity - initial_capital - best_episode
+        )
+        if best_episode is not None
+        else None,
+        "without_best_episode_contract": "accounting subtraction only, not a counterfactual rerun; open residual remains included",
+        "independent_exposures": None,
         "pnl_contract": "weighted average basis includes buy quote fee; realized sells net of sell fee; fees informational, not subtracted twice; gross only for this quote-fee simulation",
         "return_denominator": "whole initial account; not position return",
         "drawdown_basis": "closed-candle MTM plus final exit fee; not intrabar",
@@ -1175,18 +1202,41 @@ def run_simulation(
     }
 
 
-def portfolio_bindings(candles, rules, policy, initial_capital, interval_seconds, slippage_pct):
+def source_bundle_sha256(root, paths, *, binding_schema_version=2):
+    """V1 preserves raw legacy bytes; V2 replaces CRLF with LF and length-frames files."""
+    if type(binding_schema_version) is not int or binding_schema_version not in (1, 2):
+        raise ValueError("Unsupported portfolio binding schema")
+    digest = hashlib.sha256()
+    for path in sorted(paths, key=lambda p: p.relative_to(root).as_posix()):
+        name, content = path.relative_to(root).as_posix().encode(), path.read_bytes()
+        if binding_schema_version == 1:
+            digest.update(name + b"\0" + content)
+        else:
+            content = content.replace(b"\r\n", b"\n")
+            digest.update(len(name).to_bytes(8, "big") + name)
+            digest.update(len(content).to_bytes(8, "big") + content)
+    return digest.hexdigest()
+
+
+def portfolio_bindings(
+    candles,
+    rules,
+    policy,
+    initial_capital,
+    interval_seconds,
+    slippage_pct,
+    *,
+    binding_schema_version=2,
+):
     """Bind replay to executable sources and the entire shared execution scenario."""
     root = Path(__file__).resolve().parents[2]
     paths = sorted(
         [*root.glob("src/royin/*.py"), *root.glob("scripts/*.py"), root / "requirements.lock"]
     )
-    return {
-        "code_sha256": hashlib.sha256(
-            b"".join(
-                p.relative_to(root).as_posix().encode() + b"\0" + p.read_bytes() for p in paths
-            )
-        ).hexdigest(),
+    bindings = {
+        "code_sha256": source_bundle_sha256(
+            root, paths, binding_schema_version=binding_schema_version
+        ),
         "prompt_sha256": hashlib.sha256(SYSTEM_INSTRUCTIONS.encode()).hexdigest(),
         "model": "gpt-6-luna",
         "provider": "boxapi",
@@ -1211,23 +1261,76 @@ def portfolio_bindings(candles, rules, policy, initial_capital, interval_seconds
         ).hexdigest(),
         "family": "existing_naive_crossover_with_ai_decision",
     }
+    if binding_schema_version == 2:
+        bindings.update(
+            binding_schema_version=2,
+            source_bytes_contract="CRLF_TO_LF_LENGTH_FRAMED_V2",
+            ai_role="FULL_DECISION_PROPOSAL_NOT_VETO",
+        )
+    return bindings
 
 
-def recorded_portfolio_producer(records, expected, *, source):
+def recorded_portfolio_producer(records, expected, *, source, real_lineage=None):
     """No nearest-input reuse; another arm's cash/position is another model input."""
     if source not in ("REAL_MODEL", "FAKE_MODEL"):
         raise ValueError("Explicit model evidence kind required")
+    if source == "REAL_MODEL" and (not real_lineage or expected.get("binding_schema_version") != 2):
+        raise ValueError("Reviewed REAL_MODEL response lineage and binding V2 required")
     indexed = {}
     for record in records:
         key = record.get("snapshot_sha256")
         if record.get("manifest") != expected or record.get("source") != source or key in indexed:
             raise ValueError("Recorded portfolio binding/source/uniqueness mismatch")
+        if source == "REAL_MODEL":
+            proof = real_lineage.get(record.get("response_sha256"))
+            if (
+                record.get("origin_kind") != "REAL_MODEL_PROVIDER_RESPONSE"
+                or not proof
+                or proof.get("review_status") != "INDEPENDENTLY_REVIEWED"
+                or proof.get("manifest") != expected
+                or proof.get("snapshot_sha256") != key
+                or proof.get("decision") != record.get("decision")
+                or not record.get("request_sha256")
+                or proof.get("request_sha256") != record["request_sha256"]
+                or proof.get("request_capture_verified") is not True
+            ):
+                raise ValueError("Missing reviewed provider response provenance")
+            request = proof["request"]
+            if request != {
+                "system_instructions": SYSTEM_INSTRUCTIONS,
+                "user_prompt": f"Evaluate market snapshot for {record['snapshot']['symbol']} at cutoff {record['snapshot']['cutoff']}.",
+                "snapshot": record["snapshot"],
+            }:
+                raise ValueError("REAL_MODEL request/input mismatch")
+            response = proof["response"]
+            if (
+                response.get("object") != "chat.completion"
+                or response.get("model") != expected["model"]
+                or not isinstance(response.get("id"), str)
+                or not response["id"]
+                or len(response.get("choices", [])) != 1
+            ):
+                raise ValueError("Invalid recorded provider completion")
+            choice = response["choices"][0]
+            calls = choice.get("message", {}).get("tool_calls", [])
+            if (
+                choice.get("finish_reason") != "tool_calls"
+                or len(calls) != 1
+                or calls[0].get("function", {}).get("name") != "final_result"
+            ):
+                raise ValueError("Missing final typed provider output")
+            proposal = DecisionProposal.model_validate_json(calls[0]["function"]["arguments"])
+            decision = Decision.model_validate(record["decision"])
+            if proposal.model_dump() != {
+                k: getattr(decision, k) for k in type(proposal).model_fields
+            }:
+                raise ValueError("Provider output/decision mismatch")
         indexed[key] = record
 
     def producer(snapshot):
         record = indexed.get(snapshot.snapshot_sha256)
         if not record or record.get("snapshot") != snapshot.to_canonical_dict():
-            raise ValueError("Missing exact own-ledger model input")
+            raise RecordedPortfolioBlocked("Missing exact own-ledger model input")
         decision = Decision.model_validate(record["decision"])
         if (decision.symbol, decision.cutoff, decision.snapshot_sha256) != (
             snapshot.symbol,
@@ -1238,6 +1341,10 @@ def recorded_portfolio_producer(records, expected, *, source):
         return decision
 
     return producer
+
+
+class RecordedPortfolioBlocked(ValueError):
+    """No reviewed real decision exists for this arm's exact evolving state."""
 
 
 def run_portfolio_ablation(
@@ -1252,7 +1359,12 @@ def run_portfolio_ablation(
     source,
 ):
     """Four arms; each run creates its own ledger and identical execution/risk gates."""
-    if source not in ("REAL_MODEL_REPLAY", "FAKE_MODEL", "FAKE_MODEL_REPLAY"):
+    if source not in (
+        "REAL_MODEL_REPLAY",
+        "FAKE_MODEL",
+        "FAKE_MODEL_REPLAY",
+        "BLOCKED_RECORDED_AI",
+    ):
         raise ValueError("Model evidence source required")
     results = {}
     for name, producer in {
@@ -1261,6 +1373,14 @@ def run_portfolio_ablation(
         "rule": baseline_rule_decision,
         "rule_ai": ai_producer,
     }.items():
+        if name == "rule_ai" and ai_producer is None:
+            results[name] = {
+                "status": "BLOCKED_RECORDED_AI",
+                "equity_curve": None,
+                "net_return_pct": None,
+                "evidence_kind": "NO_MODEL_RECORDS",
+            }
+            continue
         result = run_simulation(
             candles,
             producer,
@@ -1353,14 +1473,9 @@ def evaluate_strategy_suite(
                 raise ValueError(
                     "No REAL_MODEL decision for this strategy's exact position/cash snapshot"
                 )
-            dec = Decision.model_validate(r["decision"])
-            if (
-                dec.snapshot_sha256 != snap.snapshot_sha256
-                or dec.cutoff != snap.cutoff
-                or dec.symbol != snap.symbol
-            ):
-                raise ValueError("Recorded decision state mismatch")
-            return dec
+            raise ValueError(
+                "Legacy REAL_MODEL records lack reviewed V2 response lineage; use the research importer"
+            )
 
         results["5_Recorded_REAL_MODEL"] = run_simulation(
             candles,
