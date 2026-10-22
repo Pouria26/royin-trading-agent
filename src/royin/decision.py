@@ -1,8 +1,11 @@
+import hashlib
 import re
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from royin.market_data import decimal_number
 
 
 class DecisionProposal(BaseModel):
@@ -16,6 +19,11 @@ class DecisionProposal(BaseModel):
     target_profit_pct: Decimal | None = None
     stop_loss_pct: Decimal | None = None
     exit_reason: str | None = None
+
+    @field_validator("target_profit_pct", "stop_loss_pct", mode="before")
+    @classmethod
+    def exact_optional_fraction(cls, value):
+        return None if value is None else decimal_number(value, positive=True)
 
     @field_validator("evidence_ids", mode="before")
     @classmethod
@@ -38,6 +46,78 @@ class DecisionProposal(BaseModel):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("Text fields must be non-empty strings")
         return value.strip()
+
+
+class PositionReviewContext(BaseModel):
+    """Read-only values supplied by execution owner B; no model-owned risk policy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    quantity: Decimal
+    cost_basis_tmn: Decimal
+    net_liquidation_tmn: Decimal
+    opened_at: int = Field(ge=0)
+    observed_at: int = Field(ge=0)
+    hard_exit_at: int = Field(ge=0)
+    initial_stop_price: Decimal
+    trailing_stop_price: Decimal
+    checkpoint_profit_pct: Decimal
+
+    @field_validator("quantity", "cost_basis_tmn", "initial_stop_price", "trailing_stop_price")
+    @classmethod
+    def positive_decimal(cls, value):
+        return decimal_number(value, positive=True)
+
+    @field_validator("net_liquidation_tmn", "checkpoint_profit_pct")
+    @classmethod
+    def nonnegative_decimal(cls, value):
+        return decimal_number(value)
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+
+
+class EntryOpportunityContext(BaseModel):
+    """Fresh scanner cost/liquidity facts; never order sizing or account authorization."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    spread_pct: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    round_trip_fee_pct: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    bid_depth_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    ask_depth_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    catalog_received_at: int = Field(ge=0)
+    candle_received_at: int = Field(ge=0)
+    depth_received_at: int = Field(ge=0)
+    observed_at: int = Field(ge=0)
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+
+
+class RoleDecisionProposal(DecisionProposal):
+    role: Literal["ENTRY_ANALYST", "POSITION_REVIEWER"]
+    cutoff: int = Field(strict=True, ge=0)
+    snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    position_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    opportunity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+def validate_role_proposal(proposal, *, role, snapshot, position, opportunity):
+    """Reject cross-role/state output before the unchanged execution Decision boundary."""
+    if not isinstance(proposal, RoleDecisionProposal) or (
+        proposal.role != role or proposal.cutoff != snapshot.cutoff
+        or proposal.snapshot_sha256 != snapshot.snapshot_sha256
+        or proposal.position_sha256 != (position.sha256 if position else None)
+        or proposal.opportunity_sha256 != (opportunity.sha256 if opportunity else None)
+    ):
+        raise ValueError("Role/cutoff/snapshot/position mismatch")
+    allowed = {"WAIT", "ENTER"} if role == "ENTRY_ANALYST" else {"WAIT", "EXIT"}
+    if proposal.action not in allowed or (
+        proposal.target_profit_pct is not None or proposal.stop_loss_pct is not None
+    ):
+        raise ValueError("Role action or model-owned risk policy forbidden")
 
 
 class Decision(BaseModel):

@@ -200,3 +200,66 @@ micro-pilot with its own risk policy. No profitable candidate was invented to en
 that separate execution task. Full suite/final freeze are deferred to integration
 while Agent2 edits shared hashed sources. Selected tests and current blockers are in
 .local/parallel/research-agent-handoff.md; no commit/push or worker from Agent1.
+
+## Task A repair boundary — 2026-10-22, based on ef48b9a
+
+**Current strategy runtime: BLOCKED_PENDING_B_CONTRACT.** These new components do
+not enable the financial CLI, Candidate Shadow or LIVE. B's separate clone owns the
+ledger/broker/risk, trailing, restart and exporter; the requested interface is a
+proposal until B replies. No root status, dependency, policy, dashboard or B source
+was changed by A. The original outcomes, protocols V1–V6 and raw artifacts remain
+immutable; a new integrated freeze is required after both branches stop changing.
+
+Independent reproduction of the old draft (synthetic, zero HTTP/model calls) found:
+existing cash1234 was reset to5000000; one fetch produced three historical decisions
+with zero decide/model calls; the saved arm was named rule_ai with constant code
+binding; order.created_at1790830800 preceded decision.cutoff1790831700 and the old
+same-bar simulation filled at that cutoff. Two pre-fix regressions separately failed
+on a missing minute accepted as a full aggregate and all scanner failures returning
+DOGETMN. These are old-code correctness failures, not historical financial evidence.
+The unsafe session and fake-provenance publisher have been removed from the callable
+path and now fail before side effects. Existing artifacts were not relabeled in place.
+
+A supplies `decide_role` with deterministic ENTRY_ANALYST or POSITION_REVIEWER dispatch,
+using the existing BoxAPI Chat Completions/Pydantic AI transport. Entry proposes ENTER
+or WAIT; reviewer proposes WAIT/HOLD or EXIT. Each must read the bounded context once,
+echo role/cutoff/snapshot/position/opportunity hashes, and cite existing evidence.
+Host rejects wrong roles/actions/state and any model stop/target proposal. The old
+Decision schema and bind_decision signature remain compatible with B. Its legacy
+finite target clamp remains a validation corridor; it is not itself a profit cap.
+A's draft baseline no longer exits solely at the profit checkpoint. No change to B's
+protection was assumed or made. Reviewer cost basis/net-if-exit/stop/age input remains
+a proposed typed contract, not an attested financial-state calculation.
+
+The new role trace captures context, code/config/prompt/model, SDK messages and usage,
+and (on the owned production transport) request/final response bodies without headers.
+REAL_MODEL_ATTEMPT is not proof of a successful provider decision; HOST_FALLBACK is
+separate from MODEL_DECISION. Raw captures need private storage and independent review
+before economic claims/replay. Fake transport traces remain FAKE_MODEL. No learning
+or reflection improvement has been established; no third reflection role was added.
+No model claim is supported solely by SQLite reservations or a source label.
+
+Both roles share one RoleRunEnvelope and the same operator-host ModelBudget: at most
+12 agent attempts,24 HTTP,USD0.04 reserved,512 output tokens,30s per call and600s per
+invocation; no repairs/retries. Actual maximum reservation at the current Luna rate
+is USD0.02967552/208896 reserved tokens. The envelope is invocation-local, NOT durable
+financial recovery or a cross-host lock. The durable global budget is never reset.
+The user chose this pilot only after B integration and single-host designation; no
+paid call has run on A's branch. Protection during inference and durable same-candle
+claims remain B integration requirements, not tests claimed passed by this branch.
+
+`run_role_ablation` provides separate same-capital ledgers for rule/single-model/two-role
+wiring with identical costs/risk/fill assumptions. Missing model arms have null
+curves/PnL and BLOCKED_PENDING_B_CONTRACT. Supplied synthetic producers are explicitly
+FAKE_MODEL; a REAL_MODEL_REPLAY label is rejected until full-position lineage/recovery
+integration exists. This is a fixed-symbol conditional comparison, not a historical
+whole-catalog scanner backtest or fresh holdout. No new return table, model skill,
+realized AI advantage or current Shadow uptime is claimed.
+
+Offline role tests demonstrate output-dependent ENTER versus WAIT and HOLD versus
+EXIT, invalid bindings, timeout and joint budget caps; scanner/current-cutoff tests
+cover gaps, stale/open/future data, warmup, duplicate/restart cutoff input and future
+invariance. These are synthetic correctness checks, not real-model economic oracles.
+B must still implement/test host trailing on reversal, deadline during timeout,
+atomic financial restart/peak/pending recovery and the read-only dashboard export.
+A's CLI remains blocked before feed, DB, model or manifest work; there is no new worker.

@@ -1400,6 +1400,29 @@ def run_portfolio_ablation(
     return results
 
 
+def run_role_ablation(candles, rules, policy, *, single_model=None, two_roles=None,
+                      source="NO_MODEL_RECORDS", initial_capital=Decimal("5000000"),
+                      interval_seconds=3600, slippage_pct=Decimal(".0005")):
+    """Conditional same-symbol wiring comparison, NOT causal whole-catalog selection evidence."""
+    if source not in ("NO_MODEL_RECORDS", "FAKE_MODEL"):
+        raise RecordedPortfolioBlocked("BLOCKED_PENDING_B_CONTRACT: reviewed full-position role replay required")
+    if source == "NO_MODEL_RECORDS" and (single_model is not None or two_roles is not None):
+        raise ValueError("Unattributed model producer")
+    results = {}
+    for name, producer in (("rule", baseline_rule_decision), ("single_model", single_model), ("two_roles", two_roles)):
+        if producer is None:
+            results[name] = dict(status="BLOCKED_PENDING_B_CONTRACT", evidence_kind="NO_MODEL_RECORDS",
+                                 equity_curve=None, total_realized_pnl=None)
+            continue
+        report = run_simulation(candles, producer, rules, policy, initial_capital=initial_capital,
+            interval_seconds=interval_seconds, slippage_pct=slippage_pct, enable_logging=False,
+            decision_source="HOST_BASELINE" if name == "rule" else source)
+        report.update(evidence_kind="PAPER_BASELINE_NO_AI" if name == "rule" else source,
+                      mode="HISTORICAL_REPLAY", selection_contract="CONDITIONAL_FIXED_SYMBOL_NOT_SCANNER_BACKTEST")
+        results[name] = report
+    return results
+
+
 def evaluate_strategy_suite(
     candles: Sequence[Candle],
     rules: MarketRules,

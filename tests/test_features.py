@@ -11,6 +11,20 @@ from royin.market_data import Candle, CandleSeries
 
 
 class FeatureExtractionTests(unittest.TestCase):
+    def test_stale_invalid_money_and_incomplete_closed_bins_fail(self):
+        from dataclasses import replace
+        cutoff = self.series.candles[-1].open_time + self.step
+        with self.assertRaises(ValueError):
+            extract_features(self.series, "USDTTMN", cutoff=cutoff+self.step)
+        with self.assertRaises(ValueError):
+            extract_features(replace(self.series, incomplete_bins=(cutoff-self.step,)), "USDTTMN", cutoff=cutoff)
+        bad = replace(self.series.candles[-1], high=Decimal("NaN"))
+        with self.assertRaises(ValueError):
+            extract_features(replace(self.series, candles=(*self.series.candles[:-1],bad)), "USDTTMN", cutoff=cutoff)
+        original = extract_features(self.series, "USDTTMN", cutoff=cutoff)
+        future_incomplete = extract_features(replace(self.series, incomplete_bins=(cutoff,)), "USDTTMN", cutoff=cutoff)
+        self.assertEqual(original.snapshot_sha256, future_incomplete.snapshot_sha256)
+
     def setUp(self):
         # Create 50 synthetic 15-minute candles (step = 900)
         self.step = 900

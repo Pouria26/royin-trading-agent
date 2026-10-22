@@ -163,8 +163,12 @@ def extract_features(
 ) -> FeatureSnapshot:
     """Extract causal features up to cutoff with strictly closed candles and gap validation."""
     step = series.interval_seconds
+    if type(step) is not int or step <= 0:
+        raise ValueError("Invalid interval or incomplete aggregate")
     if type(cutoff) is not int or cutoff <= 0:
         raise ValueError("Cutoff must be a positive integer timestamp")
+    if any(bucket + step <= cutoff for bucket in series.incomplete_bins):
+        raise ValueError("Incomplete aggregate before cutoff")
 
     validate_decimal(current_position_base, "current_position_base", allow_zero=True)
     validate_decimal(available_tmn_cash, "available_tmn_cash", allow_zero=True)
@@ -187,6 +191,11 @@ def extract_features(
             )
 
     last_candle = valid_candles[-1]
+    from royin.datasets import validate_candles
+
+    validate_candles(valid_candles, step, now=cutoff)
+    if cutoff - (last_candle.open_time + step) >= step:
+        raise ValueError("Stale closed candles")
     last_close = last_candle.close
 
     sma_fast = compute_sma(valid_candles, fast_period)

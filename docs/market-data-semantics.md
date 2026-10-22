@@ -240,3 +240,63 @@ USDT/TMN is absent from the unchanged denylist. This is not a fresh account allo
 or live approval. Final code/schema/source freeze awaits both agents stopping and
 integration. See portfolio-ai-evaluation.md for actual diagnostic losses, no-fills,
 blocked real-AI arm and the separately prepared paid compatibility pilot.
+
+## Task A current scanner components — 2026-10-22
+
+A's new scanner consumes the existing exact `decode_json`, `parse_history`,
+`aggregate_closed`, `parse_catalog` and `eligible_markets` boundaries. It ranks all
+catalog entries in the supplied verified account universe minus fixed restrictions;
+TON/TMN and TON/USDT are explicitly denied as well. Unknown account universe closes
+before GET/model; the account observation must be <=1h old. Public is_spot is not an
+account permission or an attestation of buy/sell status. B must supply active access
+and actual tick/step/minimum/feeAsset. Draft precision/min_qty defaults were removed
+from A's executable components, not promoted into verified order rules.
+
+Internal diagnostic choices (D, not exchange rules): catalog/receipt cache <=60s,
+minimum turnover100000000TMN, default top3 and hard shortlist cap5. Turnover is the
+catalog's quote_volume_24h: TMN directly, USDT multiplied by same-capture USDTTMN price.
+Raw base quantities are never summed across currencies. This conversion is a
+contemporaneous valuation estimate, not a historic quote or executable cross-rate.
+Current catalog cannot select a past winner: received/account-as-of times after the
+cutoff reject. Replay needs separate captured catalog/account/depth at each cutoff;
+there is no reconstruction of historical depth or historical universe from today's API.
+
+Only the shortlist fetches history/depth (1+2*3 default GET maximum per scan).
+The provider-independent ScannerPublicFeed has a total invocation cap<=32, timeout10s,
+spacing>=1s, one attempt per GET, exact endpoint allowlist,4MB response cap and
+content-addressed raw captures with query/receipt/SHA. A stale cached response is not
+returned after a failed request. Failures count toward cap and remain errors, not
+proof that there was no opportunity. Repeated calls share that feed's cap/cache.
+
+Minute input is exact Decimal before aggregation; all minutes in every closed bin
+must exist. The simple fetch is one GET with no retry or cache fallback. Gaps,
+partial aggregates, malformed OHLCV, float money and stale features reject.
+Causal extraction ignores future bars and future incomplete bins, but never fills
+gaps. The expensive scanner stage requires the latest entirely closed bin, sorted
+noncrossed depth (<=100 levels/side), caller-supplied maximum spread and minimum
+two-sided depth. Depth is price*base_quantity*quote_to_TMN within max_spread_pct of
+each side's best price. Score=ATR14/last_close-round_trip_fee_pct-spread_pct must be
+positive; ties use canonical symbol order. This is a liquidity/cost heuristic, not
+a probability or promise of profit. Caller fee is an explicit conservative bound
+for the shortlisted quotes, not an inferred account fee. Host rechecks all costs.
+No acceptable option returns NO_CANDIDATE; incomplete data returns BLOCKED_DATA.
+Portfolio available cash is supplied explicitly by the execution owner, never
+initialized per symbol. Entry sees bound spread/depth/fee facts separately from the
+market feature snapshot and must echo the opportunity hash.
+
+`next_current_snapshot` separates new closed candles from warmup: the initial
+watermark is the startup boundary; repeat polls and the same cutoff after restart
+return no new snapshot. A missing intermediate cutoff, stale data or invalid durable
+cutoff rejects. This is a pure gate, NOT durable claim/atomic order recovery: B must
+supply and claim the persisted cutoff before inference and co-commit financial state.
+Current strategy Shadow remains BLOCKED_PENDING_B_CONTRACT. OBSERVE_ONLY is unchanged.
+
+Observed public shapes (S,3 diagnostic GETs total, no account or model): catalog469
+rows included quote_volume_24h and price; USDTTMN depth used price/quantity objects,
+50 levels/side; one current resolution1 response supplied40 exact closed minute rows.
+Raw SHA/query/times are in ignored handoff evidence. These observations establish
+only the captured shape/window. Exchange timestamp start labeling, update/finality,
+volume asset and catalog source age are still unverified; receipt-age checks are not
+an exchange-timestamp guarantee. No historical protocol or rejected dataset was
+weakened. This new request was independent current public diagnostics, not a repeat
+of the exhausted historical-validation collector.
