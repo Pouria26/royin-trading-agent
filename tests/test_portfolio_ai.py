@@ -25,7 +25,7 @@ class PortfolioReplayTests(unittest.TestCase):
         report = run_role_ablation(candles, rules, policy)
         for name in ("single_model", "two_roles"):
             self.assertIsNone(report[name]["equity_curve"])
-            self.assertEqual(report[name]["status"], "BLOCKED_PENDING_B_CONTRACT")
+            self.assertEqual(report[name]["status"], "BLOCKED_RECORDED_AI")
         self.assertEqual(report["rule"]["evidence_kind"], "PAPER_BASELINE_NO_AI")
 
     def test_role_comparison_uses_separate_ledgers_and_rejects_real_label(self):

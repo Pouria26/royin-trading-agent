@@ -1405,13 +1405,13 @@ def run_role_ablation(candles, rules, policy, *, single_model=None, two_roles=No
                       interval_seconds=3600, slippage_pct=Decimal(".0005")):
     """Conditional same-symbol wiring comparison, NOT causal whole-catalog selection evidence."""
     if source not in ("NO_MODEL_RECORDS", "FAKE_MODEL"):
-        raise RecordedPortfolioBlocked("BLOCKED_PENDING_B_CONTRACT: reviewed full-position role replay required")
+        raise RecordedPortfolioBlocked("BLOCKED_RECORDED_AI: reviewed full-position role replay required")
     if source == "NO_MODEL_RECORDS" and (single_model is not None or two_roles is not None):
         raise ValueError("Unattributed model producer")
     results = {}
     for name, producer in (("rule", baseline_rule_decision), ("single_model", single_model), ("two_roles", two_roles)):
         if producer is None:
-            results[name] = dict(status="BLOCKED_PENDING_B_CONTRACT", evidence_kind="NO_MODEL_RECORDS",
+            results[name] = dict(status="BLOCKED_RECORDED_AI", evidence_kind="NO_MODEL_RECORDS",
                                  equity_curve=None, total_realized_pnl=None)
             continue
         report = run_simulation(candles, producer, rules, policy, initial_capital=initial_capital,

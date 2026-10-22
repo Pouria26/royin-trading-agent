@@ -263,3 +263,22 @@ invariance. These are synthetic correctness checks, not real-model economic orac
 B must still implement/test host trailing on reversal, deadline during timeout,
 atomic financial restart/peak/pending recovery and the read-only dashboard export.
 A's CLI remains blocked before feed, DB, model or manifest work; there is no new worker.
+
+## A/B integration follow-up — 2026-10-22
+
+A c620521 and B c69855e are merged on a separate codex/agent-ab-integration branch;
+main is unchanged. The earlier BLOCKED_PENDING_B_CONTRACT is superseded for the
+implemented offline boundary only. The financial CLI now names the remaining
+BLOCKED_RELEASE_CONTRACT_UNKNOWN; missing real AI comparison records remain
+BLOCKED_RECORDED_AI with null curves. No source approval, production transport,
+real-model call or current strategy worker is enabled by a branch merge.
+
+A new end-to-end synthetic SDK test connects Entry Analyst ENTER -> host risk ->
+atomic candle claim/decision/paper intent -> strictly later candle fill -> Reviewer
+HOLD above checkpoint -> host trailing -> real SQLite restart -> host exit. Single
+5M paper capital and pending reserves persist; a late model EXIT after host liquidation
+is rejected with no extra fill. Independent money oracle: qty2.99@100000, buy fee897,
+exit2.99@101949 after gap/slippage, sell fee914.48253 => realized4016.02747TMN,
+cash5004016.02747/base0. It is FAKE_MODEL/synthetic data, not an AI profit estimate.
+No future price is included in either role's input; future observations only drive
+later host ticks. Official account/source critical unknowns still close real release.

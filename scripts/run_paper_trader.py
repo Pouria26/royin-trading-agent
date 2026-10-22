@@ -367,7 +367,7 @@ def evaluate_impulse_strategy(
 
 def run_paper_session(*args, **kwargs):
     """The removed draft cannot reset an existing portfolio or publish historical AI claims."""
-    raise ValueError("BLOCKED_B_EXECUTION_CONTRACT: use reviewed replay or integrated current runner")
+    raise ValueError("BLOCKED_CURRENT_RUNTIME_ACCEPTANCE: use reviewed replay; exchange/source release contracts remain unknown")
 
 
 def save_manifest(*args, **kwargs):
@@ -393,7 +393,7 @@ def main(argv=None):
     parser.add_argument("--lookback", type=int, default=160, help="Number of candles to analyze")
     parser.add_argument("--db-path", type=str, default=":memory:", help="SQLite database path for ledger and memory")
     parser.parse_args(argv)
-    print("BLOCKED_PENDING_B_CONTRACT (BLOCKED_UNREVIEWED_REPLAY): financial recovery, protection and exporter contract pending. No market request or database write performed.")
+    print("BLOCKED_RELEASE_CONTRACT_UNKNOWN (BLOCKED_UNREVIEWED_REPLAY): spot minimum/feeAsset/expiry, source acceptance and current-runtime validation pending. No market request or database write performed.")
     return 2
 
 
