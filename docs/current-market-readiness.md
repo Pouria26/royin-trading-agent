@@ -149,3 +149,15 @@ wheel and diff check. A fresh real-provider diagnostic is still needed for this 
 Remaining: broaden model-directed market screening beyond the five researched markets;
 obtain fresh matured outcome/own-state baseline comparisons; resolve the original
 financial UNKNOWN without resetting its reserve/cap; verify actual fills before scaling.
+
+### Fresh real-provider contract observation
+
+At clean source revision dcc0aa4, run role-schema-real-20261022-1 completed one diagnostic
+cycle using12 public GETs and2 real model HTTPs. Its structured WAIT was accepted with
+0 host fallbacks and0 paper orders; offline source revalidation accepted its pre-outcome
+forecast. The model issued a negative ten-hour PEPETMN median forecast instead of
+inflating it into a >2% long setup. This is one successful protocol observation, not a
+measured improvement in predictive accuracy. No forecast outcome was fetched early.
+
+The prior15-cycle trial and this diagnostic ended STOPPED_FLAT. No background worker
+remains from these commands. The financial canary reserve/counter/UNKNOWN is unchanged.

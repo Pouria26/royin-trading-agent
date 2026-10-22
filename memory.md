@@ -222,3 +222,8 @@ a raw ENTER carrying legacy target_profit_pct=2. Null-only role risk fields now 
 advertised schema with the existing host constraint. Preserve original failed evidence;
 no claim of alpha improvement. Cycle cap bounds funded horizons and checkpoint time follows
 model completion.344 core tests passed; original financial UNKNOWN remains unresolved.
+
+Fresh real-provider observation after the null-only schema fix:12 public GETs,2 model HTTPs,
+1 accepted WAIT/0 fallbacks and0 orders. The negative ten-hour forecast remains pending;
+source revalidation passed without outcome HTTP. This proves protocol compatibility only.
+Both current trials ended STOPPED_FLAT; no unattended worker is claimed.

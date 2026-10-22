@@ -308,4 +308,4 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [x] Diagnose the real fallback from the recorded provider output: legacy target_profit_pct=2 violated host-owned risk policy. Make role risk fields null-only in the advertised schema, retain host validation, and clarify fractional forecast targets without inflating estimates.
 - [x] Bound funded holding time by the cycle limit as well as wall time; export current checkpoints after the decision rather than at cycle start.
 - [x]344 core tests passed in38.873s, Ruff/compileall/wheel/diff check passed. The prior10 dashboard tests remain applicable; dashboard source unchanged in this phase.
-- [ ] Run a fresh real-provider contract diagnostic on the corrected schema; this does not prove alpha or authorize financial recovery.
+- [x] Fresh corrected-schema real-provider diagnostic completed:12 public GETs,2 model HTTPs,1 accepted WAIT/0 fallbacks,0 orders; offline source revalidation accepted its forecast. No alpha or financial recovery claim.
