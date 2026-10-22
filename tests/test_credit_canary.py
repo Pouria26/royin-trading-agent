@@ -126,6 +126,18 @@ class CreditCanaryTests(unittest.TestCase):
         with patch("royin.canary.subprocess.check_output",side_effect=["a"*40," M source.py"]), self.assertRaises(ValueError):
             clean_revision(Path(self.temp.name))
 
+    def test_empty_http_failure_keeps_status_and_never_refunds_attempt(self):
+        self.intent()
+        self.transport.inner = httpx.MockTransport(lambda _:httpx.Response(403,content=b""))
+        with self.worker():
+            response = self.transport.handle_request(self.request())
+        self.assertEqual(response.status_code,403)
+        observed = json.loads((Path(self.ledger.db_path).parent/"captures/attempt-1-http.json").read_text())
+        self.assertEqual(observed["status_code"],403)
+        self.assertEqual(observed["attempt"],1)
+        self.assertNotIn("synthetic-key",json.dumps(observed))
+        self.assertEqual(json.loads(self.ledger.get_meta(self.transport.state_key))["buy"],1)
+
     def test_full_round_trip_reports_exact_fee_and_residual_instead_of_zero_dust(self):
         def fills(request):
             payload = json.loads(request.content)

@@ -103,11 +103,22 @@ class CreditCanaryTransport(httpx.BaseTransport):
             state["attempts"] += 1
             self.ledger.set_meta(self.state_key,json.dumps(state))
         # Attempt counters commit before any socket operation. Never refund ambiguity.
-        response = self.inner.handle_request(request)
-        raw = response.read()
         directory = Path(self.ledger.db_path).parent/"captures"
         directory.mkdir(parents=True,exist_ok=True)
-        (directory/(hashlib.sha256(raw).hexdigest()+".json")).write_bytes(raw)
+        observation = dict(attempt=state["attempts"],method=method,path=url.path,observed_at=int(time.time()))
+        try:
+            response = self.inner.handle_request(request)
+        except httpx.HTTPError as exc:
+            observation["error_type"] = type(exc).__name__
+            with (directory/f"attempt-{state['attempts']}-http.json").open("x",encoding="utf-8") as out:
+                json.dump(observation,out)
+            raise
+        observation.update(status_code=response.status_code,content_type=response.headers.get("content-type"))
+        # Preserve the HTTP outcome even if body streaming fails or returns no JSON.
+        with (directory/f"attempt-{state['attempts']}-http.json").open("x",encoding="utf-8") as out:
+            json.dump(observation,out)
+        raw = response.read()
+        (directory/(f"attempt-{state['attempts']}-"+hashlib.sha256(raw).hexdigest()+"-body.json")).write_bytes(raw)
         return response
 
     def close(self):

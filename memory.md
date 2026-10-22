@@ -167,3 +167,13 @@ lives under the operator home; cloning/restarting must not create a fresh allowa
 blocked. Read-only preparation passed. Fractional UTC-offset fill times are now accepted; whole-second
 fixture identities stay compatible. Complete cumulative multisets are required because the official
 order contract exposes no documented server fill ID. A dust result remains exit2, not fully realized profit.
+
+2026-10-22 actual technical attempt, revisione7d8bc5: one BUY POST, one cancel request, six GETs;
+empty POST body, repeated not_found_error, terminal local status BUY_UNKNOWN. Observed account cash
+delta0/USDT0 matched local total; do not infer rejection or eventual absence. Local reserve and eight
+attempts remain intact. Original capture lacked HTTP status; follow-up capture now preserves status
+before reading/decoding the body. Never fabricate the old status or reset/reissue to bypass the cap.
+
+Operator reported no new visible order/trade. Official create-api-key guidance distinguishes default
+read permission from separately enabled trading permission; Limit/Market/Easy Spot descriptions
+do not establish the actual key's permission. Permission remains unconfirmed, not an inferred root cause.

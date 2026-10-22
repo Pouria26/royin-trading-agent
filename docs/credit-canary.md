@@ -53,3 +53,28 @@ own scoped risk policy. A tiny technical success does not validate alpha or mode
 Verification before execution:324 core tests and9 dashboard tests passed; Ruff, compileall and
 wheel build passed. Eight new checks include an end-to-end mocked runner with matching/mismatching
 account balances. No exchange order had been sent at this source checkpoint.
+
+## Actual attempt at e7d8bc5,2026-10-22
+
+The authorized technical attempt used one POST, one cancellation request and six order GETs,
+with the same durable client ID. The POST body observation was empty, while subsequent order
+lookups returned not_found_error. The final order state is BUY_UNKNOWN, not rejected or filled.
+The observed dedicated-account cash delta was0 TMN and residual USDT0; total balances matched
+the allocated local ledger total. This is not proof of eventual order absence or successful execution.
+The local reserve and eight-attempt counter remain intact; no second BUY or SELL was attempted.
+General strategy execution and further pilot orders are NO_GO pending resolution.
+
+The original capture preserved bodies but omitted HTTP status metadata, so the exact POST status
+cannot be reconstructed. A follow-up regression now records each response status before body
+decoding (including empty bodies) and retains ambiguous attempt counts. It does not retroactively
+invent the earlier status or authorize another financial attempt.
+
+Operator check requested: inspect credit-account open orders/trade history and whether the
+existing API key has trading permission. Do not send the key, reset financial state or create a
+new client ID to get around this unresolved attempt. Private reports remain outside Git.
+
+The operator subsequently reported no new order/trade visible in the credit account. API-key
+trading permission is still unconfirmed. The official key guide distinguishes default read access
+from separately enabled trading access; knowing supported order types does not verify key permission.
+Source: https://developers.wallex.ir/docs/create-api-key . Follow-up checks:325 core tests passed;
+Ruff and compileall passed. The existing9 dashboard tests passed before this transport-only change.

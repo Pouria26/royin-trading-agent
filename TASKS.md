@@ -248,7 +248,16 @@ Full mission remains active. This phase is analysis/paper readiness, not a live 
 - [x] Execute bounded read-only preflight successfully; observe actual spot minimums, fees, account and buy/sell feasibility.
 - [x] Add eight offline contract/accounting checks, including exact fee/dust, account mismatch, restart, expiry recovery and fractional fill timestamps.
 - [x] Review324 passing core tests,9 dashboard tests, Ruff, compileall and wheel; clean source is required before execution.
-- [ ] Execute the authorized tiny technical canary from the committed source.
-- [ ] Independently reconcile real order observations and account delta. General strategy live remains blocked.
+- [x] Execute the authorized technical attempt at e7d8bc5: one BUY POST, one DELETE, six GETs; no repeated BUY.
+- [x] Compare observed account delta0 TMN/USDT0 with local total: MATCH; this is not proof of order finality.
+- [ ] Resolve BUY_UNKNOWN and verify exchange order finality/API trading permission; retain local reserve and exhausted request cap.
+- [x] Repair missing HTTP-status capture for empty bodies with a regression. Never infer the earlier unrecorded status.
+
+Current status: NO_GO_ORDER_UNKNOWN. A human account/order-permission check was requested;
+no more financial requests or automatic size escalation are authorized by this outcome.
+
+Operator reported no new visible order/trade; exact API-key trading permission remains requested.
+Follow-up verification:325 core tests passed (41.291s), Ruff/compileall passed; HTTP-status capture
+regression preserves empty-body failures without refunding or reissuing an ambiguous attempt.
 
 Source and operating limits: docs/credit-canary.md. A technical pilot incurs fees and does not prove alpha.

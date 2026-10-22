@@ -3,6 +3,10 @@
 Status: **in progress; production order transport remains blocked**. The full requested outcome
 includes real execution, not just this analysis phase. No profit or score is guaranteed.
 
+Follow-up: docs/credit-canary.md records a separately restricted technical attempt at e7d8bc5.
+It ended BUY_UNKNOWN with observed cash delta0 and no verified fill. General strategy live remains
+blocked; preserve the unresolved intent and caps. The technical exception is not an alpha release.
+
 | Requirement | Evidence | Remaining work |
 |---|---|---|
 | Review TradingAgents | Source commit e8f5503e9b86d5c2710b0c76b1f686703968c9df: researchers, manager, trader, backtest | Evaluate adaptations on Wallex |
