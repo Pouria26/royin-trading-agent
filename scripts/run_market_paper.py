@@ -541,7 +541,10 @@ class MarketPaperOrchestrator:
             batch_limit=3,
         )
 
-        batch_list = report.get("batch", [])
+        batch_list = [
+            item for item in report.get("batch", [])
+            if item.snapshot.symbol.endswith("TMN")
+        ]
         if not batch_list:
             trace = {
                 "decision": {
