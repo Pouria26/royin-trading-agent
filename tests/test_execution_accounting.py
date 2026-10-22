@@ -20,6 +20,34 @@ except ModuleNotFoundError:
 from royin.ledger import Ledger
 
 
+class PortfolioClaimTests(unittest.TestCase):
+    def test_unbound_nonempty_db_never_initializes_or_resets_cash(self):
+        ledger=Ledger()
+        ledger.set_balance("TMN",D(1234))
+        with self.assertRaises(ValueError):
+            ledger.initialize_portfolio(D(5000000),quote_asset="TMN",binding="a"*64)
+        self.assertEqual(ledger.get_balance("TMN").free,D(1234))
+
+    def test_pending_claim_survives_restart_and_complete_is_bound(self):
+        from royin.decision import Decision
+        with tempfile.TemporaryDirectory() as temp:
+            path=Path(temp)/"state.sqlite3"
+            ledger=Ledger(path)
+            ledger.initialize_portfolio(D(5000000),quote_asset="TMN",binding="a"*64)
+            self.assertTrue(ledger.claim_candle("USDTTMN",1200,"b"*64,60))
+            ledger=Ledger(path)
+            with self.assertRaises(BlockingIOError):
+                ledger.claim_candle("USDTTMN",1200,"b"*64,60)
+            decision=Decision(decision_id="d",symbol="USDTTMN",action="WAIT",cutoff=1200,
+                snapshot_sha256="b"*64,evidence_ids=("synthetic",),reason="test",invalidation="test")
+            with ledger.transaction():
+                ledger.complete_candle("USDTTMN",1200,decision)
+            self.assertFalse(ledger.claim_candle("USDTTMN",1200,"b"*64,60))
+            with self.assertRaises(ValueError):
+                ledger.claim_candle("USDTTMN",1320,"b"*64,60)
+            self.assertEqual(ledger.get_balance("TMN").free,D(5000000))
+
+
 class ExecutionAccountingTests(unittest.TestCase):
     def setUp(self):
         self.helper = helpers.WallexLiveBrokerTests()

@@ -1,13 +1,26 @@
 """Paper broker simulating order lifecycle, execution matching, reconciliation, and portfolio finalization."""
 
+import json
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
+from functools import wraps
 from typing import Literal
 
 from royin.ledger import Ledger, validate_decimal
 from royin.market_data import Candle
-from royin.risk import MarketRules, RiskResult
+from royin.risk import MarketRules, PositionProtectionPolicy, RiskResult
+
+
+def paper_atomic(method):
+    @wraps(method)
+    def run(self, *args, **kwargs):
+        try:
+            with self.ledger.transaction():
+                return method(self, *args, **kwargs)
+        finally:
+            self._restore_from_db()
+    return run
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,8 @@ class PaperBroker:
             """)
 
     def _restore_from_db(self):
+        self.orders.clear()
+        self.active_stop_prices.clear()
         with self.ledger.connection() as db:
             order_rows = db.execute(
                 "SELECT b.client_id, b.symbol, b.side, "
@@ -101,6 +116,7 @@ class PaperBroker:
                 if self.ledger.get_balance(self.rules.base_asset).total > 0:
                     self.active_stop_prices[r[0]] = Decimal(r[1])
 
+    @paper_atomic
     def submit_order(
         self,
         risk_result: RiskResult,
@@ -161,7 +177,7 @@ class PaperBroker:
             )
 
         if self.ledger.audit:
-            self.ledger.audit.record_event(
+            self.ledger._stage_event(
                 "STATE_TRANSITION",
                 "BROKER",
                 {
@@ -172,6 +188,7 @@ class PaperBroker:
             )
         return order
 
+    @paper_atomic
     def reconcile_order(
         self,
         client_id: str,
@@ -281,7 +298,7 @@ class PaperBroker:
                     (order.symbol, str(order.stop_price)),
                 )
         if self.ledger.audit:
-            self.ledger.audit.record_event(
+            self.ledger._stage_event(
                 "STATE_TRANSITION",
                 "BROKER",
                 {
@@ -292,6 +309,7 @@ class PaperBroker:
             )
         return reconciled
 
+    @paper_atomic
     def process_candle(
         self,
         candle: Candle,
@@ -418,7 +436,7 @@ class PaperBroker:
         stop_price = self.active_stop_prices.get(self.rules.symbol)
         if stop_price and candle.low <= stop_price:
             if self.ledger.audit:
-                self.ledger.audit.record_event(
+                self.ledger._stage_event(
                     "STOP",
                     "BROKER",
                     {
@@ -488,6 +506,7 @@ class PaperBroker:
 
         return filled_order_ids
 
+    @paper_atomic
     def finalize_portfolio(
         self,
         current_price: Decimal,
@@ -563,7 +582,7 @@ class PaperBroker:
         net_return_pct = ((final_tmn / initial_capital) - Decimal(1)) * Decimal(100)
 
         if self.ledger.audit:
-            self.ledger.audit.record_event(
+            self.ledger._stage_event(
                 "FINALIZATION",
                 "BROKER",
                 {
@@ -572,7 +591,7 @@ class PaperBroker:
                     "total_realized_pnl": realized_pnl,
                 },
             )
-            self.ledger.audit.record_event(
+            self.ledger._stage_event(
                 "RESIDUAL",
                 "BROKER",
                 {
@@ -591,3 +610,122 @@ class PaperBroker:
             "net_return_pct": str(round(net_return_pct, 4)),
             "timestamp": timestamp,
         }
+
+    def arm_protection(self, policy: PositionProtectionPolicy, *, opened_at, entry_price):
+        """Bind the actual filled position to one immutable policy, without resetting its peak."""
+        validate_decimal(entry_price, "entry price", strictly_positive=True)
+        if type(opened_at) is not int or opened_at <= 0 or opened_at >= policy.deadline_utc-policy.exit_buffer_seconds:
+            raise ValueError("Invalid filled-position opening time")
+        key = "protection_" + self.rules.symbol
+        with self.ledger.transaction() as db:
+            old = self.ledger.get_meta(key)
+            if old and json.loads(old)["status"] != "CLOSED":
+                state = json.loads(old)
+                if (state["policy_sha256"], state["opened_at"], state["entry_price"]) != (
+                    policy.sha256, opened_at, str(entry_price),
+                ):
+                    raise ValueError("Position/policy binding mismatch; cannot reset high-water")
+                return state
+            if self.ledger.get_balance(self.rules.base_asset).total <= 0:
+                raise ValueError("No actual filled position")
+            if db.execute("SELECT 1 FROM order_intents WHERE side='BUY' AND status NOT IN "
+                          "('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED')").fetchone():
+                raise ValueError("Partial/unknown buy requires reconciliation before arming")
+            fills = db.execute("SELECT f.price,f.quantity FROM fills f JOIN order_intents i "
+                               "ON i.client_id=f.client_id WHERE i.symbol=? AND i.side='BUY' AND f.timestamp>=?",
+                               (self.rules.symbol,opened_at)).fetchall()
+            quantity = sum((Decimal(q) for _,q in fills),Decimal(0))
+            if not quantity or sum((Decimal(p)*Decimal(q) for p,q in fills),Decimal(0))/quantity != entry_price:
+                raise ValueError("Entry price has no matching actual fill evidence")
+            stop = entry_price * (1-policy.initial_stop_pct)
+            existing_stop=self.active_stop_prices.get(self.rules.symbol,stop)
+            stop=max(stop,existing_stop)
+            state = dict(status="OPEN",policy_sha256=policy.sha256, opened_at=opened_at,
+                entry_price=str(entry_price), initial_stop_price=str(stop), trailing_stop_price=str(stop),
+                high_water=str(entry_price), last_source_time=opened_at, last_bid=str(entry_price),
+                last_review_at=opened_at, checkpoint_seen=False, exit_reason=None)
+            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
+            db.execute("INSERT INTO broker_stops(symbol,stop_price) VALUES (?,?) ON CONFLICT(symbol) "
+                       "DO UPDATE SET stop_price=excluded.stop_price",(self.rules.symbol,str(stop)))
+        self._restore_from_db()
+        return state
+
+    @paper_atomic
+    def observe_quote(self, bid, *, source_time, received_at, now, policy, slippage_pct=Decimal(".0005")):
+        """One bounded host-monitor tick, independent of model completion or token budget."""
+        validate_decimal(bid,"bid",strictly_positive=True)
+        validate_decimal(slippage_pct,"slippage")
+        if slippage_pct >= 1 or any(type(t) is not int or t <= 0 for t in (source_time,received_at,now)) or not source_time <= received_at <= now:
+            raise ValueError("Invalid quote observation")
+        key="protection_"+self.rules.symbol
+        state=json.loads(self.ledger.get_meta(key) or "null")
+        if state is None or state["policy_sha256"] != policy.sha256:
+            raise ValueError("Position protection policy is unbound or changed")
+        if source_time < state["last_source_time"] or now < state["opened_at"]:
+            raise ValueError("Reordered position observation")
+        if source_time == state["last_source_time"] and bid != Decimal(state["last_bid"]):
+            raise ValueError("Conflicting quote timestamp")
+        self.ledger.set_meta("engine_heartbeat",str(now))
+        hard_exit_at=min(state["opened_at"]+policy.hard_holding_seconds,policy.deadline_utc-policy.exit_buffer_seconds)
+        if now-source_time > policy.max_quote_age_seconds:
+            self.ledger.set_meta("entry_block_reason","STALE_QUOTE")
+            return dict(status="EXIT_REQUIRED_STALE_QUOTE" if now>=hard_exit_at else "STALE_QUOTE",
+                        action="WAIT",entry_enabled=False,exit_required=now>=hard_exit_at)
+        if self.ledger.get_meta("entry_block_reason") == "STALE_QUOTE":
+            self.ledger.set_meta("entry_block_reason","")
+        quantity=self.ledger.get_balance(self.rules.base_asset).total
+        if quantity == 0:
+            state["status"]="CLOSED"
+            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
+            return dict(status="FLAT",action="WAIT",review_due=False)
+        stop=Decimal(state["trailing_stop_price"])
+        with self.ledger.connection() as db:
+            basis_row=db.execute("SELECT total_cost_quote FROM cost_basis WHERE asset=?",(self.rules.base_asset,)).fetchone()
+        basis=Decimal(basis_row[0]) if basis_row else Decimal(0)
+        net_if_exit=quantity*bid*(1-slippage_pct)*(1-self.rules.taker_fee_rate)-basis
+        reason=("STOP_OR_TRAILING" if bid<=stop else "MAX_NET_LOSS" if net_if_exit<=-policy.max_loss_tmn
+                else "HARD_HOLDING_OR_DEADLINE" if now>=hard_exit_at else None)
+        if reason:
+            portfolio=json.loads(self.ledger.get_meta("portfolio") or "{}")
+            report=self.finalize_portfolio(bid,timestamp=now,slippage_pct=slippage_pct,
+                initial_capital=Decimal(portfolio.get("initial_capital","5000000")))
+            state.update(status="CLOSED" if self.ledger.get_balance(self.rules.base_asset).total==0 else "EXIT_REQUIRED_RESIDUAL",exit_reason=reason)
+            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
+            return dict(status=state["status"],action="EXIT",exit_reason=reason,settlement=report,review_due=False)
+        peak=max(Decimal(state["high_water"]),bid)
+        tightened=max(stop,peak*(1-policy.trailing_drawdown_pct))
+        checkpoint=bid>=Decimal(state["entry_price"])*(1+policy.checkpoint_profit_pct)
+        due=(checkpoint and not state["checkpoint_seen"]) or now-state["last_review_at"]>=policy.review_interval_seconds
+        state.update(high_water=str(peak),trailing_stop_price=str(tightened),last_source_time=source_time,last_bid=str(bid))
+        if due:
+            state.update(last_review_at=now,checkpoint_seen=state["checkpoint_seen"] or checkpoint)
+        self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
+        with self.ledger.connection() as db:
+            db.execute("UPDATE broker_stops SET stop_price=? WHERE symbol=?",(str(tightened),self.rules.symbol))
+        return {**state,"status":"PROTECTED","action":"WAIT","review_due":due,"hard_exit_at":hard_exit_at}
+
+    def export_state(self, bid, *, now):
+        """Read-only paper equity/protection view; never claims exchange/account equity."""
+        validate_decimal(bid,"export bid",strictly_positive=True)
+        state=json.loads(self.ledger.get_meta("protection_"+self.rules.symbol) or "null")
+        quantity=self.ledger.get_balance(self.rules.base_asset).total
+        with self.ledger.connection() as db:
+            basis_row=db.execute("SELECT total_cost_quote FROM cost_basis WHERE asset=?",(self.rules.base_asset,)).fetchone()
+            fees=sum((Decimal(f) for f, in db.execute("SELECT fee FROM fills WHERE fee_asset=?",(self.rules.quote_asset,))),Decimal(0))
+            pending=db.execute("SELECT client_id,status FROM order_intents WHERE status NOT IN "
+                "('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED')").fetchall()
+        basis=Decimal(basis_row[0]) if basis_row else Decimal(0)
+        sellable=self.rules.quantize_quantity(self.ledger.get_balance(self.rules.base_asset).free)
+        if sellable<self.rules.min_quantity or sellable*bid<self.rules.min_notional:
+            sellable=Decimal(0)
+        liquidation=sellable*bid*(1-self.rules.taker_fee_rate)
+        return dict(mode="PAPER",evidence_kind="SIMULATED_EXECUTION_NOT_ACCOUNT",symbol=self.rules.symbol,
+            exported_at=now,engine_heartbeat=self.ledger.get_meta("engine_heartbeat"),protection=state,
+            cash_tmn=str(self.ledger.get_balance(self.rules.quote_asset).total),quantity=str(quantity),
+            equity_mtm_tmn=str(self.ledger.get_equity({self.rules.symbol:bid},self.rules.quote_asset)),
+            realized_pnl_tmn=str(self.ledger.get_realized_pnl(self.rules.symbol)),cost_basis_tmn=str(basis),
+            gross_price_change_tmn=str(quantity*(bid-Decimal(state["entry_price"]))) if state else None,
+            unrealized_before_exit_cost_tmn=str(quantity*bid-basis),net_liquidation_tmn=str(liquidation),
+            net_if_exit_pnl_tmn=str(liquidation-basis),quote_fees_tmn=str(fees),pending_orders=pending,
+            sellable_quantity=str(sellable),residual_base=str(quantity-sellable),
+            entry_block_reason=self.ledger.get_meta("entry_block_reason"),audit_failed=self.ledger.get_meta("audit_failed")=="1")

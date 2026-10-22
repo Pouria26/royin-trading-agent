@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import threading
 from collections import Counter
 from datetime import datetime
 from decimal import Decimal
@@ -29,6 +30,8 @@ class LiveTradingSafetyGateError(RuntimeError):
 def single_worker(method):
     @wraps(method)
     def run(self, *args, **kwargs):
+        if self.ledger._worker_active and self.ledger._worker_owner == threading.get_ident():
+            return method(self, *args, **kwargs)
         with self.ledger.worker():
             return method(self, *args, **kwargs)
 

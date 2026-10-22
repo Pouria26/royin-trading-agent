@@ -94,3 +94,76 @@ Authenticated read-only verification executed 5 GET requests (against the 8 GET 
 
 Phase status: OFFLINE_CONTRACT_VERIFIED; read-only account confirmed; pilot execution BLOCKED_MINIMUM & BLOCKED_SAFETY_GATE.
 This is not live readiness or evidence of strategy profit.
+
+## B follow-up, 2026-10-22 — bounded release remains NO-GO
+
+This section supersedes the earlier claim that min_qty1USDT was exchange-verified.
+The current five-GET read-only observation confirmed the same selected active credit
+account,5000000TMN free/0locked,0USDT,0open orders and USDTTMN maker.0025/taker.003.
+Amount precision2/price precision0 and is_spot were observed. These are NOT proof of
+spot minimum, tick/step, actual fee asset, package universe or expiry. Probe counts
+attempts before send (including failures), rejects unknown/incomplete order-list
+schemas rather than claiming zero, preserves raw SHA/times in fresh ignored paths,
+never writes .env and returns NO_GO_CRITICAL_CONTRACT_UNKNOWN/exit2. No new order.
+The5GET/8 allowance leaves3unused; no retry.4/4 docs GET were used without retry:
+create,detail,package details and basic-service Swagger. Official package details
+requires a known package ID and reports expire_days, not this account's actual expiry.
+No package ID or date was guessed and OTC minimum was not repurposed as spot.
+
+Implemented additive interfaces (legacy signatures preserved):
+- Ledger.initialize_portfolio initializes only an entirely empty unbound ledger and
+  binds initial capital/currency/config; reopening never set_balance or resets peak.
+- claim_candle durably claims before inference; pending claims after restart require
+  reconciliation, never another model call. complete_candle co-commits the exact
+  decision with a paper intent in the same outer transaction. No outer transaction
+  should surround network send; WallexLiveBroker persists intent before HTTP itself.
+- Ledger.worker may span the worker lifetime and accept a shared lock directory plus
+  account fingerprint; distinct DB paths in that directory exclude each other.
+  OS releases SQLite lock on process death. This is local-host exclusion, not a
+  distributed lock. No lock or DB was deleted. Broker methods reuse only the same
+  thread's already-held worker session; no independent second-worker bypass.
+- Financial events enter a new audit_outbox table in the money transaction. Rollback
+  leaves no tentative event. Post-commit/pre-flush crash retains events. File delivery
+  is at-least-once with stable journal event IDs, not an impossible cross-file exactly
+  once claim; consumers dedupe by ID. Failure of either sink or acknowledgement marks
+  audit_failed and blocks new entries. Paper money+order+stop writes are atomic and
+  in-memory broker state reloads after errors. Exit settlement may commit even when
+  audit later fails: caller must report the error and replay the outbox, not resubmit.
+- Risk blocks all nonterminal pending states across the portfolio, including UNKNOWN
+  and SUBMITTING, and applies one-position/no-adding protection for initialized pilot
+  portfolios. EXIT independently checks min_quantity. Other quote execution remains
+  rejected (TMN only); scanner USDT valuation is not authorization for USDT execution.
+
+Pilot is now an explicit restartable offline step with durable IDs and request count.
+OPEN/UNKNOWN/partial stays pending; restart GETs the same ID, never reposts. A filled
+or reconciled canceled buy alone enables exit review. EXIT needs a caller-supplied
+fresh quote/actual timestamp; the old artificial+60s/unchanged price has been removed.
+TTL30s requests cancel once after reconciliation; DELETE ack does not settle reserves,
+the next step GET must settle. Eight HTTP attempts/two created orders maximum; residual
+or unresolved state is explicit, not COMPLETE. Production transport remains denied.
+
+Sellability is explicitly scenario-only: quote fees, base fees on both sides and mixed
+base-buy/quote-sell have independent arithmetic tests, cash debit<=ceiling and stressed
+exit price. PASS_SELLABLE does not imply residual0: the old1.12/1.11 example can leave
+.006640USDT under mixed fee assumptions. Unknown real feeAsset is not silently chosen.
+--prepare has no implicit current-price fallback; no --price yields NO_GO unknown quote.
+An explicit --price is HYPOTHETICAL_NOT_CURRENT and rules remain synthetic. --run rejects
+before config/cache/account construction. Both technical pilot and first AI strategy
+trade options are separately NO_GO; no amount increase, averaging or manual trade flow.
+
+Reproducible functional demo, no network/keys/model:
+`.venv/Scripts/python.exe -X utf8 scripts/run_live_pilot.py --self-check`
+uses four independent synthetic5M portfolios and immutable hand-money expectations.
+4/4 correctness oracles PASS (100% technical success), trading win rate/probability null.
+Checkpoint->trailing final5002686.306; gap-through final4978770.270; hard-holding final
+5000693.3030; target-only case retains2base with4799400cash, unliquidated equity separate.
+These are not exchange profits or samples for an estimate of strategy success.
+Existing raw artifacts/protocols/root status were not overwritten; final source freeze
+belongs to integration. Exact test counts/revision/commands are in the private handoff.
+
+Audit recovery also persists the original run/code hashes and order decision context
+in the outbox, including across restart; unattributed legacy events stay explicitly
+UNATTRIBUTED rather than being relabeled as new-run evidence. A failing regression
+caught wrong d3 attribution for d2's fill; it was fixed in shared ledger staging,
+not by weakening the existing historical oracle. All direct record_intent/record_fill/
+cancel operations now keep their event in the same outer financial transaction.
