@@ -20,6 +20,8 @@
 
 ## پیگیری فعال
 
+2026-10-23 / آزمون providerنامزد dacb5a6: مدل واقعی۱۰نماد خواست و۸داده معتبر پذیرفت،۲HTTP/۲۱GET و۳۵٫۳۲۸ثانیه، evidence/batch/provider/hashمعتبر. مهلت۶۰ثانیهٔ پژوهش در این نمونه کار کرد؛ مقایسهٔ کنترل‌شدهٔ latency نیست. این diagnosticبا remaining_seconds=0،بدون سفارش/افق ورود بود؛ alphaیا fundedforward نیست. budgetهمان فایل اصلی و رزروUSD0.00871424بود،نه invoice؛ main/sourceاجرای قبلی تغییر نکرد. جزئیات در docs/current-market-readiness.md.
+
 2026-10-23: طبق دستور تازه، PR قبلی روی main ادغام و شاخهٔ remote حذف شد؛ ادامه روی main و شاخهٔ بعدی بدون پیشوند codex. HANDOFF.md انتقال خودبسنده است؛ شواهد زمان‌دار آن باید بازبینی شوند. تغییر MD منبع3799e4a اجرای فعال را تغییر نداد.
 
 سنجش23:11UTC از کپی بایتی ثابت manifest،۱GET و۱outcomeاز۵forecast (۴pending) داد. USOON30min با q50−۰٫۴٪، outcome−۰٫۰۵۳۲۵٪ و point error بیشتر ازصفر؛ جهت درست مزیت مقدار را ثابت نکرد. گزارش ignored در artifacts/forecast-outcomes/20261022T231125Z_142a366e/report.json. سنجش manifest فعال باید روی کپی ثابت باشد تا sourcehash حین درخواست عوض نشود.

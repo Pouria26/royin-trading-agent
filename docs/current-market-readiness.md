@@ -16,6 +16,16 @@
 
 جزئیات حساب و محدودیت‌ها در [credit-canary](credit-canary.md)، داده در [market-data-semantics](market-data-semantics.md) و ارزیابی در [evaluation-plan](evaluation-plan.md) است.
 
+## آزمون واقعی نامزد ده‌نمادی — 23:38UTC
+
+شاخهٔ `market-research-coverage` در source `dacb5a6` جدا از اجرای منجمد main آزموده شد. run محلی `coverage-provider-diagnostic-20261022T233813Z`: catalog۴۶۹/eligible۱۲۰/model-visible۵۴؛ مدل۱۰نماد درخواست کرد و۸دادهٔ معتبر پذیرفته شد.۲HTTPمدل با۲پاسخ،۲۱GETعمومی، زمان نقش۳۵٫۳۲۸ثانیه، usageگزارش‌شده۸۴۴۱input/۶۰۶output و رزرو پایدارUSD0.00871424 در همان budget اصلی ثبت شد؛ رزرو صورتحساب نیست.
+
+تصمیم MODEL_DECISION/WAIT بود و شواهد به snapshot منتخب متصل ماندند. مدل askحدود۰٫۲۰٪ بالاتر از close و هزینه/بازار نزولی را در دلیل لحاظ کرد. USDTTMN خطای داده داشت؛ ARBTMN در snapshot spreadحدود۰٫۶۹۷۸٪، بیش از سقف داخلی۰٫۵٪ داشت. هیچ gate برای پذیرش آن‌ها ضعیف نشد. hashتمامcaptureها و تطابق forecast با پاسخ واقعی provider با scorer موجود، آفلاین بررسی شدند؛ raw و گزارش خصوصی/محلی ignored هستند.
+
+این آزمون عمداً یک چرخه با remaining_seconds=0 و فاقد افق تأمین‌شدهٔ ورود بود؛۰سفارش/۰fill و STOPPED_FLAT. فقط سازگاری provider/tool/context/مهلت۶۰ثانیه و گسترش واقعی پژوهش تأیید محدود شد؛ نه سودآوری، تصمیم ورود در افق معتبر، پایش موقعیت، بهبود کنترل‌شده نسبت به نسخهٔ قبلی یا حساب واقعی. source اجرای main تغییر نکرد و قبل از terminal معتبر آن، نامزد فعال نمی‌شود.
+
+سنجش جداگانهٔ اجرای قبلی در23:38UTC:۹forecastمعتبر،۳scored/۶pending،۰missing و۳GET. هر سه outcome فعلاً USOON و هم‌بسته‌اند؛ میانهٔ خطای مطلق مدل۰٫۱۹۷۲واحددرصد و baselineصفر۰٫۳۹۷۲واحددرصد شد. این مشاهدهٔ کوچک برتری معاملاتی یا calibration نیست. مسیر محلی `artifacts/forecast-outcomes/20261022T233833Z_695d034a/report.json`؛ با نتایج sourceهای دیگر ترکیب نشود.
+
 ## آزمون فعال و منجمد
 
 شناسه `net-return-forward-20261023-2`، source3799e4a؛ کد هنگام اجرا ثابت بماند. مدت۱۰۸۰۰ثانیه،۱۸۱چرخه با فاصله۶۰ثانیه، سقف۱۲۰۰GET عمومی،۵M موجودی و سقف۱۰۰k سفارش **مجازی**، مدل/API عمومی واقعی.

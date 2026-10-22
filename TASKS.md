@@ -1,8 +1,8 @@
 # برنامهٔ جاری پروژه
 
-نامزدِ آماده اما فعال‌نشده: `market-research-coverage` / `ddbf521`، پژوهش۱۰نمادی و پوشش durable، quote context و سقف پیش‌فرض۱۰۰k؛ در worktree جدا آزموده و پوش شده است.۳۶۵هسته/۱۰داشبورد +۱۵تست تکمیلی پاس؛ آزمون provider واقعی نامزد هنوز انجام نشده. به دلیل sourcefreeze اجرای موجود، main فقط این اشارهٔ مستندی را می‌گیرد. پس از terminal معتبر، diff/ادغام و run تازه؛ افزایش خودکار حجم و multi-position همچنان OPEN هستند.
+نامزد آماده اما فعال‌نشده: `market-research-coverage` / `dacb5a6`، پژوهش۱۰نمادی/پوششdurable، quotecontext، سقف۱۰۰k و اجرای paperبا عمق کلquantity، limitرزروشده و stopمعوقِ پایدار.۳۷۱هسته/۱۰داشبورد و۴self-check پاس؛ sourceاجرای mainهنوز3799e4aاست و تا terminalمعتبر تغییر نکند.
 
-نسخهٔ جدید همان شاخه `dacb5a6`: اجرای paper با عمق کل quantity، limit رزروشده/ریسک تازه و pending-stop پایدار؛۳۷۱هسته و۱۰داشبورد پاس. سازگاری روی شش book واقعی ذخیره‌شده تأیید محدود شد؛ live یا provider نامزد اجرا نشده. snapshot23:35UTC منبع فعال قدیمی:۱۲تصمیم،۰order/fill،۰٪paper؛۸forecast معتبر،۲scored/۶pending. منبع main تا پایان معتبر همان run تغییر نکند.
+checkpoint23:38UTCنامزد:۱۰درخواست/۸داده معتبر از۵۴بازارمدل،۲HTTPمدل/۲۱GET و۳۵٫۳۲۸ثانیه، WAIT/bindingمعتبر و۰order/STOPPED_FLAT. diagnosticبا remaining_seconds=0فقطسازگاریproviderبود؛ fundedforward، positionreviewوliveنامزد OPEN. افزایش خودکار حجم و multi-position فعال نیست. جزئیات/شواهد در [وضعیت جاری](docs/current-market-readiness.md).
 
 آخرین وضعیت: ۲۳ اکتبر ۲۰۲۶ به وقت تهران. گزارش‌های جلسات و جدول‌های قدیمی محلی آرشیو شده‌اند؛ این فایل فقط مسیر فعال و پذیرش کار بعدی را نگه می‌دارد. source اجرای فعال `3799e4a` است؛ commit مستندات منبع اجرای آن را تغییر نمی‌دهد.
 
