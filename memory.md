@@ -91,3 +91,19 @@ private account/order HTTP. Next: prospective AI ledger-state replay infrastruct
 no approved candidate or new holdout is established.
 
 Phase 1 checks: 203/203 unittest PASS (9.012s); Ruff PASS; compileall exit0; git diff --check clean. No skip or BLOCKED counted as a pass. Revision: phase-1 commit containing this entry (exact hash in ignored final report).
+
+
+## Portfolio AI infrastructure — 2026-10-22 phase 2
+
+Phase 1 revision8279105 passed203 tests. Phase2 uses existing simulation and fresh
+per-arm ledgers; emits full equity/decision/order/fill/episode and fee/slippage traces.
+Exact fake SDK -> own-state recording -> fake recorded replay and cost stress pass;
+real recorded replay, economic AI value and OOS remain BLOCKED_DATA. Protocol V4
+freeze and hashes/retained failed attempts are in docs/portfolio-ai-evaluation.md.
+No paid request, private probe, budget reset or live action. Existing seen windows
+are not fresh holdout. Full fresh72h splits cannot finish within the current deadline.
+Next: preserve closed Candidate Shadow and verify observation/recovery safeguards;
+prepare honest five-minute demo evidence. Phase2 revision is the commit containing
+this entry; exact SHA and manifest paths are recorded in the ignored final report.
+
+Phase2 final checks: 209/209 unittest PASS (21.250s); six portfolio tests PASS; Ruff PASS; compileall exit0; diff check clean. Default portfolio CLI BLOCKED_DATA exit2 is not a pass. Real/recorded-real benefit remains unverified.

@@ -228,7 +228,11 @@ def build_candidate_producer(
     allowed_symbols: Sequence[str] = ("USDTTMN",),
 ) -> Callable[[FeatureSnapshot], Decision]:
     """Factory creating deterministic Decision producer for a frozen candidate configuration."""
-    if not isinstance(config, dict) or not isinstance(config.get("id"), str) or not config["id"].strip():
+    if (
+        not isinstance(config, dict)
+        or not isinstance(config.get("id"), str)
+        or not config["id"].strip()
+    ):
         raise ValueError("Candidate needs a nonempty ID")
     if config.get("family") == "trend":
         if set(config) != {"id", "family", "sma_spread"}:
@@ -250,7 +254,14 @@ def build_candidate_producer(
         if not (0 < atr_h < 1 and 0 <= min_sp < 1 and 50 < rsi_ex <= 100):
             raise ValueError("Invalid volatility_breakout parameters")
     elif config.get("family") == "regime_momentum":
-        if set(config) != {"id", "family", "sma_spread", "min_volume_ratio", "rsi_entry_max", "rsi_exit"}:
+        if set(config) != {
+            "id",
+            "family",
+            "sma_spread",
+            "min_volume_ratio",
+            "rsi_entry_max",
+            "rsi_exit",
+        }:
             raise ValueError("Unknown regime_momentum configuration fields")
         sma_sp = decimal_number(config["sma_spread"])
         min_vr = decimal_number(config["min_volume_ratio"])
@@ -480,7 +491,9 @@ def build_candidate_producer(
             )
 
             if not has_position:
-                is_bullish = "EV_TREND_BULLISH" in snapshot.evidences and sma_spread >= sma_spread_hurdle
+                is_bullish = (
+                    "EV_TREND_BULLISH" in snapshot.evidences and sma_spread >= sma_spread_hurdle
+                )
                 vol_surge = snapshot.volume_ratio >= min_volume_ratio
                 rsi_in_range = Decimal("45") <= snapshot.rsi_14 <= rsi_entry_max
                 if is_bullish and vol_surge and rsi_in_range:
@@ -590,14 +603,12 @@ def rank_and_select_candidate(
     ranked = []
     for cfg in configurations:
         cid = cfg["id"]
-        window_returns = [
-            Decimal(str(w[cid]["net_return_pct"])) for w in development_results
-        ]
-        window_dds = [
-            Decimal(str(w[cid]["max_drawdown_pct"])) for w in development_results
-        ]
+        window_returns = [Decimal(str(w[cid]["net_return_pct"])) for w in development_results]
+        window_dds = [Decimal(str(w[cid]["max_drawdown_pct"])) for w in development_results]
 
-        if any(not v.is_finite() for v in window_returns + window_dds) or any(v < 0 for v in window_dds):
+        if any(not v.is_finite() for v in window_returns + window_dds) or any(
+            v < 0 for v in window_dds
+        ):
             raise ValueError("Invalid window metrics")
         worst_window_ret = min(window_returns)
         aggregate_ret = sum(window_returns, Decimal(0))
@@ -742,14 +753,15 @@ def verify_decision_causality(
 def position_metrics(ledger: Ledger, rules: MarketRules) -> dict:
     """One trade is a flat-to-flat inventory episode, including all partial exits and fees."""
     quantity = cost = episode_pnl = Decimal(0)
-    completed = []
+    completed, episodes, episode_fills = [], [], []
     buys = sells = 0
     with ledger.connection() as db:
         rows = db.execute(
-            "SELECT i.side,f.price,f.quantity,f.fee,f.fee_asset FROM fills f "
+            "SELECT i.side,f.price,f.quantity,f.fee,f.fee_asset,f.fill_id,f.timestamp FROM fills f "
             "JOIN order_intents i ON i.client_id=f.client_id ORDER BY f.rowid"
         ).fetchall()
-    for side, price, qty, fee, asset in rows:
+    for side, price, qty, fee, asset, fill_id, timestamp in rows:
+        episode_fills.append({"fill_id": fill_id, "timestamp": timestamp})
         price, qty, fee = Decimal(price), Decimal(qty), Decimal(fee)
         if side == "BUY":
             buys += 1
@@ -764,6 +776,10 @@ def position_metrics(ledger: Ledger, rules: MarketRules) -> dict:
             cost -= allocated
             if quantity == 0:
                 completed.append(episode_pnl)
+                episodes.append(
+                    {"fills": episode_fills, "realized_pnl_tmn": str(episode_pnl), "closed": True}
+                )
+                episode_fills = []
                 episode_pnl = Decimal(0)
     wins = [p for p in completed if p > 0]
     losses = [p for p in completed if p < 0]
@@ -786,6 +802,12 @@ def position_metrics(ledger: Ledger, rules: MarketRules) -> dict:
         else None,
         "residual_basis_tmn": str(cost),
         "open_episode_realized_pnl_tmn": str(episode_pnl),
+        "episodes": episodes
+        + (
+            [{"fills": episode_fills, "realized_pnl_tmn": str(episode_pnl), "closed": False}]
+            if episode_fills
+            else []
+        ),
     }
 
 
@@ -809,6 +831,9 @@ def run_simulation(
 ) -> dict[str, Any]:
     """Run an end-to-end historical simulation over candles using production Ledger, Risk, and PaperBroker."""
     validate_decimal(initial_capital, "initial_capital", strictly_positive=True)
+    validate_decimal(slippage_pct, "slippage_pct")
+    if slippage_pct >= 1:
+        raise ValueError("Slippage fraction must be below one")
     if len(candles) < slow_period + 2:
         raise ValueError(f"Need at least {slow_period + 2} candles for simulation")
 
@@ -906,6 +931,22 @@ def run_simulation(
     exposed_seconds = 0
     passive_submitted = False
     max_drawdown = Decimal(0)
+    equity_curve, decision_traces = [], []
+
+    def equity_point(timestamp, phase, price):
+        equity = ledger.get_equity({rules.symbol: price}, rules.quote_asset)
+        realized = ledger.get_realized_pnl(rules.symbol)
+        return {
+            "timestamp": timestamp,
+            "phase": phase,
+            "net_equity_tmn": str(equity),
+            "realized_pnl_tmn": str(realized),
+            "unrealized_pnl_tmn": str(equity - initial_capital - realized),
+            "balances": {
+                a: {"free": str(b.free), "locked": str(b.locked)}
+                for a, b in ledger.get_all_balances().items()
+            },
+        }
 
     for i, candle in enumerate(candles):
         # 1. Match pending orders and stop loss against this candle
@@ -933,6 +974,7 @@ def run_simulation(
 
         # 3. If closed bars count is sufficient, evaluate decision for candle close
         candle_close_time = candle.open_time + interval_seconds
+        equity_curve.append(equity_point(candle_close_time, "CLOSED_BAR", candle.close))
         if i >= slow_period and i < len(candles) - 1:
             series_slice = CandleSeries(
                 candles=tuple(candles[: i + 1]), interval_seconds=interval_seconds
@@ -984,6 +1026,17 @@ def run_simulation(
                 denied_markets=denied_markets,
                 peak_equity=peak_equity,
             )
+            decision_traces.append(
+                {
+                    "snapshot": snap.to_canonical_dict(),
+                    "snapshot_sha256": snap.snapshot_sha256,
+                    "decision": decision.model_dump(mode="json"),
+                    "risk": {
+                        k: str(v) if isinstance(v, Decimal) else v
+                        for k, v in asdict(risk_res).items()
+                    },
+                }
+            )
 
             if logger:
                 logger.record_event(
@@ -1030,6 +1083,7 @@ def run_simulation(
         initial_capital=initial_capital,
         slippage_pct=slippage_pct,
     )
+    equity_curve.append(equity_point(final_time, "FINAL_SETTLEMENT", final_candle.close))
 
     # 5. Extract realized PnL rows and fee audit
     with ledger.connection() as db:
@@ -1040,9 +1094,36 @@ def run_simulation(
             (Decimal(p) * Decimal(q) for p, q in db.execute("SELECT price,quantity FROM fills")),
             Decimal(0),
         )
+        simulated_slippage_tmn = sum(
+            (
+                Decimal(p) * Decimal(q) * slippage_pct / (1 - slippage_pct)
+                for p, q in db.execute(
+                    "SELECT f.price,f.quantity FROM fills f JOIN order_intents i ON i.client_id=f.client_id WHERE i.order_type='MARKET' AND i.side='SELL'"
+                )
+            ),
+            Decimal(0),
+        )
 
         # Total fees paid
         fee_rows = db.execute("SELECT fee, fee_asset FROM fills").fetchall()
+        fills = [
+            dict(
+                zip(
+                    ("fill_id", "client_id", "price", "quantity", "fee", "fee_asset", "timestamp"),
+                    row,
+                    strict=True,
+                )
+            )
+            for row in db.execute(
+                "SELECT fill_id,client_id,price,quantity,fee,fee_asset,timestamp FROM fills ORDER BY rowid"
+            )
+        ]
+        orders = [
+            dict(zip(("client_id", "side", "price", "quantity", "status"), row, strict=True))
+            for row in db.execute(
+                "SELECT client_id,side,price,quantity,status FROM order_intents ORDER BY rowid"
+            )
+        ]
         total_fees_tmn = sum(Decimal(r[0]) for r in fee_rows if r[1] == "TMN")
         total_fees_base = sum(Decimal(r[0]) for r in fee_rows if r[1] == rules.base_asset)
 
@@ -1063,7 +1144,12 @@ def run_simulation(
         "orders_submitted": orders_submitted,
         "total_orders_including_stop_finalization": total_orders,
         "orders_with_any_fill": filled_orders,
+        "orders_without_fill": total_orders - filled_orders,
         "fills_count": fills_count,
+        "fills": fills,
+        "orders": orders,
+        "equity_curve": equity_curve,
+        "decision_traces": decision_traces,
         **metrics,
         "evidence_kind": "REAL_MODEL_DECISIONS_PAPER_EXECUTION"
         if decision_source == "REAL_MODEL_REPLAY"
@@ -1083,8 +1169,115 @@ def run_simulation(
         "latency_seconds": decision_latency_seconds,
         "total_fees_paid_tmn": str(total_fees_tmn),
         "total_fees_paid_base": str(total_fees_base),
+        "simulated_market_exit_slippage_tmn": str(simulated_slippage_tmn),
+        "slippage_contract": "scenario adverse fraction on market/stop exits; LIMIT at limit; not measured exchange slippage",
         "max_drawdown_pct": str(round(max_drawdown * Decimal(100), 4)),
     }
+
+
+def portfolio_bindings(candles, rules, policy, initial_capital, interval_seconds, slippage_pct):
+    """Bind replay to executable sources and the entire shared execution scenario."""
+    root = Path(__file__).resolve().parents[2]
+    paths = sorted(
+        [*root.glob("src/royin/*.py"), *root.glob("scripts/*.py"), root / "requirements.lock"]
+    )
+    return {
+        "code_sha256": hashlib.sha256(
+            b"".join(
+                p.relative_to(root).as_posix().encode() + b"\0" + p.read_bytes() for p in paths
+            )
+        ).hexdigest(),
+        "prompt_sha256": hashlib.sha256(SYSTEM_INSTRUCTIONS.encode()).hexdigest(),
+        "model": "gpt-6-luna",
+        "provider": "boxapi",
+        "reasoning": "none",
+        "data_sha256": hashlib.sha256(
+            json.dumps([asdict(c) for c in candles], default=str, sort_keys=True).encode()
+        ).hexdigest(),
+        "config_sha256": hashlib.sha256(
+            repr(
+                (
+                    rules,
+                    policy,
+                    initial_capital,
+                    interval_seconds,
+                    slippage_pct,
+                    10,
+                    Decimal(0),
+                    False,
+                    False,
+                )
+            ).encode()
+        ).hexdigest(),
+        "family": "existing_naive_crossover_with_ai_decision",
+    }
+
+
+def recorded_portfolio_producer(records, expected, *, source):
+    """No nearest-input reuse; another arm's cash/position is another model input."""
+    if source not in ("REAL_MODEL", "FAKE_MODEL"):
+        raise ValueError("Explicit model evidence kind required")
+    indexed = {}
+    for record in records:
+        key = record.get("snapshot_sha256")
+        if record.get("manifest") != expected or record.get("source") != source or key in indexed:
+            raise ValueError("Recorded portfolio binding/source/uniqueness mismatch")
+        indexed[key] = record
+
+    def producer(snapshot):
+        record = indexed.get(snapshot.snapshot_sha256)
+        if not record or record.get("snapshot") != snapshot.to_canonical_dict():
+            raise ValueError("Missing exact own-ledger model input")
+        decision = Decision.model_validate(record["decision"])
+        if (decision.symbol, decision.cutoff, decision.snapshot_sha256) != (
+            snapshot.symbol,
+            snapshot.cutoff,
+            snapshot.snapshot_sha256,
+        ) or not set(decision.evidence_ids).issubset(snapshot.evidences):
+            raise ValueError("Recorded decision/input/evidence mismatch")
+        return decision
+
+    return producer
+
+
+def run_portfolio_ablation(
+    candles,
+    rules,
+    policy,
+    ai_producer,
+    *,
+    initial_capital=Decimal("5000000"),
+    interval_seconds=3600,
+    slippage_pct=Decimal(".0005"),
+    source,
+):
+    """Four arms; each run creates its own ledger and identical execution/risk gates."""
+    if source not in ("REAL_MODEL_REPLAY", "FAKE_MODEL", "FAKE_MODEL_REPLAY"):
+        raise ValueError("Model evidence source required")
+    results = {}
+    for name, producer in {
+        "cash": always_wait_decision,
+        "hold_shared_risk": buy_and_hold_decision,
+        "rule": baseline_rule_decision,
+        "rule_ai": ai_producer,
+    }.items():
+        result = run_simulation(
+            candles,
+            producer,
+            rules,
+            policy,
+            initial_capital=initial_capital,
+            interval_seconds=interval_seconds,
+            slippage_pct=slippage_pct,
+            enable_logging=False,
+            decision_source=source if name == "rule_ai" else "HOST_BASELINE",
+        )
+        result["evidence_kind"] = source if name == "rule_ai" else "PAPER_BASELINE_NO_AI"
+        result["benchmark_contract"] = (
+            "same initial capital, risk, cost, exposure cap, cutoff and execution; hold may stop/reenter"
+        )
+        results[name] = result
+    return results
 
 
 def evaluate_strategy_suite(

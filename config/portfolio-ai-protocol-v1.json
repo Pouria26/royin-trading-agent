@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "protocol_id": "PORTFOLIO_AI_V1",
+  "frozen_at_utc": "2026-10-22T05:26:46.171223+00:00",
+  "source_revision": "8279105727a56db3c5a384722e0a0c3ee0ff25f4",
+  "dirty_at_freeze": true,
+  "status": "BLOCKED_DATA",
+  "scope": "Offline infrastructure; no authorization for paid calls, candidate shadow or live",
+  "offline_bindings": {
+    "code_sha256": "50baf7bc41d53f354f8d3420012433835bf81187d31f6878f9680e76b11c57f9",
+    "prompt_sha256": "1066c59563af8a98ec93c2e38dfe922bbbdc9a50ef03fb6b004a9f897f30a687",
+    "model": "gpt-6-luna",
+    "provider": "boxapi",
+    "reasoning": "none",
+    "data_sha256": "c0fd663a02ff978abd5699f6942f41c4ee613d4daad0b45277068853fbbff73e",
+    "config_sha256": "867ef2f2dcfd35d32ea5c7f9b1a36ffcde06adaa192253f09c5ce1fcd75fae2c",
+    "family": "existing_naive_crossover_with_ai_decision"
+  },
+  "primary_data": {
+    "accepted_datasets": [],
+    "sha256": null,
+    "reason": "Native hourly semantics/finality unresolved; all existing diagnostic windows seen; no fresh accepted holdout"
+  },
+  "family": "existing_naive_crossover_with_ai_decision",
+  "arms": [
+    "cash",
+    "hold_shared_risk",
+    "rule",
+    "rule_ai"
+  ],
+  "capital_tmn": "5000000",
+  "cost": {
+    "taker_each_side": ".003",
+    "fee_asset": "TMN_SCENARIO_UNVERIFIED",
+    "slippage": ".0005",
+    "stress_slippage": ".002",
+    "latency_seconds": 10
+  },
+  "split": {
+    "order": [
+      "development",
+      "validation",
+      "holdout"
+    ],
+    "warmup_hours": 31,
+    "required_hours_per_window": 72,
+    "selection": "One existing family fixed; no parameter search. Same account caps/cutoff/costs. Validation then untouched holdout only after source acceptance and a new hash-bound prospective data freeze.",
+    "time_feasibility": "Three fresh 72h windows cannot finish before 2026-10-23T20:20:00Z. Do not shorten gates to obtain a pass."
+  },
+  "selection": {
+    "primary": "Paired after-cost net equity vs same rule; require existing evaluation-plan acceptance on validation and holdout; otherwise INSUFFICIENT_EVIDENCE",
+    "guardrails": [
+      "drawdown not worse than rule",
+      "positive incremental result under registered cost stress",
+      "all unresolved data/execution gates closed",
+      "zero forced trades"
+    ],
+    "no_statistical_claim": "30 trades is not an official requirement or proof; overlapping/serial episodes not independent"
+  },
+  "stop": {
+    "on": [
+      "data or hash mismatch",
+      "missing own-state record",
+      "storage failure",
+      "budget/time cap",
+      "no valid holdout"
+    ],
+    "research_time_cap_minutes": 45,
+    "paid_http_requests_authorized": 0
+  },
+  "paid_pilot_proposal": {
+    "status": "NEEDS_EXPLICIT_USER_CHOICE_AND_DATA_FIRST",
+    "decisions": 12,
+    "max_http_requests": 24,
+    "max_reserved_usd": ".04",
+    "reason": "Compatibility/own-state recording pilot only, not complete portfolio proof",
+    "full_72h_three_split_plan": {
+      "decisions": 216,
+      "max_http_requests": 432,
+      "max_reserved_usd": ".54",
+      "status": "NOT_AUTHORIZED_NOT_IMPLEMENTED; requires separate budget decision and feasible new data freeze"
+    },
+    "global_budget": "Existing durable ledger unchanged; SDK usage, conservative reservations and invoice separate",
+    "model": "gpt-6-luna",
+    "provider": "boxapi",
+    "reasoning": "none"
+  },
+  "limitations": [
+    "Absolute dates may be memorized by historical model; removing dates does not remove memory risk",
+    "No exchange-attested timestamp/execution semantics",
+    "Tick/step/minimum/feeAsset remain simulation scenarios",
+    "No OOS or AI economic benefit claim from fake replay"
+  ]
+}
