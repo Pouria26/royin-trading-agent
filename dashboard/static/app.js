@@ -81,11 +81,12 @@ function renderOverview() {
     'timeout / error: نامعلوم', 'توافق با baseline اثبات مزیت مالی نیست.'].join(' · ');
   if ($('account-status')) {
     if (o.account && o.account.status === 'AVAILABLE') {
-      $('account-status').textContent = '۵,۰۰۰,۰۰۰ TMN (حساب اعتباری)';
+      $('account-status').textContent = o.account.reconciliation === 'PAPER_INTERNAL_LEDGER' ? 'دفتر کل کاغذی؛ پول مجازی' : 'مشاهدهٔ ذخیره‌شدهٔ حساب اعتباری';
       $('account-equity').textContent = 'ارزش حساب: ' + format(o.account.equity_tmn, 'TMN');
       const tmnFree = o.account.balances && o.account.balances.TMN ? o.account.balances.TMN.free : null;
-      const usdtTotal = o.account.balances && o.account.balances.USDT ? o.account.balances.USDT.total : null;
-      $('account-detail').textContent = 'نقدینگی آزاد: ' + format(tmnFree, 'TMN') + ' · موجودی تتر: ' + format(usdtTotal, 'USDT');
+      const assets = Object.entries(o.account.balances || {}).filter(([asset]) => asset !== 'TMN')
+        .map(([asset, balance]) => format(balance.total, asset));
+      $('account-detail').textContent = 'نقدینگی آزاد: ' + format(tmnFree, 'TMN') + ' · دارایی‌ها: ' + (assets.join(' · ') || 'دارایی غیرتومانی ثبت نشده');
     } else {
       $('account-status').textContent = (statusLabels[o.account && o.account.status] || (o.account && o.account.status) || 'UNAVAILABLE');
       $('account-equity').textContent = 'منتظر اتصال موتور';

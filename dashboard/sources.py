@@ -58,6 +58,25 @@ def decimal(value, negative=True):
         raise ValueError("invalid decimal") from exc
 
 
+def project_balances(balances, *, totals=False):
+    if not isinstance(balances, dict) or not 1 <= len(balances) <= 32:
+        raise ValueError("invalid balances")
+    result = {}
+    for asset, balance in balances.items():
+        if not isinstance(asset, str) or not re.fullmatch(r"[A-Z0-9]{1,20}", asset) or not isinstance(balance, dict):
+            raise ValueError("invalid asset balance")
+        fields = ("free", "locked", "total") if totals else ("free", "locked")
+        values = {key: decimal(balance.get(key), False) for key in fields}
+        if any(value is None for value in values.values()):
+            raise ValueError("missing asset balance")
+        with localcontext() as ctx:
+            ctx.prec = 128
+            if totals and Decimal(values["free"]) + Decimal(values["locked"]) != Decimal(values["total"]):
+                raise ValueError("inconsistent asset balance")
+        result[asset] = values
+    return result
+
+
 def count(value):
     if value is None:
         return None
@@ -237,7 +256,8 @@ class Sources:
 
     def catalog(self):
         entries = {}
-        for family, pattern in (("portfolio", "artifacts/portfolio-ai/*/manifest.json"),
+        for family, pattern in (("paper", "artifacts/market-paper/*/manifest.json"),
+                                ("portfolio", "artifacts/portfolio-ai/*/manifest.json"),
                                 ("historical", "artifacts/evaluation/*/manifest.json")):
             for path in sorted(self.root.glob(pattern), reverse=True)[:60]:
                 if ident(path.parent.name):
@@ -247,12 +267,14 @@ class Sources:
     def meta(self, key, data, sha):
         kind = data.get("evidence_kind", data.get("source"))
         result = envelope("AVAILABLE")
+        mode = "PAPER" if "PAPER" in (kind or "") else ("REPLAY" if "REPLAY" in (kind or "") else ("OFFLINE" if "SYNTHETIC" in (kind or "") else "HISTORICAL"))
+        freshness = "PAPER" if "PAPER" in (kind or "") else "HISTORICAL"
         result.update(source="LOCAL_ARCHIVED_MANIFEST", evidence_kind=ident(kind), run_id=key,
                       revision=ident(data.get("revision")), sha256=sha,
                       observed_at=timestamp(data.get("created_at_utc", data.get("created_at"))),
                       warnings=["ARCHIVED_NOT_CURRENT_WORKER", "BINDINGS_NOT_REVALIDATED_AGAINST_CHECKOUT"],
                       gate=ident(data.get("primary_status", data.get("selection_status", data.get("status")))),
-                      mode="OFFLINE" if "SYNTHETIC" in (kind or "") else "HISTORICAL", freshness="HISTORICAL",
+                      mode=mode, freshness=freshness,
                       bindings={k: digest(data.get("bindings", {}).get(k)) for k in
                                 ("code_sha256", "data_sha256", "config_sha256", "prompt_sha256")},
                       protocol_sha256=digest(data.get("protocol_sha256")))
@@ -266,7 +288,7 @@ class Sources:
             try:
                 data, sha = self.read(path)
                 meta = self.meta(key, data, sha)
-                if key.startswith("portfolio:"):
+                if key.startswith("portfolio:") or key.startswith("paper:"):
                     datasets = ["bound-dataset"]
                 else:
                     datasets = [name for name in data.get("results", {}) if ident(name)]
@@ -282,7 +304,7 @@ class Sources:
             raise KeyError("unknown run")
         data, sha = self.read(self.catalog()[run])
         meta = self.meta(run, data, sha)
-        if run.startswith("portfolio:"):
+        if run.startswith("portfolio:") or run.startswith("paper:"):
             if dataset != "bound-dataset":
                 raise KeyError("unknown dataset")
             arms = data.get("arms", {})
@@ -329,8 +351,7 @@ class Sources:
                 row["latest_unrealized_pnl_tmn"] = row["curve"][-1]["unrealized_pnl_tmn"]
                 balances = arm["equity_curve"][-1].get("balances")
                 if isinstance(balances, dict):
-                    row["latest_balances"] = {asset: {k: decimal(balances[asset].get(k), False) for k in ("free", "locked")}
-                                              for asset in ("TMN", "USDT") if asset in balances}
+                    row["latest_balances"] = project_balances(balances)
             signatures.append((arm.get("benchmark_contract"), arm.get("initial_capital_tmn"),
                                arm.get("execution_model"), arm.get("drawdown_basis"),
                                tuple(p["observed_at"] for p in row["curve"])))
@@ -338,7 +359,7 @@ class Sources:
         comparable = bool(signatures and signatures[0][0] and signatures[0][-1]
                           and all(s == signatures[0] for s in signatures))
         meta.update(dataset=dataset, acceptance=acceptance, arms=output, comparable=comparable,
-                    units=dict(money="TMN", base="USDT only for USDTTMN", drawdown="percent"),
+                    units=dict(money="TMN", base="asset symbol in balances", drawdown="percent"),
                     risk=dict(status="UNAVAILABLE", stop_policy=None, kill_switch=None,
                               warning="Thresholds not attested by this artifact; not a loss guarantee"))
         meta["record_linking"] = "REAL_IDS_ONLY_NO_TIMESTAMP_JOIN"
@@ -395,7 +416,7 @@ class Sources:
                 binding = bool(snap_hash and snap_hash == computed == decision.get("snapshot_sha256")
                                and snapshot.get("symbol") == decision.get("symbol")
                                and snapshot.get("cutoff") == decision.get("cutoff"))
-                rows.append(dict(decision_id=did, symbol=ident(decision.get("symbol")),
+                row_item = dict(decision_id=did, symbol=ident(decision.get("symbol")),
                                  action=ident(decision.get("action")), reason=text(decision.get("reason")),
                                  observed_at=timestamp(decision.get("cutoff")), snapshot_sha256=snap_hash,
                                  evidence_ids=[ident(v) for v in bounded_list(decision.get("evidence_ids"))][:25],
@@ -404,7 +425,38 @@ class Sources:
                                  risk=dict(approved=risk.get("approved") if type(risk.get("approved")) is bool else None,
                                            reason=text(risk.get("reason")), action=ident(risk.get("action")),
                                            stop_price=decimal(risk.get("stop_price"), False)),
-                                 client_id=client_id, orders=[o for o in safe_orders if client_id and o["client_id"] == client_id]))
+                                 client_id=client_id, orders=[o for o in safe_orders if client_id and o["client_id"] == client_id])
+                if isinstance(decision.get("forecast"), dict):
+                    fc = decision["forecast"]
+                    row_item["forecast"] = dict(
+                        reference_price=decimal(str(fc.get("reference_price")), False),
+                        return_q10=decimal(str(fc.get("return_q10"))),
+                        return_q50=decimal(str(fc.get("return_q50"))),
+                        return_q90=decimal(str(fc.get("return_q90"))),
+                        target_return_fraction=decimal(str(fc.get("target_return_fraction")), False) if fc.get("target_return_fraction") else None,
+                        horizon_seconds=count(fc.get("horizon_seconds")),
+                        review_after_seconds=count(fc.get("review_after_seconds")),
+                        invalidation=text(fc.get("invalidation")),
+                        label="پیش‌بینی",
+                    )
+                if isinstance(trace.get("protection"), dict):
+                    prot = trace["protection"]
+                    hw = prot.get("high_water")
+                    np = prot.get("net_peak_tmn", prot.get("net_peak"))
+                    rf = prot.get("retained_floor_tmn")
+                    tsp = prot.get("trailing_stop_price")
+                    row_item["protection"] = dict(
+                        high_water=decimal(str(hw), False) if hw is not None else None,
+                        net_peak_tmn=decimal(str(np), False) if np is not None else None,
+                        retained_floor_tmn=decimal(str(rf), False) if rf is not None else None,
+                        retention_active=bool(prot.get("retention_active", False)),
+                        trailing_stop_price=decimal(str(tsp), False) if tsp is not None else None,
+                        last_tightened_at=timestamp(prot.get("last_tightened_at")),
+                        target_checkpoint_price=decimal(str(prot.get("target_checkpoint_price")), False) if prot.get("target_checkpoint_price") is not None else None,
+                        gross_return_pct=decimal(str(prot.get("gross_return_pct"))) if prot.get("gross_return_pct") is not None else None,
+                        net_return_pct=decimal(str(prot.get("net_return_pct"))) if prot.get("net_return_pct") is not None else None,
+                    )
+                rows.append(row_item)
         if any(o["state"] == "UNKNOWN" for o in safe_orders):
             meta["warnings"].append("UNKNOWN_ORDER_REQUIRES_ENGINE_RECONCILIATION")
         meta.update(status="AVAILABLE" if rows else ("EMPTY" if present else "UNAVAILABLE"),
@@ -453,6 +505,9 @@ class Sources:
                 observation.update(status="INVALID", warnings=["OBSERVATION_SCHEMA_OR_READ_FAILED"])
         account = envelope()
         probe_path = self.root / "data/private/probe-report.json"
+        engine_path = self.root / ".local/dashboard/engine-snapshot.json"
+        engine_snapshot = envelope()
+
         if probe_path.is_file():
             try:
                 p_data, p_sha = self.read(probe_path)
@@ -480,7 +535,56 @@ class Sources:
                 )
             except (OSError, ValueError, TypeError, AttributeError):
                 account.update(status="INVALID", warnings=["PROBE_REPORT_SCHEMA_INVALID"])
-        else:
+
+        if engine_path.is_file():
+            try:
+                e_data, e_sha = self.read(engine_path)
+                acc = e_data.get("account", {})
+                balances = project_balances(acc.get("balances"), totals=True)
+                if "TMN" not in balances:
+                    raise ValueError("Engine cash balance is missing")
+                total_tmn = balances["TMN"]["total"]
+                equity = decimal(acc.get("equity_tmn"), negative=False)
+                if equity is None:
+                    if any(Decimal(value["total"]) for asset,value in balances.items() if asset != "TMN"):
+                        raise ValueError("Noncash engine assets need an observed valuation")
+                    equity = total_tmn
+                engine_snapshot.update(
+                    status="AVAILABLE",
+                    source=ident(e_data.get("source")) or "PAPER_ENGINE_SNAPSHOT",
+                    evidence_kind=ident(e_data.get("evidence_kind")) or "PUBLIC_MARKET_PAPER",
+                    sha256=e_sha,
+                    run_id=ident(e_data.get("run_id")),
+                    mode=ident(e_data.get("mode")),
+                    worker_state=ident(e_data.get("worker_state")),
+                    observed_at=timestamp(e_data.get("observed_at")),
+                    heartbeat_at=timestamp(e_data.get("heartbeat_at")),
+                    balances=balances,
+                    equity_tmn=equity,
+                    risk=e_data.get("risk"),
+                    warnings=bounded_list(e_data.get("warnings")),
+                )
+                if not probe_path.is_file():
+                    account.update(
+                        status="AVAILABLE",
+                        source=ident(e_data.get("source")) or "PAPER_ENGINE_SNAPSHOT",
+                        evidence_kind=ident(e_data.get("evidence_kind")) or "PUBLIC_MARKET_PAPER",
+                        sha256=e_sha,
+                        balances=engine_snapshot["balances"],
+                        equity_tmn=equity,
+                        reconciliation="PAPER_INTERNAL_LEDGER",
+                        warnings=engine_snapshot["warnings"],
+                    )
+                if e_data.get("heartbeat_at"):
+                    observation.update(
+                        mode=ident(e_data.get("mode")) or "PUBLIC_MARKET_PAPER",
+                        heartbeat=timestamp(e_data.get("heartbeat_at")),
+                        observed_at=timestamp(e_data.get("observed_at")),
+                        status="AVAILABLE",
+                    )
+            except (OSError, ValueError, TypeError, AttributeError):
+                engine_snapshot.update(status="INVALID", warnings=["ENGINE_SNAPSHOT_INVALID"])
+        elif not probe_path.is_file():
             account.update(warnings=["WAITING_FOR_ENGINE_EXCHANGE_ATTESTED_EXPORT"], balances=None,
                            equity_tmn=None, reconciliation=None, free=None, locked=None)
         usage = readonly_budget(self.root / "data/llm-budget.sqlite3")
@@ -514,8 +618,8 @@ class Sources:
                 diagnostic.update(status="INVALID")
         result = envelope("AVAILABLE")
         result.update(server="SERVER_AVAILABLE", server_time=datetime.now(UTC).isoformat(),
-                      observation=observation, account=account, reservation=usage,
-                      archived_usage=review, model=diagnostic, reflections=reflections,
+                      observation=observation, account=account, engine_snapshot=engine_snapshot,
+                      reservation=usage, archived_usage=review, model=diagnostic, reflections=reflections,
                       risk=dict(status="UNAVAILABLE", stop=None, kill_switch=None),
                       warnings=["CANDIDATE_APPROVAL_NOT_ATTESTED", "DASHBOARD_IS_READ_ONLY"])
         return result

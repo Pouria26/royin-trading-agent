@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "protocol": "MARKET_AI_TERMINAL_FORECAST_V1",
+  "frozen_at": "2026-10-22T17:08:00+03:30",
+  "profile": "PUBLIC_MARKET_PAPER",
+  "source": {
+    "catalog": "GET https://api.wallex.ir/hector/web/v1/markets",
+    "candles": "GET https://api.wallex.ir/v1/udf/history resolution=1 aggregated to 300s",
+    "depth": "GET https://api.wallex.ir/v1/depth",
+    "universe": "catalog symbols after policy denylist and TON exclusion; NOT an account-verified universe"
+  },
+  "batch": {
+    "limit": 2,
+    "uniform_snapshot_cutoff": true,
+    "round_trip_fee_fraction": "0.006",
+    "max_spread_fraction": "0.003",
+    "min_depth_tmn": "1000000",
+    "ordering": "host score orders retrieval only; the model selects the symbol or WAIT"
+  },
+  "horizon": {
+    "min_seconds": 600,
+    "max_seconds": 1800,
+    "reference_kind": "LAST_CLOSE"
+  },
+  "forecast": {
+    "quantiles": ["q10", "q50", "q90"],
+    "unit": "fraction of reference_price",
+    "negative_allowed": true,
+    "target_return_fraction": "policy checkpoint only; not a terminal forecast"
+  },
+  "outcome": {
+    "price": "close of the 1-minute candle ending exactly at cutoff+horizon",
+    "missing_rule": "MISSING_OUTCOME; no interpolation, no last-price fallback",
+    "pending_rule": "PENDING until cutoff+horizon+60"
+  },
+  "scoring": {
+    "alpha": "0.2",
+    "point_metrics": ["median_absolute_error", "bias"],
+    "interval_metrics": ["coverage", "mean_width", "mean_winkler"],
+    "baseline": "zero point forecast plus development-only empirical q10..q90; BLOCKED when development sample is absent"
+  },
+  "run": {
+    "run_id": "20261022T133127Z_761a922d",
+    "model": "gpt-6-luna",
+    "prompt_sha256": "a9b08f09b63ef5ac9f224e62c8c491bebeb2978de0b56da9048e9e0b440bfb29",
+    "code_sha256_at_run": "4538b589ba50514a8c2e703793cecde2d7a4eb3c940fe1aed1d8c7f35adc33dd",
+    "config_sha256": "58f2420cff56d675a95bae62d28cd519307ae9b0414ebd6950c7436890ffa0be",
+    "batch_sha256": "9abe6b53c246f80016c91c64afd04cd1d64276e781a69ce6dd704050350c69e9",
+    "batch_symbols": ["BTCTMN", "PEPETMN"],
+    "choice": "PEPETMN",
+    "action": "WAIT",
+    "forecast_id": "pep-1792675800-wait",
+    "reference_price": "1.2196",
+    "cutoff": 1792675800,
+    "horizon_seconds": 900,
+    "outcome_at": 1792676700,
+    "provider_reported_usage": {"input_tokens": 2390, "output_tokens": 474, "requests": 2},
+    "reserved_usd_ceiling": "0.00247296"
+  },
+  "limits": [
+    "single forecast run; N=1 is diagnostic, not calibration or a superiority claim",
+    "catalog universe is current, not historical, so replaying past winners is not causal market selection",
+    "absolute timestamps are visible to the model; historical memory cannot be ruled out",
+    "no live order or account write occurred"
+  ]
+}

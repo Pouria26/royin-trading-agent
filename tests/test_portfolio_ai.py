@@ -13,12 +13,34 @@ from royin.evaluation import (
     always_wait_decision,
     portfolio_bindings,
     recorded_portfolio_producer,
+    run_role_ablation,
     run_simulation,
 )
 from scripts.evaluate_portfolio_ai import main, run_self_check, synthetic_scenario
 
 
 class PortfolioReplayTests(unittest.TestCase):
+    def test_missing_two_role_evidence_has_no_fake_curve(self):
+        candles, rules, policy = synthetic_scenario()
+        report = run_role_ablation(candles, rules, policy)
+        for name in ("single_model", "two_roles"):
+            self.assertIsNone(report[name]["equity_curve"])
+            self.assertEqual(report[name]["status"], "BLOCKED_RECORDED_AI")
+        self.assertEqual(report["rule"]["evidence_kind"], "PAPER_BASELINE_NO_AI")
+
+    def test_role_comparison_uses_separate_ledgers_and_rejects_real_label(self):
+        from royin.evaluation import RecordedPortfolioBlocked, baseline_rule_decision
+        candles, rules, policy = synthetic_scenario()
+        result = run_role_ablation(candles, rules, policy, single_model=always_wait_decision,
+                                   two_roles=baseline_rule_decision, source="FAKE_MODEL")
+        self.assertEqual(result["single_model"]["total_realized_pnl"], "0")
+        self.assertEqual(result["single_model"]["fills"], [])
+        self.assertGreater(len(result["two_roles"]["fills"]), 0)
+        for arm in result.values():
+            self.assertEqual(arm["initial_capital_tmn"], "5000000")
+        with self.assertRaises(RecordedPortfolioBlocked):
+            run_role_ablation(candles, rules, policy, source="REAL_MODEL_REPLAY")
+
     @classmethod
     def setUpClass(cls):
         candles, rules, policy = synthetic_scenario()

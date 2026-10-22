@@ -110,6 +110,30 @@ def parse_fee_rates(payload, symbol):
     return rates
 
 
+def parse_spot_rules(payload, *, maker_fee_rate, taker_fee_rate):
+    """Parse the spot /v1/markets contract, never OTC limits or guessed precisions."""
+    from royin.risk import MarketRules
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        raise ValueError("Unsuccessful spot rules response")
+    symbols = payload.get("result", {}).get("symbols")
+    if not isinstance(symbols, dict):
+        raise ValueError("Missing spot symbol rules")
+    parsed = {}
+    for symbol, row in symbols.items():
+        if not isinstance(row, dict) or row.get("symbol") != symbol:
+            raise ValueError("Spot rule symbol mismatch")
+        step, tick = row.get("stepSize"), row.get("tickSize")
+        if any(type(x) is not int or not 0 <= x <= 18 for x in (step,tick)):
+            raise ValueError("Invalid spot precision")
+        base, quote = row.get("baseAsset"), row.get("quoteAsset")
+        if not isinstance(base,str) or quote not in ("TMN","USDT") or symbol != base+quote:
+            raise ValueError("Invalid spot market identity")
+        parsed[symbol] = MarketRules(symbol,base,quote,Decimal(10)**-tick,Decimal(10)**-step,
+            decimal_number(row.get("minNotional"),positive=True), decimal_number(row.get("minQty"),positive=True),
+            maker_fee_rate,taker_fee_rate)
+    return parsed
+
+
 @dataclass(frozen=True)
 class Balance:
     total: Decimal

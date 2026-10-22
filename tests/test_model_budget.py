@@ -23,9 +23,9 @@ class ModelBudgetTests(unittest.TestCase):
         self.now = datetime(2026, 10, 21, 12, tzinfo=UTC)
 
     def test_known_tariff_reservation_and_restart_never_refund(self):
-        config = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 8704})
+        config = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 33792})
         budget = ModelBudget(config, self.path)
-        self.assertEqual(str(budget.reserve(now=self.now)), "0.00123648")
+        self.assertEqual(str(budget.reserve(now=self.now)), "0.00435712")
         with self.assertRaises(BudgetBlocked):
             ModelBudget(config, self.path).reserve(now=self.now + timedelta(days=1))
 
@@ -42,7 +42,7 @@ class ModelBudgetTests(unittest.TestCase):
             budget.reserve(now=before_midnight + timedelta(days=2))
 
     def test_atomic_spending_cap_across_simultaneous_clients(self):
-        config = RuntimeConfig(LLM_COST_BUDGET="0.0013", LLM_COST_CURRENCY="USD",
+        config = RuntimeConfig(LLM_COST_BUDGET="0.0044", LLM_COST_CURRENCY="USD",
                                LLM_TOKEN_BUDGET=6_000_000)
 
         def attempt(_):
@@ -57,9 +57,9 @@ class ModelBudgetTests(unittest.TestCase):
 
     def test_invalid_endpoint_limits_model_or_builtin_tool_never_reserve(self):
         budget = ModelBudget(self.config, self.path)
-        for change in ({"max_completion_tokens": 513}, {"max_completion_tokens": True},
+        for change in ({"max_completion_tokens": 1025}, {"max_completion_tokens": True},
                        {"stream": True}, {"n": 2}, {"model": "gpt-6-astra"},
-                       {"tools": [{"type": "web_search"}]}, {"messages": ["x" * 9000]}):
+                       {"tools": [{"type": "web_search"}]}, {"messages": ["x" * 34000]}):
             payload = {"model": "gpt-6-luna", "max_completion_tokens": 512, **change}
             request = httpx2.Request("POST", "https://ai.boxapi.ir/ai/v1/chat/completions",
                                      json=payload)
@@ -82,7 +82,7 @@ class ModelBudgetTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT COUNT(*) FROM model_reservations").fetchone()[0], 1)
 
     def test_http_hook_reserves_before_transport_and_blocks_second_request(self):
-        config = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 8704})
+        config = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 33792})
         budget = ModelBudget(config, self.path)
         calls = []
 

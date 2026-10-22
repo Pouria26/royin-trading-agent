@@ -237,6 +237,17 @@ class LedgerAccountingTests(unittest.TestCase):
         equity = self.ledger.get_equity({"USDTTMN": Decimal("60000")})
         self.assertEqual(equity, Decimal("5000000"))
 
+    def test_nonzero_unpriced_or_invalid_asset_cannot_disappear_from_equity(self):
+        self.ledger.set_balance("TMN", free=Decimal("1000"))
+        self.ledger.set_balance("ETH", free=Decimal("0.1"))
+        with self.assertRaisesRegex(ValueError,"valuation price"):
+            self.ledger.get_equity({"USDTTMN":Decimal("60000")})
+        for price in (0.1,Decimal(0),Decimal("NaN")):
+            with self.subTest(price=price),self.assertRaises(TypeError if isinstance(price,float) else ValueError):
+                self.ledger.get_equity({"ETHTMN":price})
+        self.ledger.set_balance("ETH",free=Decimal(0))
+        self.assertEqual(self.ledger.get_equity({}),Decimal("1000"))
+
     def test_trade_reflection_lifecycle(self):
         self.ledger.record_reflection(
             trade_id="tr_01",

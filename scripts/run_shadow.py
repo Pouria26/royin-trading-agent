@@ -25,6 +25,30 @@ DEFAULT_SHADOW_DIR = ROOT / "data" / "shadow"
 DEFAULT_LOCK_FILE = DEFAULT_SHADOW_DIR / "shadow_worker.lock"
 
 
+def next_current_snapshot(series, symbol, *, started_at, now, previous_cutoff,
+                          current_position_base, available_tmn_cash):
+    """Current-candle gate for integration; B must durably claim the cutoff before inference."""
+    step = series.interval_seconds
+    if any(type(t) is not int or t <= 0 for t in (started_at, now, step)) or now < started_at:
+        raise ValueError("Invalid current observation times")
+    if previous_cutoff is not None and (
+        type(previous_cutoff) is not int or previous_cutoff <= 0 or previous_cutoff % step
+    ):
+        raise ValueError("Invalid durable previous cutoff")
+    closed = tuple(c for c in series.candles if c.open_time + step <= now)
+    validate_candles(closed, step, now=now)
+    cutoff = closed[-1].open_time + step
+    if now - cutoff >= step:
+        raise ValueError("Stale current candle")
+    watermark = previous_cutoff if previous_cutoff is not None else started_at // step * step
+    if cutoff <= watermark:
+        return None  # Warmup and duplicate/restart polls are not new trading uptime.
+    if cutoff != watermark + step:
+        raise ValueError("Gap since durable current observation")
+    return extract_features(CandleSeries(closed, step, series.incomplete_bins), symbol, cutoff=cutoff,
+        current_position_base=current_position_base, available_tmn_cash=available_tmn_cash)
+
+
 class ShadowSingleWorkerLock:
     """Exclusive local lock; separate devices need operational exclusion."""
 

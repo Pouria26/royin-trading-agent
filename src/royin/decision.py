@@ -1,8 +1,12 @@
+import hashlib
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from royin.market_context import MarketContext
+from royin.market_data import decimal_number
 
 
 class DecisionProposal(BaseModel):
@@ -16,6 +20,11 @@ class DecisionProposal(BaseModel):
     target_profit_pct: Decimal | None = None
     stop_loss_pct: Decimal | None = None
     exit_reason: str | None = None
+
+    @field_validator("target_profit_pct", "stop_loss_pct", mode="before")
+    @classmethod
+    def exact_optional_fraction(cls, value):
+        return None if value is None else decimal_number(value, positive=True)
 
     @field_validator("evidence_ids", mode="before")
     @classmethod
@@ -40,6 +49,342 @@ class DecisionProposal(BaseModel):
         return value.strip()
 
 
+class PositionReviewContext(BaseModel):
+    """Read-only values supplied by execution owner B; no model-owned risk policy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    quantity: Decimal
+    cost_basis_tmn: Decimal
+    net_liquidation_tmn: Decimal
+    opened_at: int = Field(ge=0)
+    observed_at: int = Field(ge=0)
+
+    hard_exit_at: int = Field(ge=0)
+    initial_stop_price: Decimal
+    trailing_stop_price: Decimal
+    checkpoint_profit_pct: Decimal
+
+    @field_validator("quantity", "cost_basis_tmn", "initial_stop_price", "trailing_stop_price")
+    @classmethod
+    def positive_decimal(cls, value):
+        return decimal_number(value, positive=True)
+
+    @field_validator("net_liquidation_tmn", "checkpoint_profit_pct")
+    @classmethod
+    def nonnegative_decimal(cls, value):
+        return decimal_number(value)
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+
+
+class EntryOpportunityContext(BaseModel):
+    """Fresh scanner cost/liquidity facts; never order sizing or account authorization."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    spread_pct: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    round_trip_fee_pct: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    bid_depth_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    ask_depth_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    catalog_received_at: int = Field(ge=0)
+    candle_received_at: int = Field(ge=0)
+    depth_received_at: int = Field(ge=0)
+    observed_at: int = Field(ge=0)
+    market_context: MarketContext | None = None
+    asset_return_24h: Decimal | None = Field(default=None, allow_inf_nan=False)
+    relative_strength_24h: Decimal | None = Field(default=None, allow_inf_nan=False)
+    best_bid: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+    best_ask: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+
+
+class MarketCatalogCandidate(BaseModel):
+    """Validated public catalog facts for research selection, never an entry signal."""
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    symbol: str = Field(pattern=r"^[A-Z0-9]+TMN$")
+    price_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    turnover_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    return_24h: Decimal | None = Field(default=None, ge=-1, allow_inf_nan=False)
+
+
+class MarketResearchUniverse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    observed_at: int = Field(strict=True, ge=0)
+    markets: tuple[MarketCatalogCandidate, ...] = Field(min_length=1, max_length=256)
+    unavailable_symbols: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def unique_symbols(self):
+        if len({row.symbol for row in self.markets}) != len(self.markets):
+            raise ValueError("Research universe symbols must be unique")
+        if (len(set(self.unavailable_symbols)) != len(self.unavailable_symbols)
+                or not set(self.unavailable_symbols).issubset({row.symbol for row in self.markets})):
+            raise ValueError("Unavailable research symbols must be unique universe members")
+        return self
+
+    def screening_view(self):
+        # Absolute price is unnecessary for catalog triage; exact values remain in the source trace.
+        with localcontext() as ctx:
+            ctx.prec = 160
+            rows = [[row.symbol, int(row.turnover_tmn // Decimal(1000000)),
+                str(row.return_24h.quantize(Decimal("0.0001"),rounding=ROUND_HALF_EVEN))
+                    if row.return_24h is not None else None] for row in self.markets]
+        return dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
+            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp"],rows=rows,
+            unavailable_for_current_cutoff=list(self.unavailable_symbols))
+
+
+class ReturnForecast(BaseModel):
+    """Model-issued terminal-horizon return distribution; host validates, never clamps."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    forecast_id: str = Field(min_length=1, max_length=64)
+    symbol: str
+    cutoff: int = Field(strict=True, ge=0)
+    reference_price: Decimal
+    reference_kind: Literal["LAST_CLOSE"]
+    horizon_seconds: int = Field(strict=True, ge=60, le=259200)
+    return_q10: Decimal
+    return_q50: Decimal
+    return_q90: Decimal
+    target_return_fraction: Decimal | None = None
+    review_after_seconds: int = Field(strict=True, ge=0)
+    invalidation: str
+    evidence_ids: tuple[str, ...]
+    parent_forecast_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("symbol")
+    @classmethod
+    def valid_symbol_pattern(cls, value):
+        if not re.fullmatch(r"^[A-Z0-9]+(?:TMN|USDT)$", value):
+            raise ValueError("Symbol must match canonical exchange pair format")
+        return value
+
+    @field_validator("reference_price", mode="before")
+    @classmethod
+    def positive_reference(cls, value):
+        if isinstance(value, float):
+            value = str(value)
+        return decimal_number(value, positive=True)
+
+    @field_validator("return_q10", "return_q50", "return_q90", mode="before")
+    @classmethod
+    def signed_return_fraction(cls, value):
+        if isinstance(value, float):
+            # JSON models emit numbers; the forecast is a research estimate, not money.
+            if value != value or value in (float("inf"), float("-inf")):
+                raise ValueError("Return must be finite")
+            value = str(value)
+        if isinstance(value, bool) or not isinstance(value, (str, int, Decimal)):
+            raise ValueError("Return must be an exact decimal, never an arbitrary object")
+        number = Decimal(value)
+        if not number.is_finite() or abs(number) > 1:
+            raise ValueError("Return fraction must be finite and within [-1, 1]")
+        if len(number.as_tuple().digits) > 128 or abs(number.as_tuple().exponent) > 128:
+            raise ValueError("Decimal exceeds supported precision/range")
+        return number
+
+    @field_validator("target_return_fraction", mode="before")
+    @classmethod
+    def positive_target(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, float):
+            value = str(value)
+        return decimal_number(value, positive=True)
+
+    @field_validator("forecast_id", "invalidation", mode="before")
+    @classmethod
+    def nonempty_text(cls, value):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("Text fields must be non-empty strings")
+        return value.strip()
+
+    @field_validator("evidence_ids", mode="before")
+    @classmethod
+    def normalized_evidence(cls, value):
+        if isinstance(value, (list, tuple, set, frozenset)):
+            items = tuple(str(x).strip() for x in value)
+        else:
+            raise ValueError("evidence_ids must be a collection of strings")
+        if not items or any(not item for item in items) or len(set(items)) != len(items):
+            raise ValueError("evidence_ids must be non-empty and unique")
+        return items
+
+    @model_validator(mode="after")
+    def ordered_quantiles(self):
+        if not self.return_q10 <= self.return_q50 <= self.return_q90:
+            raise ValueError("Quantiles must satisfy q10 <= q50 <= q90")
+        if self.review_after_seconds > self.horizon_seconds:
+            raise ValueError("review_after_seconds cannot exceed horizon_seconds")
+        if self.parent_forecast_id == self.forecast_id:
+            raise ValueError("Forecast cannot parent itself")
+        return self
+
+
+def validate_forecast(
+    forecast,
+    *,
+    snapshot,
+    horizon_min_seconds: int,
+    horizon_max_seconds: int,
+    remaining_seconds: int | None = None,
+) -> None:
+    """Host checks for one forecast; never adjusts the model's numbers."""
+    if not isinstance(forecast, ReturnForecast):
+        raise ValueError("Forecast must be a ReturnForecast")
+    if (
+        forecast.symbol != snapshot.symbol
+        or forecast.cutoff != snapshot.cutoff
+        or forecast.reference_price != snapshot.last_close
+        or forecast.reference_kind != "LAST_CLOSE"
+    ):
+        raise ValueError("Forecast does not match the chosen snapshot")
+    if not horizon_min_seconds <= forecast.horizon_seconds <= horizon_max_seconds:
+        raise ValueError("Forecast horizon outside the pre-registered policy range")
+    if remaining_seconds is not None and forecast.horizon_seconds > remaining_seconds:
+        raise ValueError("Forecast horizon exceeds the remaining run/deadline")
+    if any(eid not in snapshot.evidences for eid in forecast.evidence_ids):
+        raise ValueError("Forecast cites evidence outside the chosen snapshot")
+
+
+class RoleDecisionProposal(DecisionProposal):
+    # Role agents forecast returns; execution risk parameters belong to the host.
+    target_profit_pct: None = None
+    stop_loss_pct: None = None
+    role: Literal["ENTRY_ANALYST", "POSITION_REVIEWER"]
+    cutoff: int = Field(strict=True, ge=0)
+    snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    position_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    opportunity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    symbol: str | None = None
+    horizon_seconds: int | None = Field(default=None, strict=True, ge=60, le=259200)
+    review_after_seconds: int | None = Field(default=None, strict=True, ge=0)
+    forecast: ReturnForecast | None = None
+
+    @field_validator("symbol")
+    @classmethod
+    def optional_symbol_pattern(cls, value):
+        if value is None:
+            return None
+        if not re.fullmatch(r"^[A-Z0-9]+(?:TMN|USDT)$", value):
+            raise ValueError("Symbol must match canonical exchange pair format")
+        return value
+
+
+class MarketEntryProposal(RoleDecisionProposal):
+    """Batch entry output: a forecast is mandatory even when the model waits."""
+
+    forecast: ReturnForecast
+    horizon_seconds: int = Field(strict=True, ge=60, le=259200)
+    review_after_seconds: int = Field(strict=True, ge=0)
+
+
+def validate_role_proposal(
+    proposal, *, role, snapshot, position, opportunity,
+    market_batch=None, horizon_bounds=None, remaining_seconds=None, require_forecast=False,
+):
+    """Reject cross-role/state output before the unchanged execution Decision boundary.
+
+    market_batch maps symbol -> (FeatureSnapshot, EntryOpportunityContext). When supplied,
+    the entry role selects a symbol from that bounded batch; the host still owns risk.
+    """
+    if not isinstance(proposal, RoleDecisionProposal) or (
+        proposal.role != role or proposal.cutoff != snapshot.cutoff
+        or proposal.snapshot_sha256 != snapshot.snapshot_sha256
+        or proposal.position_sha256 != (position.sha256 if position else None)
+        or (
+            not (market_batch is not None and proposal.action == "WAIT")
+            and proposal.opportunity_sha256 != (opportunity.sha256 if opportunity else None)
+        )
+    ):
+        raise ValueError("Role/cutoff/snapshot/position mismatch")
+    allowed = {"WAIT", "ENTER"} if role == "ENTRY_ANALYST" else {"WAIT", "EXIT"}
+    if proposal.action not in allowed or (
+        proposal.target_profit_pct is not None or proposal.stop_loss_pct is not None
+    ):
+        raise ValueError("Role action or model-owned risk policy forbidden")
+
+    if proposal.symbol is not None and proposal.symbol != snapshot.symbol:
+        raise ValueError("Selected symbol does not match the bound snapshot")
+    if market_batch is not None:
+        if role != "ENTRY_ANALYST" or snapshot.symbol not in market_batch:
+            raise ValueError("Batch is only valid for the entry role")
+        if proposal.action == "ENTER":
+            if proposal.symbol is None or proposal.symbol != snapshot.symbol:
+                raise ValueError("ENTER must select exactly the bound batch symbol")
+            if proposal.forecast is None or proposal.horizon_seconds is None:
+                raise ValueError("ENTER requires a horizon forecast")
+            if horizon_bounds is None:
+                raise ValueError("Host horizon bounds required")
+            validate_forecast(
+                proposal.forecast, snapshot=snapshot,
+                horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
+                remaining_seconds=remaining_seconds,
+            )
+            if opportunity.market_context is not None:
+                target = proposal.forecast.target_return_fraction
+                if target is None or target <= Decimal(".02"):
+                    raise ValueError("Proposed opportunity does not exceed the 2% gross objective")
+                if opportunity.market_context.regime == "BEARISH" and not (
+                    opportunity.asset_return_24h is not None and opportunity.asset_return_24h > 0
+                    and opportunity.relative_strength_24h is not None and opportunity.relative_strength_24h > 0
+                    and "EV_TREND_BULLISH" in snapshot.evidences
+                ):
+                    raise ValueError("Bear-market exception lacks observed relative strength")
+            if (
+                proposal.horizon_seconds != proposal.forecast.horizon_seconds
+                or proposal.review_after_seconds != proposal.forecast.review_after_seconds
+            ):
+                raise ValueError("Horizon fields disagree with the forecast")
+        elif proposal.forecast is not None:
+            # A WAIT may carry one research forecast; it never creates a position.
+            if proposal.forecast.symbol != snapshot.symbol:
+                raise ValueError("WAIT research forecast must bind the echoed snapshot")
+            if horizon_bounds is None:
+                raise ValueError("Host horizon bounds required")
+            validate_forecast(
+                proposal.forecast, snapshot=snapshot,
+                horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
+                remaining_seconds=None,  # A research WAIT forecast commits no funds or holding time.
+            )
+            if (
+                (proposal.horizon_seconds is not None
+                 and proposal.horizon_seconds != proposal.forecast.horizon_seconds)
+                or (proposal.review_after_seconds is not None
+                    and proposal.review_after_seconds != proposal.forecast.review_after_seconds)
+            ):
+                raise ValueError("Horizon fields disagree with the forecast")
+    elif require_forecast and proposal.action == "ENTER":
+        if proposal.forecast is None or proposal.horizon_seconds is None or horizon_bounds is None:
+            raise ValueError("ENTER requires a horizon forecast")
+        validate_forecast(
+            proposal.forecast, snapshot=snapshot,
+            horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
+            remaining_seconds=remaining_seconds,
+        )
+        if (
+            proposal.horizon_seconds != proposal.forecast.horizon_seconds
+            or proposal.review_after_seconds != proposal.forecast.review_after_seconds
+        ):
+            raise ValueError("Horizon fields disagree with the forecast")
+    elif proposal.forecast is not None:
+        if role != "POSITION_REVIEWER":
+            raise ValueError("Only the reviewer may attach a forecast on the single-snapshot path")
+        validate_forecast(
+            proposal.forecast, snapshot=snapshot,
+            horizon_min_seconds=horizon_bounds[0] if horizon_bounds else 60,
+            horizon_max_seconds=horizon_bounds[1] if horizon_bounds else 259200,
+            remaining_seconds=remaining_seconds,
+        )
+
+
 class Decision(BaseModel):
     """Host-verified decision immutable data model."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -55,6 +400,9 @@ class Decision(BaseModel):
     target_profit_pct: Decimal | None = None
     stop_loss_pct: Decimal | None = None
     exit_reason: str | None = None
+    horizon_seconds: int | None = None
+    review_after_seconds: int | None = None
+    forecast: ReturnForecast | None = None
 
     @field_validator("decision_id", "symbol", mode="before")
     @classmethod
@@ -144,4 +492,8 @@ def bind_decision(
         target_profit_pct=target_profit,
         stop_loss_pct=stop_loss,
         exit_reason=proposal.exit_reason,
+        horizon_seconds=getattr(proposal, "horizon_seconds", None),
+        review_after_seconds=getattr(proposal, "review_after_seconds", None),
+        forecast=getattr(proposal, "forecast", None),
     )
+

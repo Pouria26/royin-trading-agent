@@ -1,6 +1,8 @@
 """Host risk gates, market rules, exposure controls, and post-fee sellability checks."""
 
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Literal
 
@@ -27,6 +29,8 @@ class MarketRules:
         validate_decimal(self.min_quantity, "min_quantity", strictly_positive=True)
         validate_decimal(self.maker_fee_rate, "maker_fee_rate", allow_zero=True)
         validate_decimal(self.taker_fee_rate, "taker_fee_rate", allow_zero=True)
+        if self.maker_fee_rate >= 1 or self.taker_fee_rate >= 1:
+            raise ValueError("Fee fractions must be below one")
         if not self.symbol or not isinstance(self.symbol, str):
             raise ValueError("symbol must be a non-empty string")
         if not self.base_asset or not isinstance(self.base_asset, str):
@@ -77,6 +81,76 @@ class RiskResult:
     price: Decimal
     stop_price: Decimal | None
     estimated_fee_quote: Decimal
+
+
+@dataclass(frozen=True)
+class PositionProtectionPolicy:
+    """Explicit paper policy; checkpoints request review, never force profit taking."""
+
+    initial_stop_pct: Decimal
+    trailing_drawdown_pct: Decimal
+    checkpoint_profit_pct: Decimal
+    review_interval_seconds: int
+    hard_holding_seconds: int
+    deadline_utc: int
+    exit_buffer_seconds: int
+    max_quote_age_seconds: int
+    max_loss_tmn: Decimal
+    profit_retention_ratio: Decimal = Decimal("0")
+    net_activation_fraction: Decimal = Decimal("0")
+
+    def __post_init__(self):
+        validate_decimal(self.max_loss_tmn, "maximum position loss", strictly_positive=True)
+        for value in (self.initial_stop_pct, self.trailing_drawdown_pct, self.checkpoint_profit_pct):
+            validate_decimal(value, "protection fraction", strictly_positive=True)
+            if value >= 1:
+                raise ValueError("Protection fractions must be below one")
+        for value in (self.review_interval_seconds, self.hard_holding_seconds,
+                      self.deadline_utc, self.max_quote_age_seconds):
+            if type(value) is not int or value <= 0:
+                raise ValueError("Protection times must be positive integers")
+        if type(self.exit_buffer_seconds) is not int or not 0 <= self.exit_buffer_seconds < self.deadline_utc:
+            raise ValueError("Invalid exit buffer")
+        if self.review_interval_seconds > self.hard_holding_seconds:
+            raise ValueError("Review interval exceeds hard holding cap")
+        validate_decimal(self.profit_retention_ratio, "profit retention ratio", allow_zero=True)
+        validate_decimal(self.net_activation_fraction, "net activation fraction", allow_zero=True)
+        if self.profit_retention_ratio > 1 or self.net_activation_fraction >= 1:
+            raise ValueError("Retention ratio must be <= 1 and activation fraction < 1")
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(json.dumps(asdict(self), default=str, sort_keys=True).encode()).hexdigest()
+
+
+def calculate_retention_stop_price(
+    *,
+    cost_basis: Decimal,
+    sellable_quantity: Decimal,
+    desired_net_profit: Decimal,
+    taker_fee_rate: Decimal,
+    slippage_pct: Decimal = Decimal("0.0005"),
+    tick_size: Decimal = Decimal("1"),
+) -> Decimal:
+    """Calculate the exact stop price needed to secure desired_net_profit upon exit.
+
+    Formula: S = ceil_tick((cost_basis + desired_net_profit) / (quantity * (1 - fee) * (1 - slippage)), tick_size)
+    Ceiling quantize to tick_size guarantees rounding never weakens the net floor.
+    """
+    validate_decimal(cost_basis, "cost_basis", strictly_positive=True)
+    validate_decimal(sellable_quantity, "sellable_quantity", strictly_positive=True)
+    validate_decimal(desired_net_profit, "desired_net_profit", allow_zero=True)
+    validate_decimal(taker_fee_rate, "taker_fee_rate", allow_zero=True)
+    validate_decimal(slippage_pct, "slippage_pct", allow_zero=True)
+    validate_decimal(tick_size, "tick_size", strictly_positive=True)
+
+    denom = sellable_quantity * (Decimal(1) - taker_fee_rate) * (Decimal(1) - slippage_pct)
+    if denom <= Decimal(0):
+        raise ValueError("Invalid denominator in retention stop calculation")
+    raw_price = (cost_basis + desired_net_profit) / denom
+    from decimal import ROUND_CEILING
+    ticks = (raw_price / tick_size).quantize(Decimal("1"), rounding=ROUND_CEILING)
+    return ticks * tick_size
 
 
 def evaluate_risk(
@@ -216,6 +290,10 @@ def evaluate_risk(
         )
 
     # 9. Portfolio drawdown kill-switch with durable metadata persistence
+    if decision.action == "ENTER" and ledger.get_meta("portfolio") and any(
+        asset != market_rules.quote_asset and balance.total > 0 for asset,balance in ledger.get_all_balances().items()
+    ):
+        return RiskResult(False, "One-position portfolio is already invested", "WAIT", symbol, zero, zero, None, zero)
     current_equity = ledger.get_equity(
         {symbol: current_price}, quote_currency=market_rules.quote_asset
     )
@@ -244,8 +322,8 @@ def evaluate_risk(
 
     with ledger.connection() as db:
         pending = db.execute(
-            "SELECT 1 FROM order_intents WHERE symbol=? AND status IN ('OPEN','PARTIALLY_FILLED') LIMIT 1",
-            (symbol,),
+            "SELECT 1 FROM order_intents WHERE status NOT IN "
+            "('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED') LIMIT 1",
         ).fetchone()
     if pending:
         return RiskResult(
@@ -261,6 +339,8 @@ def evaluate_risk(
 
     # 10. Action ENTER (Spot Buy)
     if decision.action == "ENTER":
+        if ledger.get_meta("audit_failed") == "1" or ledger.get_meta("entry_block_reason"):
+            return RiskResult(False, "Host entry gate is closed", "WAIT", symbol, zero, zero, None, zero)
         free_cash = ledger.get_balance(market_rules.quote_asset).free
         current_base_bal = ledger.get_balance(market_rules.base_asset)
         current_exposure = current_base_bal.total * current_price
@@ -357,7 +437,7 @@ def evaluate_risk(
         available_base = ledger.get_balance(market_rules.base_asset).free
         target_qty = market_rules.quantize_quantity(available_base, round_down=True)
 
-        if target_qty <= zero:
+        if target_qty < market_rules.min_quantity:
             return RiskResult(
                 approved=False,
                 reason="Rejected: Cannot SELL with 0 available base balance",

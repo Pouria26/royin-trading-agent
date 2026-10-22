@@ -15,7 +15,15 @@ from unittest.mock import patch
 from urllib.parse import urlencode
 
 from dashboard.server import make_server
-from dashboard.sources import MAX_BYTES, Sources, decimal, public_tail, readonly_budget, text
+from dashboard.sources import (
+    MAX_BYTES,
+    Sources,
+    decimal,
+    project_balances,
+    public_tail,
+    readonly_budget,
+    text,
+)
 
 
 def fixture():
@@ -227,6 +235,73 @@ class DashboardTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(3)
+
+
+    def test_paper_run_catalog_and_engine_snapshot_integration(self):
+        paper_manifest = self.root / "artifacts/market-paper/paper_run_1/manifest.json"
+        paper_manifest.parent.mkdir(parents=True, exist_ok=True)
+        data = copy.deepcopy(self.data)
+        data["evidence_kind"] = "PUBLIC_MARKET_PAPER"
+        paper_manifest.write_text(json.dumps(data), encoding="utf8")
+
+        entries = self.sources.catalog()
+        self.assertIn("paper:paper_run_1", entries)
+        runs_resp = self.sources.runs()
+        paper_meta = next(r for r in runs_resp["items"] if r["run_id"] == "paper:paper_run_1")
+        self.assertEqual(paper_meta["mode"], "PAPER")
+        self.assertEqual(paper_meta["freshness"], "PAPER")
+
+        eval_resp = self.sources.evaluation("paper:paper_run_1", "bound-dataset")
+        self.assertEqual(eval_resp["run_id"], "paper:paper_run_1")
+        self.assertIn("arms", eval_resp)
+
+        # Test engine-snapshot in overview
+        engine_snap = self.root / ".local/dashboard/engine-snapshot.json"
+        engine_snap.parent.mkdir(parents=True, exist_ok=True)
+        engine_snap.write_text(json.dumps({
+            "schema_version": "royin.engine-monitor.v1",
+            "source": "PAPER_ENGINE_SNAPSHOT",
+            "evidence_kind": "PUBLIC_MARKET_PAPER",
+            "mode": "PUBLIC_MARKET_PAPER",
+            "heartbeat_at": 1700000000,
+            "observed_at": 1700000000,
+            "account": {
+                "balances": {
+                    "TMN": {"free": "5000000", "locked": "0", "total": "5000000"},
+                    "USDT": {"free": "0", "locked": "0", "total": "0"},
+                }
+            },
+            "warnings": ["DEMO_TEST_WARNING"],
+        }), encoding="utf8")
+        overview = self.sources.overview()
+        self.assertEqual(overview["account"]["status"], "AVAILABLE")
+        self.assertEqual(overview["account"]["balances"]["TMN"]["free"], "5000000")
+        self.assertEqual(overview["observation"]["mode"], "PUBLIC_MARKET_PAPER")
+
+        snapshot = json.loads(engine_snap.read_text())
+        snapshot["account"] = dict(balances={
+            "TMN":dict(free="4000000",locked="0",total="4000000"),
+            "ETH":dict(free="0.01",locked="0.02",total="0.03")},equity_tmn="5050000")
+        snapshot["worker_state"] = "STOPPED_OPEN"
+        engine_snap.write_text(json.dumps(snapshot),encoding="utf8")
+        overview = self.sources.overview()
+        self.assertEqual(overview["engine_snapshot"]["balances"]["ETH"]["total"],"0.03")
+        self.assertNotIn("USDT",overview["engine_snapshot"]["balances"])
+        self.assertEqual(overview["engine_snapshot"]["worker_state"],"STOPPED_OPEN")
+        self.assertEqual(overview["account"]["equity_tmn"],"5050000")
+        del snapshot["account"]["equity_tmn"]
+        engine_snap.write_text(json.dumps(snapshot),encoding="utf8")
+        self.assertEqual(self.sources.overview()["engine_snapshot"]["status"],"INVALID")
+
+    def test_asset_projection_rejects_invalid_missing_and_inconsistent_values(self):
+        for balances in ({"ETH":dict(free=".1",locked=".2",total=".4")},
+                         {"../.env":dict(free="0",locked="0",total="0")},
+                         {"ETH":dict(free=.1,locked="0",total=".1")},
+                         {"ETH":dict(free="0",locked="0")},{}):
+            with self.subTest(balances=balances),self.assertRaises(ValueError):
+                project_balances(balances,totals=True)
+        self.assertEqual(project_balances({"ETH":dict(free="0.1",locked="0.2",total="0.3")},totals=True)
+            ["ETH"]["total"],"0.3")
 
 
 if __name__ == "__main__":

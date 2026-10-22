@@ -53,6 +53,7 @@ _SECRET_KEYS = {
 }
 _PAYLOAD_FIELDS = frozenset(
     [
+        "journal_event_id",
         "decision_id",
         "snapshot_sha256",
         "symbol",
@@ -240,8 +241,9 @@ class AuditLogger:
     def error(self, component: str, message: str, **kwargs):
         self.log(logging.ERROR, component, message, **kwargs)
 
-    def record_event(self, event_type: str, component: str, payload: dict[str, Any]):
+    def record_event(self, event_type: str, component: str, payload: dict[str, Any], *, origin=None):
         """Write an immutable structured event to the JSONL audit trail."""
+        journal_origin=origin
         timestamp = time.time()
         self.sequence += 1
         occurred = payload.get(
@@ -262,7 +264,7 @@ class AuditLogger:
             if payload.get("source") in ("REAL_MODEL", "SYNTHETIC", "PAPER", "SHADOW")
             else self.source,
             "sequence": self.sequence,
-            "event_id": f"{self.run_id}:{self.sequence}",
+            "event_id": payload.get("journal_event_id", f"{self.run_id}:{self.sequence}"),
             "occurred_at": datetime.fromtimestamp(occurred, UTC).isoformat(),
             "recorded_at": datetime.fromtimestamp(timestamp, UTC).isoformat(),
             "hashes": self.hashes,
@@ -272,6 +274,8 @@ class AuditLogger:
             "component": component,
             "payload": _sanitize_for_json(safe_payload),
         }
+        if journal_origin:
+            record.update({key:journal_origin[key] for key in ("run_id","mode","source","hashes","context")})
         safe_json = json.dumps(record, sort_keys=True)
 
         # Write safely to JSONL

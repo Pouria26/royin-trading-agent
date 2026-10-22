@@ -1,11 +1,33 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 import httpx
 
-from scripts.probe_wallex_account import choose_credit_account, read_account
+from royin.config import RuntimeConfig
+from scripts.probe_wallex_account import choose_credit_account, probe_credit_contract, read_account
 
 
 class CreditAccountProbeTests(unittest.TestCase):
+    def test_failed_get_counts_and_unknown_orders_are_not_zero_or_release(self):
+        seen=[]
+        def handler(request):
+            seen.append(request.url.path)
+            if request.url.path=="/sub-accounts":
+                return httpx.Response(200,json=dict(success=True,result=[self.row]))
+            if request.url.path.endswith("balances-detail"):
+                return httpx.Response(200,json=dict(success=True,result={"TMN":dict(symbol="TMN",total="5000000",available="5000000",freeze="0")}))
+            if request.url.path.endswith("fee"):
+                raise httpx.ReadTimeout("synthetic")
+            return httpx.Response(200,json=dict(success=True,result={}))
+        with tempfile.TemporaryDirectory() as temp,httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            report=probe_credit_contract(RuntimeConfig(WALLEX_API_KEY="fake"),client,Path(temp)/"fresh")
+        self.assertEqual(report["gets_used"],5)
+        self.assertEqual(len(seen),5)
+        self.assertNotIn("open_orders_count",report)
+        self.assertEqual(report["status"],"NO_GO_CRITICAL_CONTRACT_UNKNOWN")
+        self.assertTrue(report["critical_unknowns"])
+
     def setUp(self):
         self.row = {"clientId": "synthetic-credit-id", "type": "prop",
                     "isActive": True, "isSuspend": False}
