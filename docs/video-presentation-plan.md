@@ -1,3 +1,7 @@
+# DRAFT — narration below is not verified release evidence
+
+Earlier dynamic AI, zero-dust, double-entry and full-protection claims below require replacement with tested results on the final release. Do not record them as facts. Production execution and the unreviewed replay CLI remain blocked.
+
 # سناریو و شات‌لیست ویدئوی ۵ دقیقه‌ای ارائه داوری ربات رویین (RoyIn)
 **انطباق با معیارهای R20 و R21 مسابقه هوش مصنوعی و تریدینگ ایجنتیک والکس / استارکوچ**
 

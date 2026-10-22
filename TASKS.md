@@ -220,3 +220,12 @@ can approve a candidate or prove multi-hour stability. No push, deployment or vi
   - اجرای کامل ۲۴۶ تست واحد مهندسی با نتیجه ۱۰۰٪ سبز (۲۳۸ تست هسته + ۸ تست داشبورد)، تأیید لینتر Ruff و کامپایل Python.
 
 
+
+
+## Collaboration release checkpoint - 2026-10-22
+
+The task-A replay CLI is blocked before network/DB/artifact writes, pending causal data/execution, restart and provenance repairs. Earlier claims of current AI trading, validated minimum1USDT, zero dust and dynamic target protection are not accepted evidence. A owns strategy/data, B owns execution including PaperBroker; separate clones/branches have isolated ownership and one final integrator. Private prompts/handoffs stay ignored; private credentials and the shared financial/model state stay on the designated operator host. Synthetic protocol V6 records the new executable bindings; V1-V5 remain immutable.
+
+Checks on this checkpoint: 240 core tests passed (16.979s), 8 dashboard tests passed (1.390s); Ruff, compileall and wheel build passed. Review transcript and private task prompts remain under ignored .local/parallel.
+
+A clean export of staged tracked files, without .env/private data and using the existing test runtime, passed synthetic replay (PASS_OFFLINE_WIRING_ONLY; primary BLOCKED_DATA). The draft scanner CLI returned exit2 without data writes. This was not a fresh dependency installation or a live/model test.

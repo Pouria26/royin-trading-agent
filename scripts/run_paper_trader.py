@@ -1,12 +1,8 @@
-"""Live & Replay Paper Trading Runner for Royin.
+"""Unreviewed rule-only historical replay draft; CLI execution is blocked.
 
-Executes autonomous spot paper trading on live Wallex prices with a 5,000,000 TMN balance:
-- Fast momentum impulse trades (5 to 30 minutes max).
-- Dynamic Take Profit (1.2% - 3.5%) and Stop Loss (0.6% - 1.0%).
-- Timely early exits on momentum stall (EV_MOMENTUM_STALL), wick rejection (EV_WICK_REJECTION), or 30m time-stop.
-- Accurate exchange fee deduction (0.25% maker / 0.30% taker).
-- Autonomous self-correction memory (Reflexion) recorded into durable SQLite.
-- Outputs official portfolio manifest for the live Dashboard (http://localhost:8765).
+Draft functions remain for task A to repair data, execution timing, restart behavior
+and provenance. They are not an approved API or current-model trading evidence.
+The executable entry point fails closed before network, ledger or artifact writes.
 """
 
 import argparse
@@ -695,20 +691,10 @@ def main(argv=None):
     parser.add_argument("--resolution", type=str, default="5", help="Candle resolution in minutes (e.g. 5, 15, 60)")
     parser.add_argument("--lookback", type=int, default=160, help="Number of candles to analyze")
     parser.add_argument("--db-path", type=str, default=":memory:", help="SQLite database path for ledger and memory")
-    args = parser.parse_args(argv)
-
-    symbol = scan_best_market(resolution=args.resolution) if (args.scan or args.symbol == "AUTO") else args.symbol
-
-    report = run_paper_session(
-        symbol=symbol,
-        initial_capital=args.capital,
-        order_size_tmn=args.order_size,
-        resolution=args.resolution,
-        lookback_bars=args.lookback,
-        db_path=args.db_path,
-    )
-    save_manifest(report)
-    return 0
+    parser.parse_args(argv)
+    # This draft reuses same-bar prices and unverified data; do not publish it as current AI trading.
+    print("BLOCKED_UNREVIEWED_REPLAY: rule-only draft; causal execution, restart safety and evidence bindings require task A review. No market request or database write performed.")
+    return 2
 
 
 if __name__ == "__main__":

@@ -54,3 +54,6 @@
 
 
 Latest execution review: [readiness and evidence limits](docs/execution-readiness-review.md). The order adapter is an offline contract harness; production orders and Candidate Shadow remain blocked. Twelve fixed AI snapshots are not proof of profitable trading.
+
+
+The draft `run_paper_trader.py` CLI is blocked before I/O pending causal execution and provenance repairs; it is not current-model Shadow evidence. Public OBSERVE_ONLY remains separate.

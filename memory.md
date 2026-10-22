@@ -142,3 +142,8 @@ can approve a candidate or prove multi-hour stability. No push, deployment or vi
 - **داشبورد:** اتاق پایش محلی RTL در پورت ۸۷۶۵ برای داوری و ویدئوی ۵ دقیقه‌ای (R20/R21) بدون دسترسی شبکه بیرونی یا ایجاد سفارش راه‌اندازی شد.
 - بررسی‌ها: ۲۴۰ تست کامل (۲۳۲ واحد + ۸ داشبورد) PASS؛ Ruff و compileall کاملاً پاک؛ گیت اجرای زنده همچنان مسدود تا اتمام بازبینی و تأیید سقف جدید.
 
+
+
+## Separate-clone release boundary - 2026-10-22
+
+Draft rule replay is not AI/current Shadow: its CLI is blocked before I/O until task A repairs it. Old zero-dust/minimum and live-learning claims are superseded by this limitation. Two clone-local SQLite budget files do not share a cap: paid/private runtime remains single-host; offline collaborator tests need no real credentials. Raw prompts/handoffs remain ignored and are transferred separately.
