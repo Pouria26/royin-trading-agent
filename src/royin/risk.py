@@ -96,9 +96,11 @@ class PositionProtectionPolicy:
     exit_buffer_seconds: int
     max_quote_age_seconds: int
     max_loss_tmn: Decimal
+    profit_retention_ratio: Decimal = Decimal("0")
+    net_activation_fraction: Decimal = Decimal("0")
 
     def __post_init__(self):
-        validate_decimal(self.max_loss_tmn,"maximum position loss",strictly_positive=True)
+        validate_decimal(self.max_loss_tmn, "maximum position loss", strictly_positive=True)
         for value in (self.initial_stop_pct, self.trailing_drawdown_pct, self.checkpoint_profit_pct):
             validate_decimal(value, "protection fraction", strictly_positive=True)
             if value >= 1:
@@ -111,10 +113,44 @@ class PositionProtectionPolicy:
             raise ValueError("Invalid exit buffer")
         if self.review_interval_seconds > self.hard_holding_seconds:
             raise ValueError("Review interval exceeds hard holding cap")
+        validate_decimal(self.profit_retention_ratio, "profit retention ratio", allow_zero=True)
+        validate_decimal(self.net_activation_fraction, "net activation fraction", allow_zero=True)
+        if self.profit_retention_ratio > 1 or self.net_activation_fraction >= 1:
+            raise ValueError("Retention ratio must be <= 1 and activation fraction < 1")
 
     @property
     def sha256(self):
         return hashlib.sha256(json.dumps(asdict(self), default=str, sort_keys=True).encode()).hexdigest()
+
+
+def calculate_retention_stop_price(
+    *,
+    cost_basis: Decimal,
+    sellable_quantity: Decimal,
+    desired_net_profit: Decimal,
+    taker_fee_rate: Decimal,
+    slippage_pct: Decimal = Decimal("0.0005"),
+    tick_size: Decimal = Decimal("1"),
+) -> Decimal:
+    """Calculate the exact stop price needed to secure desired_net_profit upon exit.
+
+    Formula: S = ceil_tick((cost_basis + desired_net_profit) / (quantity * (1 - fee) * (1 - slippage)), tick_size)
+    Ceiling quantize to tick_size guarantees rounding never weakens the net floor.
+    """
+    validate_decimal(cost_basis, "cost_basis", strictly_positive=True)
+    validate_decimal(sellable_quantity, "sellable_quantity", strictly_positive=True)
+    validate_decimal(desired_net_profit, "desired_net_profit", allow_zero=True)
+    validate_decimal(taker_fee_rate, "taker_fee_rate", allow_zero=True)
+    validate_decimal(slippage_pct, "slippage_pct", allow_zero=True)
+    validate_decimal(tick_size, "tick_size", strictly_positive=True)
+
+    denom = sellable_quantity * (Decimal(1) - taker_fee_rate) * (Decimal(1) - slippage_pct)
+    if denom <= Decimal(0):
+        raise ValueError("Invalid denominator in retention stop calculation")
+    raw_price = (cost_basis + desired_net_profit) / denom
+    from decimal import ROUND_CEILING
+    ticks = (raw_price / tick_size).quantize(Decimal("1"), rounding=ROUND_CEILING)
+    return ticks * tick_size
 
 
 def evaluate_risk(

@@ -9,7 +9,12 @@ from typing import Literal
 
 from royin.ledger import Ledger, validate_decimal
 from royin.market_data import Candle
-from royin.risk import MarketRules, PositionProtectionPolicy, RiskResult
+from royin.risk import (
+    MarketRules,
+    PositionProtectionPolicy,
+    RiskResult,
+    calculate_retention_stop_price,
+)
 
 
 def paper_atomic(method):
@@ -637,95 +642,280 @@ class PaperBroker:
             quantity = sum((Decimal(q) for _,q in fills),Decimal(0))
             if not quantity or sum((Decimal(p)*Decimal(q) for p,q in fills),Decimal(0))/quantity != entry_price:
                 raise ValueError("Entry price has no matching actual fill evidence")
-            stop = entry_price * (1-policy.initial_stop_pct)
-            existing_stop=self.active_stop_prices.get(self.rules.symbol,stop)
-            stop=max(stop,existing_stop)
-            state = dict(status="OPEN",policy_sha256=policy.sha256, opened_at=opened_at,
-                entry_price=str(entry_price), initial_stop_price=str(stop), trailing_stop_price=str(stop),
-                high_water=str(entry_price), last_source_time=opened_at, last_bid=str(entry_price),
-                last_review_at=opened_at, checkpoint_seen=False, exit_reason=None)
-            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
-            db.execute("INSERT INTO broker_stops(symbol,stop_price) VALUES (?,?) ON CONFLICT(symbol) "
-                       "DO UPDATE SET stop_price=excluded.stop_price",(self.rules.symbol,str(stop)))
+            stop = entry_price * (1 - policy.initial_stop_pct)
+            existing_stop = self.active_stop_prices.get(self.rules.symbol, stop)
+            stop = max(stop, existing_stop)
+            state = dict(
+                status="OPEN",
+                policy_sha256=policy.sha256,
+                opened_at=opened_at,
+                entry_price=str(entry_price),
+                initial_stop_price=str(stop),
+                trailing_stop_price=str(stop),
+                high_water=str(entry_price),
+                last_source_time=opened_at,
+                last_bid=str(entry_price),
+                last_review_at=opened_at,
+                checkpoint_seen=False,
+                exit_reason=None,
+                net_peak=str(Decimal(0)),
+                retained_floor_tmn=str(Decimal(0)),
+                retention_active=False,
+                last_tightened_at=None,
+            )
+            self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
+            db.execute(
+                "INSERT INTO broker_stops(symbol,stop_price) VALUES (?,?) ON CONFLICT(symbol) "
+                "DO UPDATE SET stop_price=excluded.stop_price",
+                (self.rules.symbol, str(stop)),
+            )
         self._restore_from_db()
         return state
 
     @paper_atomic
     def observe_quote(self, bid, *, source_time, received_at, now, policy, slippage_pct=Decimal(".0005")):
         """One bounded host-monitor tick, independent of model completion or token budget."""
-        validate_decimal(bid,"bid",strictly_positive=True)
-        validate_decimal(slippage_pct,"slippage")
-        if slippage_pct >= 1 or any(type(t) is not int or t <= 0 for t in (source_time,received_at,now)) or not source_time <= received_at <= now:
+        validate_decimal(bid, "bid", strictly_positive=True)
+        validate_decimal(slippage_pct, "slippage")
+        if (
+            slippage_pct >= 1
+            or any(type(t) is not int or t <= 0 for t in (source_time, received_at, now))
+            or not source_time <= received_at <= now
+        ):
             raise ValueError("Invalid quote observation")
-        key="protection_"+self.rules.symbol
-        state=json.loads(self.ledger.get_meta(key) or "null")
+        key = "protection_" + self.rules.symbol
+        state = json.loads(self.ledger.get_meta(key) or "null")
         if state is None or state["policy_sha256"] != policy.sha256:
             raise ValueError("Position protection policy is unbound or changed")
         if source_time < state["last_source_time"] or now < state["opened_at"]:
             raise ValueError("Reordered position observation")
         if source_time == state["last_source_time"] and bid != Decimal(state["last_bid"]):
             raise ValueError("Conflicting quote timestamp")
-        self.ledger.set_meta("engine_heartbeat",str(now))
-        hard_exit_at=min(state["opened_at"]+policy.hard_holding_seconds,policy.deadline_utc-policy.exit_buffer_seconds)
-        if now-source_time > policy.max_quote_age_seconds:
-            self.ledger.set_meta("entry_block_reason","STALE_QUOTE")
-            return dict(status="EXIT_REQUIRED_STALE_QUOTE" if now>=hard_exit_at else "STALE_QUOTE",
-                        action="WAIT",entry_enabled=False,exit_required=now>=hard_exit_at)
+        self.ledger.set_meta("engine_heartbeat", str(now))
+        hard_exit_at = min(
+            state["opened_at"] + policy.hard_holding_seconds,
+            policy.deadline_utc - policy.exit_buffer_seconds,
+        )
+        if now - source_time > policy.max_quote_age_seconds:
+            self.ledger.set_meta("entry_block_reason", "STALE_QUOTE")
+            return dict(
+                status="EXIT_REQUIRED_STALE_QUOTE" if now >= hard_exit_at else "STALE_QUOTE",
+                action="WAIT",
+                entry_enabled=False,
+                exit_required=now >= hard_exit_at,
+            )
         if self.ledger.get_meta("entry_block_reason") == "STALE_QUOTE":
-            self.ledger.set_meta("entry_block_reason","")
-        quantity=self.ledger.get_balance(self.rules.base_asset).total
+            self.ledger.set_meta("entry_block_reason", "")
+        quantity = self.ledger.get_balance(self.rules.base_asset).total
         if quantity == 0:
-            state["status"]="CLOSED"
-            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
-            return dict(status="FLAT",action="WAIT",review_due=False)
-        stop=Decimal(state["trailing_stop_price"])
+            state["status"] = "CLOSED"
+            self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
+            return dict(status="FLAT", action="WAIT", review_due=False)
+        stop = Decimal(state["trailing_stop_price"])
         with self.ledger.connection() as db:
-            basis_row=db.execute("SELECT total_cost_quote FROM cost_basis WHERE asset=?",(self.rules.base_asset,)).fetchone()
-        basis=Decimal(basis_row[0]) if basis_row else Decimal(0)
-        net_if_exit=quantity*bid*(1-slippage_pct)*(1-self.rules.taker_fee_rate)-basis
-        reason=("STOP_OR_TRAILING" if bid<=stop else "MAX_NET_LOSS" if net_if_exit<=-policy.max_loss_tmn
-                else "HARD_HOLDING_OR_DEADLINE" if now>=hard_exit_at else None)
+            basis_row = db.execute(
+                "SELECT total_cost_quote FROM cost_basis WHERE asset=?", (self.rules.base_asset,)
+            ).fetchone()
+        basis = Decimal(basis_row[0]) if basis_row else Decimal(0)
+        net_if_exit = quantity * bid * (1 - slippage_pct) * (1 - self.rules.taker_fee_rate) - basis
+        reason = (
+            "STOP_OR_TRAILING"
+            if bid <= stop
+            else "MAX_NET_LOSS"
+            if net_if_exit <= -policy.max_loss_tmn
+            else "HARD_HOLDING_OR_DEADLINE"
+            if now >= hard_exit_at
+            else None
+        )
         if reason:
-            portfolio=json.loads(self.ledger.get_meta("portfolio") or "{}")
-            report=self.finalize_portfolio(bid,timestamp=now,slippage_pct=slippage_pct,
-                initial_capital=Decimal(portfolio.get("initial_capital","5000000")))
-            state.update(status="CLOSED" if self.ledger.get_balance(self.rules.base_asset).total==0 else "EXIT_REQUIRED_RESIDUAL",exit_reason=reason)
-            self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
-            return dict(status=state["status"],action="EXIT",exit_reason=reason,settlement=report,review_due=False)
-        peak=max(Decimal(state["high_water"]),bid)
-        tightened=max(stop,peak*(1-policy.trailing_drawdown_pct))
-        checkpoint=bid>=Decimal(state["entry_price"])*(1+policy.checkpoint_profit_pct)
-        due=(checkpoint and not state["checkpoint_seen"]) or now-state["last_review_at"]>=policy.review_interval_seconds
-        state.update(high_water=str(peak),trailing_stop_price=str(tightened),last_source_time=source_time,last_bid=str(bid))
+            portfolio = json.loads(self.ledger.get_meta("portfolio") or "{}")
+            report = self.finalize_portfolio(
+                bid,
+                timestamp=now,
+                slippage_pct=slippage_pct,
+                initial_capital=Decimal(portfolio.get("initial_capital", "5000000")),
+            )
+            state.update(
+                status="CLOSED"
+                if self.ledger.get_balance(self.rules.base_asset).total == 0
+                else "EXIT_REQUIRED_RESIDUAL",
+                exit_reason=reason,
+            )
+            self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
+            return dict(
+                status=state["status"],
+                action="EXIT",
+                exit_reason=reason,
+                settlement=report,
+                review_due=False,
+            )
+
+        peak = max(Decimal(state["high_water"]), bid)
+        tightened = max(stop, peak * (1 - policy.trailing_drawdown_pct))
+
+        # Net retention floor calculation
+        prev_net_peak = Decimal(state.get("net_peak", "0"))
+        net_peak = max(prev_net_peak, net_if_exit)
+        retention_active = bool(state.get("retention_active", False))
+        if (
+            not retention_active
+            and policy.profit_retention_ratio > 0
+            and basis > 0
+            and (net_peak / basis) >= policy.net_activation_fraction
+        ):
+            retention_active = True
+
+        prev_floor = Decimal(state.get("retained_floor_tmn", "0"))
+        stop_new = tightened
+        retained_floor = prev_floor
+        last_tightened = state.get("last_tightened_at")
+
+        if retention_active and policy.profit_retention_ratio > 0 and quantity > 0:
+            target_floor = net_peak * policy.profit_retention_ratio
+            retained_floor = max(prev_floor, target_floor)
+            sellable_calc = self.rules.quantize_quantity(
+                self.ledger.get_balance(self.rules.base_asset).free, round_down=True
+            )
+            calc_qty = sellable_calc if sellable_calc >= self.rules.min_quantity else quantity
+            retention_stop = calculate_retention_stop_price(
+                cost_basis=basis,
+                sellable_quantity=calc_qty,
+                desired_net_profit=retained_floor,
+                taker_fee_rate=self.rules.taker_fee_rate,
+                slippage_pct=slippage_pct,
+                tick_size=self.rules.tick_size,
+            )
+            if retention_stop >= bid:
+                portfolio = json.loads(self.ledger.get_meta("portfolio") or "{}")
+                report = self.finalize_portfolio(
+                    bid,
+                    timestamp=now,
+                    slippage_pct=slippage_pct,
+                    initial_capital=Decimal(portfolio.get("initial_capital", "5000000")),
+                )
+                state.update(
+                    status="CLOSED"
+                    if self.ledger.get_balance(self.rules.base_asset).total == 0
+                    else "EXIT_REQUIRED_RESIDUAL",
+                    exit_reason="STOP_OR_TRAILING",
+                )
+                self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
+                return dict(
+                    status=state["status"],
+                    action="EXIT",
+                    exit_reason="STOP_OR_TRAILING",
+                    settlement=report,
+                    review_due=False,
+                )
+            stop_new = max(stop_new, retention_stop)
+
+        if stop_new > stop:
+            last_tightened = now
+            stop = stop_new
+
+        checkpoint = bid >= Decimal(state["entry_price"]) * (1 + policy.checkpoint_profit_pct)
+        due = (
+            (checkpoint and not state["checkpoint_seen"])
+            or now - state["last_review_at"] >= policy.review_interval_seconds
+        )
+        state.update(
+            high_water=str(peak),
+            net_peak=str(net_peak),
+            retained_floor_tmn=str(retained_floor),
+            retention_active=retention_active,
+            trailing_stop_price=str(stop),
+            last_source_time=source_time,
+            last_bid=str(bid),
+            last_tightened_at=last_tightened,
+        )
         if due:
-            state.update(last_review_at=now,checkpoint_seen=state["checkpoint_seen"] or checkpoint)
-        self.ledger.set_meta(key,json.dumps(state,sort_keys=True))
+            state.update(last_review_at=now, checkpoint_seen=state["checkpoint_seen"] or checkpoint)
+        self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
         with self.ledger.connection() as db:
-            db.execute("UPDATE broker_stops SET stop_price=? WHERE symbol=?",(str(tightened),self.rules.symbol))
-        return {**state,"status":"PROTECTED","action":"WAIT","review_due":due,"hard_exit_at":hard_exit_at}
+            db.execute(
+                "UPDATE broker_stops SET stop_price=? WHERE symbol=?",
+                (str(stop), self.rules.symbol),
+            )
+        return {
+            **state,
+            "status": "PROTECTED",
+            "action": "WAIT",
+            "review_due": due,
+            "hard_exit_at": hard_exit_at,
+        }
 
     def export_state(self, bid, *, now):
         """Read-only paper equity/protection view; never claims exchange/account equity."""
-        validate_decimal(bid,"export bid",strictly_positive=True)
-        state=json.loads(self.ledger.get_meta("protection_"+self.rules.symbol) or "null")
-        quantity=self.ledger.get_balance(self.rules.base_asset).total
+        validate_decimal(bid, "export bid", strictly_positive=True)
+        state = json.loads(self.ledger.get_meta("protection_" + self.rules.symbol) or "null")
+        quantity = self.ledger.get_balance(self.rules.base_asset).total
         with self.ledger.connection() as db:
-            basis_row=db.execute("SELECT total_cost_quote FROM cost_basis WHERE asset=?",(self.rules.base_asset,)).fetchone()
-            fees=sum((Decimal(f) for f, in db.execute("SELECT fee FROM fills WHERE fee_asset=?",(self.rules.quote_asset,))),Decimal(0))
-            pending=db.execute("SELECT client_id,status FROM order_intents WHERE status NOT IN "
-                "('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED')").fetchall()
-        basis=Decimal(basis_row[0]) if basis_row else Decimal(0)
-        sellable=self.rules.quantize_quantity(self.ledger.get_balance(self.rules.base_asset).free)
-        if sellable<self.rules.min_quantity or sellable*bid<self.rules.min_notional:
-            sellable=Decimal(0)
-        liquidation=sellable*bid*(1-self.rules.taker_fee_rate)
-        return dict(mode="PAPER",evidence_kind="SIMULATED_EXECUTION_NOT_ACCOUNT",symbol=self.rules.symbol,
-            exported_at=now,engine_heartbeat=self.ledger.get_meta("engine_heartbeat"),protection=state,
-            cash_tmn=str(self.ledger.get_balance(self.rules.quote_asset).total),quantity=str(quantity),
-            equity_mtm_tmn=str(self.ledger.get_equity({self.rules.symbol:bid},self.rules.quote_asset)),
-            realized_pnl_tmn=str(self.ledger.get_realized_pnl(self.rules.symbol)),cost_basis_tmn=str(basis),
-            gross_price_change_tmn=str(quantity*(bid-Decimal(state["entry_price"]))) if state else None,
-            unrealized_before_exit_cost_tmn=str(quantity*bid-basis),net_liquidation_tmn=str(liquidation),
-            net_if_exit_pnl_tmn=str(liquidation-basis),quote_fees_tmn=str(fees),pending_orders=pending,
-            sellable_quantity=str(sellable),residual_base=str(quantity-sellable),
-            entry_block_reason=self.ledger.get_meta("entry_block_reason"),audit_failed=self.ledger.get_meta("audit_failed")=="1")
+            basis_row = db.execute(
+                "SELECT total_cost_quote FROM cost_basis WHERE asset=?", (self.rules.base_asset,)
+            ).fetchone()
+            fees = sum(
+                (
+                    Decimal(f)
+                    for f, in db.execute(
+                        "SELECT fee FROM fills WHERE fee_asset=?", (self.rules.quote_asset,)
+                    )
+                ),
+                Decimal(0),
+            )
+            pending = db.execute(
+                "SELECT client_id,status FROM order_intents WHERE status NOT IN "
+                "('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED')"
+            ).fetchall()
+        basis = Decimal(basis_row[0]) if basis_row else Decimal(0)
+        sellable = self.rules.quantize_quantity(self.ledger.get_balance(self.rules.base_asset).free)
+        if sellable < self.rules.min_quantity or sellable * bid < self.rules.min_notional:
+            sellable = Decimal(0)
+        liquidation = sellable * bid * (1 - self.rules.taker_fee_rate)
+
+        target_checkpoint = None
+        gross_return_pct = None
+        net_return_pct = None
+        if state and "entry_price" in state:
+            ep = Decimal(state["entry_price"])
+            if ep > 0:
+                gross_return_pct = str(round(((bid / ep) - Decimal(1)) * Decimal(100), 4))
+                target_checkpoint = str(
+                    ep * (Decimal(1) + Decimal(state.get("checkpoint_profit_pct", "0.025")))
+                )
+        if basis > 0:
+            net_return_pct = str(round(((liquidation - basis) / basis) * Decimal(100), 4))
+
+        return dict(
+            mode="PAPER",
+            evidence_kind="SIMULATED_EXECUTION_NOT_ACCOUNT",
+            symbol=self.rules.symbol,
+            exported_at=now,
+            engine_heartbeat=self.ledger.get_meta("engine_heartbeat"),
+            protection=state,
+            cash_tmn=str(self.ledger.get_balance(self.rules.quote_asset).total),
+            quantity=str(quantity),
+            equity_mtm_tmn=str(
+                self.ledger.get_equity({self.rules.symbol: bid}, self.rules.quote_asset)
+            ),
+            realized_pnl_tmn=str(self.ledger.get_realized_pnl(self.rules.symbol)),
+            cost_basis_tmn=str(basis),
+            gross_price_change_tmn=str(quantity * (bid - Decimal(state["entry_price"])))
+            if state
+            else None,
+            unrealized_before_exit_cost_tmn=str(quantity * bid - basis),
+            net_liquidation_tmn=str(liquidation),
+            net_if_exit_pnl_tmn=str(liquidation - basis),
+            quote_fees_tmn=str(fees),
+            pending_orders=pending,
+            sellable_quantity=str(sellable),
+            residual_base=str(quantity - sellable),
+            net_peak_tmn=str(state.get("net_peak", "0")) if state else None,
+            retained_floor_tmn=str(state.get("retained_floor_tmn", "0")) if state else None,
+            retention_active=bool(state.get("retention_active", False)) if state else False,
+            last_tightened_at=state.get("last_tightened_at") if state else None,
+            target_checkpoint_price=target_checkpoint,
+            gross_return_pct=gross_return_pct,
+            net_return_pct=net_return_pct,
+            entry_block_reason=self.ledger.get_meta("entry_block_reason"),
+            audit_failed=self.ledger.get_meta("audit_failed") == "1",
+        )
