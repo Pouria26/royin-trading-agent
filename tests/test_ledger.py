@@ -237,6 +237,31 @@ class LedgerAccountingTests(unittest.TestCase):
         equity = self.ledger.get_equity({"USDTTMN": Decimal("60000")})
         self.assertEqual(equity, Decimal("5000000"))
 
+    def test_trade_reflection_lifecycle(self):
+        self.ledger.record_reflection(
+            trade_id="tr_01",
+            symbol="USDTTMN",
+            pnl_net=Decimal("-4000"),
+            return_pct=Decimal("-0.008"),
+            lesson_text="Entered on weak momentum break without volume; wait for RVOL > 1.5",
+            timestamp=1790812800,
+        )
+        self.ledger.record_reflection(
+            trade_id="tr_02",
+            symbol="USDTTMN",
+            pnl_net=Decimal("8000"),
+            return_pct=Decimal("0.016"),
+            lesson_text="Bollinger band squeeze breakout with high volume yielded clean +1.6%",
+            timestamp=1790816400,
+        )
+
+        reflections = self.ledger.get_recent_reflections("USDTTMN", limit=2)
+        self.assertEqual(len(reflections), 2)
+        self.assertEqual(reflections[0]["trade_id"], "tr_02")
+        self.assertEqual(reflections[0]["pnl_net"], Decimal("8000"))
+        self.assertIn("Bollinger", reflections[0]["lesson_text"])
+        self.assertEqual(reflections[1]["trade_id"], "tr_01")
+
 
 if __name__ == "__main__":
     unittest.main()

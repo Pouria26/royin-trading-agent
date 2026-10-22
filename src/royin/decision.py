@@ -1,6 +1,5 @@
-"""Contract for AI decisions bound to deterministic host snapshots."""
-
 import re
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -14,6 +13,9 @@ class DecisionProposal(BaseModel):
     evidence_ids: tuple[str, ...]
     reason: str
     invalidation: str
+    target_profit_pct: Decimal | None = None
+    stop_loss_pct: Decimal | None = None
+    exit_reason: str | None = None
 
     @field_validator("evidence_ids", mode="before")
     @classmethod
@@ -50,6 +52,9 @@ class Decision(BaseModel):
     evidence_ids: tuple[str, ...]
     reason: str
     invalidation: str
+    target_profit_pct: Decimal | None = None
+    stop_loss_pct: Decimal | None = None
+    exit_reason: str | None = None
 
     @field_validator("decision_id", "symbol", mode="before")
     @classmethod
@@ -117,6 +122,16 @@ def bind_decision(
         if eid not in available:
             raise ValueError(f"Unresolvable or fabricated evidence_id: '{eid}'")
 
+    target_profit = proposal.target_profit_pct
+    stop_loss = proposal.stop_loss_pct
+    if proposal.action == "ENTER":
+        if target_profit is not None:
+            # Safe corridor: minimum 1.2% (to beat 0.6% fee friction), capped at 3.5%
+            target_profit = min(max(target_profit, Decimal("0.012")), Decimal("0.035"))
+        if stop_loss is not None:
+            # Safe corridor: floor 0.5% (avoid spread stopout), capped at 1.0% (strict capital protection)
+            stop_loss = min(max(stop_loss, Decimal("0.005")), Decimal("0.010"))
+
     return Decision(
         decision_id=decision_id,
         symbol=symbol,
@@ -126,4 +141,7 @@ def bind_decision(
         evidence_ids=proposal.evidence_ids,
         reason=proposal.reason,
         invalidation=proposal.invalidation,
+        target_profit_pct=target_profit,
+        stop_loss_pct=stop_loss,
+        exit_reason=proposal.exit_reason,
     )

@@ -105,6 +105,24 @@ class FeatureExtractionTests(unittest.TestCase):
         self.assertIn("EV_POSITION_LONG", snap.evidences)
         self.assertIn("EV_TREND_BULLISH", snap.evidences)
 
+    def test_bollinger_bands_calculation(self):
+        from royin.features import compute_bollinger_bands
+        middle, upper, lower, width_pct = compute_bollinger_bands(self.series.candles, 20)
+        self.assertGreater(upper, middle)
+        self.assertLess(lower, middle)
+        self.assertGreater(width_pct, Decimal(0))
+
+    def test_wick_ratios_calculation(self):
+        from royin.features import compute_wick_ratios
+        candle = self.series.candles[0]
+        upper_ratio, body_ratio, lower_ratio = compute_wick_ratios(candle)
+        self.assertAlmostEqual(float(upper_ratio + body_ratio + lower_ratio), 1.0, places=4)
+
+    def test_bb_and_wick_evidence_presence(self):
+        cutoff = self.start + 45 * self.step
+        snap = extract_features(self.series, "USDTTMN", cutoff=cutoff)
+        self.assertTrue("EV_BB_EXPANDING" in snap.evidences or "EV_BB_SQUEEZE" in snap.evidences)
+
 
 if __name__ == "__main__":
     unittest.main()

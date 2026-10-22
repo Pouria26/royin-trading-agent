@@ -14,6 +14,7 @@ def validate_decimal(
     *,
     allow_zero: bool = True,
     strictly_positive: bool = False,
+    allow_negative: bool = False,
 ) -> Decimal:
     """Strictly validate that val is a finite Decimal and not a float, bool, or invalid number."""
     if type(val) is not Decimal:
@@ -22,9 +23,9 @@ def validate_decimal(
         raise ValueError(f"{name} must be finite (got {val})")
     if strictly_positive and val <= Decimal(0):
         raise ValueError(f"{name} must be strictly positive (got {val})")
-    if not allow_zero and val <= Decimal(0):
-        raise ValueError(f"{name} cannot be zero or negative (got {val})")
-    if val < Decimal(0):
+    if not allow_zero and val == Decimal(0):
+        raise ValueError(f"{name} cannot be zero (got {val})")
+    if not allow_negative and val < Decimal(0):
         raise ValueError(f"{name} cannot be negative (got {val})")
     return val
 
@@ -211,6 +212,86 @@ class Ledger:
                     value TEXT NOT NULL
                 )
             """)
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS trade_reflections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trade_id TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    pnl_net TEXT NOT NULL,
+                    return_pct TEXT NOT NULL,
+                    lesson_text TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL
+                )
+            """)
+
+    def record_reflection(
+        self,
+        *,
+        trade_id: str,
+        symbol: str,
+        pnl_net: Decimal,
+        return_pct: Decimal,
+        lesson_text: str,
+        timestamp: int,
+    ):
+        """Record post-trade reflection lesson in durable SQLite storage with event staging."""
+        validate_decimal(pnl_net, "pnl_net", allow_zero=True, allow_negative=True)
+        validate_decimal(return_pct, "return_pct", allow_zero=True, allow_negative=True)
+        if not lesson_text or not lesson_text.strip():
+            raise ValueError("lesson_text cannot be blank")
+
+        with self.transaction() as db:
+            db.execute(
+                """
+                INSERT INTO trade_reflections (trade_id, symbol, pnl_net, return_pct, lesson_text, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (trade_id, symbol, str(pnl_net), str(return_pct), lesson_text.strip(), timestamp),
+            )
+            self._stage_event("TRADE_REFLECTION", "strategy", {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "pnl_net": str(pnl_net),
+                "return_pct": str(return_pct),
+                "lesson_text": lesson_text.strip(),
+                "timestamp": timestamp,
+            })
+
+    def get_recent_reflections(self, symbol: str | None = None, limit: int = 3) -> list[dict[str, Any]]:
+        """Retrieve recent post-trade reflection lessons for in-context learning."""
+        with self.connection() as db:
+            if symbol:
+                rows = db.execute(
+                    """
+                    SELECT trade_id, symbol, pnl_net, return_pct, lesson_text, timestamp
+                    FROM trade_reflections
+                    WHERE symbol = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (symbol, limit),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """
+                    SELECT trade_id, symbol, pnl_net, return_pct, lesson_text, timestamp
+                    FROM trade_reflections
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
+            return [
+                {
+                    "trade_id": r[0],
+                    "symbol": r[1],
+                    "pnl_net": Decimal(r[2]),
+                    "return_pct": Decimal(r[3]),
+                    "lesson_text": r[4],
+                    "timestamp": r[5],
+                }
+                for r in rows
+            ]
 
     def set_meta(self, key: str, value: str):
         with self.transaction() as db:

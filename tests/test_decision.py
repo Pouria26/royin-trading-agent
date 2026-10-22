@@ -145,6 +145,47 @@ class DecisionContractTests(unittest.TestCase):
             )
         self.assertIn("not in the allowed universe", str(ctx.exception).lower())
 
+    def test_dynamic_sltp_clamping_and_early_exit(self):
+        from decimal import Decimal
+
+        proposal_enter = DecisionProposal(
+            action="ENTER",
+            evidence_ids=("EV_REAL_1",),
+            reason="Impulse breakout",
+            invalidation="Drop below support",
+            target_profit_pct=Decimal("0.005"),  # below 1.2% floor
+            stop_loss_pct=Decimal("0.030"),  # above 1.0% ceiling
+        )
+        dec_enter = bind_decision(
+            proposal_enter,
+            decision_id="dec_45",
+            symbol="USDTTMN",
+            cutoff=1790812800,
+            snapshot_sha256=self.valid_hash,
+            available_evidence_ids=("EV_REAL_1",),
+            allowed_symbols=("USDTTMN",),
+        )
+        self.assertEqual(dec_enter.target_profit_pct, Decimal("0.012"))  # clamped to floor
+        self.assertEqual(dec_enter.stop_loss_pct, Decimal("0.010"))  # clamped to ceiling
+
+        proposal_exit = DecisionProposal(
+            action="EXIT",
+            evidence_ids=("EV_REAL_1",),
+            reason="Early exit due to momentum dryup",
+            invalidation="Never",
+            exit_reason="MOMENTUM_STALL_AT_RESISTANCE",
+        )
+        dec_exit = bind_decision(
+            proposal_exit,
+            decision_id="dec_46",
+            symbol="USDTTMN",
+            cutoff=1790812800,
+            snapshot_sha256=self.valid_hash,
+            available_evidence_ids=("EV_REAL_1",),
+            allowed_symbols=("USDTTMN",),
+        )
+        self.assertEqual(dec_exit.exit_reason, "MOMENTUM_STALL_AT_RESISTANCE")
+
 
 if __name__ == "__main__":
     unittest.main()

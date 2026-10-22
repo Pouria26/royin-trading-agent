@@ -112,6 +112,45 @@ def compute_rsi(candles: Sequence[Candle], period: int = 14) -> Decimal:
         return Decimal(100) - (Decimal(100) / (Decimal(1) + rs))
 
 
+def compute_bollinger_bands(
+    candles: Sequence[Candle],
+    period: int = 20,
+    num_std: Decimal = Decimal(2),
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """Compute Bollinger Bands (middle, upper, lower, band_width_pct) causally with Decimal."""
+    if len(candles) < period or period <= 0:
+        raise ValueError(f"Need at least {period} candles for Bollinger Bands")
+    closes = [c.close for c in candles[-period:]]
+    with localcontext() as ctx:
+        ctx.prec = 36
+        ctx.traps[Inexact] = False
+        middle = sum(closes, Decimal(0)) / Decimal(period)
+        variance = sum(((c - middle) ** 2 for c in closes), Decimal(0)) / Decimal(period)
+        std_dev = variance.sqrt()
+        upper = middle + (num_std * std_dev)
+        lower = middle - (num_std * std_dev)
+        width_pct = ((upper - lower) / middle) if middle > Decimal(0) else Decimal(0)
+        return middle, upper, lower, width_pct
+
+
+def compute_wick_ratios(candle: Candle) -> tuple[Decimal, Decimal, Decimal]:
+    """Compute upper wick ratio, body ratio, and lower wick ratio of a single candle."""
+    candle_range = candle.high - candle.low
+    if candle_range <= Decimal(0):
+        return Decimal(0), Decimal(1), Decimal(0)
+    with localcontext() as ctx:
+        ctx.prec = 36
+        ctx.traps[Inexact] = False
+        upper_wick = candle.high - max(candle.open, candle.close)
+        lower_wick = min(candle.open, candle.close) - candle.low
+        body = abs(candle.close - candle.open)
+        return (
+            upper_wick / candle_range,
+            body / candle_range,
+            lower_wick / candle_range,
+        )
+
+
 def extract_features(
     series: CandleSeries,
     symbol: str,
@@ -196,6 +235,24 @@ def extract_features(
         evidences["EV_POSITION_LONG"] = f"Holding active base balance: {current_position_base}"
     else:
         evidences["EV_POSITION_FLAT"] = "No open position currently held"
+
+    if len(valid_candles) >= 20:
+        _, _, _, bb_width_pct = compute_bollinger_bands(valid_candles, 20)
+        if bb_width_pct >= Decimal("0.015"):
+            evidences["EV_BB_EXPANDING"] = f"Bollinger band width expanding at {bb_width_pct * 100:.2f}% (breakout volatility)"
+        else:
+            evidences["EV_BB_SQUEEZE"] = f"Bollinger band width compressed at {bb_width_pct * 100:.2f}% (low volatility squeeze)"
+
+    upper_wick_ratio, body_ratio, _ = compute_wick_ratios(last_candle)
+    if upper_wick_ratio >= Decimal("0.35"):
+        evidences["EV_WICK_REJECTION"] = f"Upper wick rejection detected ({upper_wick_ratio * 100:.1f}% of candle range)"
+    elif body_ratio >= Decimal("0.55") and last_candle.close > last_candle.open:
+        evidences["EV_STRONG_BULLISH_BODY"] = f"Strong bullish candle body ({body_ratio * 100:.1f}% of candle range)"
+
+    if current_position_base > Decimal(0) and (
+        upper_wick_ratio >= Decimal("0.35") or (vol_ratio < Decimal("0.80") and last_close <= sma_fast)
+    ):
+        evidences["EV_MOMENTUM_STALL"] = "Holding position but forward momentum has stalled or met selling wick rejection"
 
     # Canonical snapshot hash
     raw_dict = {
