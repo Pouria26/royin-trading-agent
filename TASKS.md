@@ -229,3 +229,15 @@ The task-A replay CLI is blocked before network/DB/artifact writes, pending caus
 Checks on this checkpoint: 240 core tests passed (16.979s), 8 dashboard tests passed (1.390s); Ruff, compileall and wheel build passed. Review transcript and private task prompts remain under ignored .local/parallel.
 
 A clean export of staged tracked files, without .env/private data and using the existing test runtime, passed synthetic replay (PASS_OFFLINE_WIRING_ONLY; primary BLOCKED_DATA). The draft scanner CLI returned exit2 without data writes. This was not a fresh dependency installation or a live/model test.
+
+## Current-market implementation phase - 2026-10-22
+
+- [x] Review TradingAgents at e8f5503e9b86d5c2710b0c76b1f686703968c9df; adapt concise opposing evidence without adding its framework.
+- [x] Repair historical-prefix liquidation, symbol binding, bid parsing, stale quote provenance and valuation regressions.
+- [x] Add observed spot rules, currency-adjusted regime context, diversified permitted shortlist and real model entry/review dispatch.
+- [x] Persist source/profile/policy, chosen horizon, scope cost counters, original deadline and entry-candle deduplication.
+- [x] Verify316 core tests, real current diagnostic (WAIT/no orders), Ruff/compileall/wheel; raw private/model artifacts ignored.
+- [ ] Complete reviewed restricted production transport and cumulative fill/fee contract before any tiny technical canary.
+- [ ] Run bounded multi-hour forward evidence and own-state baselines; measure net outcomes without promising profit.
+
+Full mission remains active. This phase is analysis/paper readiness, not a live release. See docs/current-market-readiness.md.

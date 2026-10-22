@@ -129,13 +129,13 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
                 envelope.claim_run()
             request = httpx2.Request("POST", "https://ai.boxapi.ir/ai/v1/chat/completions",
                                     json=dict(model="gpt-6-luna",max_tokens=512))
-            for _ in range(24):
+            for _ in range(19):
                 await envelope.before_request(request)
             with self.assertRaises(BudgetBlocked):
                 await envelope.before_request(request)
-            self.assertEqual(envelope.reservation_ceiling_usd, D(".02967552"))
+            self.assertEqual(envelope.reservation_ceiling_usd, D(".03803648"))
             with closing(sqlite3.connect(budget.path)) as db:
-                self.assertEqual(db.execute("select count(*) from model_reservations").fetchone()[0],24)
+                self.assertEqual(db.execute("select count(*) from model_reservations").fetchone()[0],19)
             with patch("time.monotonic", return_value=envelope.started+601), self.assertRaises(BudgetBlocked):
                 await envelope.before_request(request)
 

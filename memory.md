@@ -146,4 +146,17 @@ can approve a candidate or prove multi-hour stability. No push, deployment or vi
 
 ## Separate-clone release boundary - 2026-10-22
 
+
 Draft rule replay is not AI/current Shadow: its CLI is blocked before I/O until task A repairs it. Old zero-dust/minimum and live-learning claims are superseded by this limitation. Two clone-local SQLite budget files do not share a cap: paid/private runtime remains single-host; offline collaborator tests need no real credentials. Raw prompts/handoffs remain ignored and are transferred separately.
+
+## Current-market corrections - 2026-10-22
+
+Source: independent review and bounded current Wallex/BoxAPI observations; details in docs/current-market-readiness.md.
+Historical-prefix liquidation used the final full-dataset close; superseded by last-processed candle plus regression.
+Failed book reads must retain old source age; official depth uses result.bid. Mark positions at observed bid.
+Public /v1/markets USDTTMN minQty0.01/minNotional50000 supersedes the earlier assumed1USDT floor for that snapshot.
+Active dedicated credit account independently reported5M TMN, no open orders and maker0.0025/taker0.003; not a release approval.
+TMN market breadth needs USDT/TMN adjustment to avoid mistaking FX movement for broad crypto strength.
+Real role output exceeded512 tokens and tool-return packets exceeded the8192 input byte bound: policyv2 reserves12288/1024;
+prices and global/daily caps unchanged. Scope counters, original funded deadline and chosen rules/horizon persist on restart.
+316 core tests passed; real current decisions returned WAIT. These observations establish wiring, not alpha or production safety.

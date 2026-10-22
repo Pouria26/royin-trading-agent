@@ -136,9 +136,9 @@ class MarketSelectionTests(unittest.IsolatedAsyncioTestCase):
         proposal["forecast"]["return_q10"] = ".05"
         proposal["forecast"]["return_q50"] = ".01"
         cases.append(proposal)
-        proposal = enter_proposal(snap, horizon=21600)
-        proposal["forecast"]["horizon_seconds"] = 21600
-        cases.append(proposal)  # beyond remaining_seconds below
+        proposal = enter_proposal(snap, horizon=36001)
+        proposal["forecast"]["horizon_seconds"] = 36001
+        cases.append(proposal)  # beyond the current ten-hour host policy
         for proposal in cases:
             with self.subTest(proposal=proposal):
                 decision, _, _ = await self.call(proposal, market_batch)

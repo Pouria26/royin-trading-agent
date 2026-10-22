@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from royin.market_context import MarketContext
 from royin.market_data import decimal_number
 
 
@@ -57,6 +58,7 @@ class PositionReviewContext(BaseModel):
     net_liquidation_tmn: Decimal
     opened_at: int = Field(ge=0)
     observed_at: int = Field(ge=0)
+
     hard_exit_at: int = Field(ge=0)
     initial_stop_price: Decimal
     trailing_stop_price: Decimal
@@ -90,6 +92,11 @@ class EntryOpportunityContext(BaseModel):
     candle_received_at: int = Field(ge=0)
     depth_received_at: int = Field(ge=0)
     observed_at: int = Field(ge=0)
+    market_context: MarketContext | None = None
+    asset_return_24h: Decimal | None = Field(default=None, allow_inf_nan=False)
+    relative_strength_24h: Decimal | None = Field(default=None, allow_inf_nan=False)
+    best_bid: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+    best_ask: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @property
     def sha256(self):
@@ -281,6 +288,16 @@ def validate_role_proposal(
                 horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
                 remaining_seconds=remaining_seconds,
             )
+            if opportunity.market_context is not None:
+                target = proposal.forecast.target_return_fraction
+                if target is None or target <= Decimal(".02"):
+                    raise ValueError("Proposed opportunity does not exceed the 2% gross objective")
+                if opportunity.market_context.regime == "BEARISH" and not (
+                    opportunity.asset_return_24h is not None and opportunity.asset_return_24h > 0
+                    and opportunity.relative_strength_24h is not None and opportunity.relative_strength_24h > 0
+                    and "EV_TREND_BULLISH" in snapshot.evidences
+                ):
+                    raise ValueError("Bear-market exception lacks observed relative strength")
             if (
                 proposal.horizon_seconds != proposal.forecast.horizon_seconds
                 or proposal.review_after_seconds != proposal.forecast.review_after_seconds
@@ -295,7 +312,7 @@ def validate_role_proposal(
             validate_forecast(
                 proposal.forecast, snapshot=snapshot,
                 horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
-                remaining_seconds=remaining_seconds,
+                remaining_seconds=None,  # A research WAIT forecast commits no funds or holding time.
             )
             if (
                 (proposal.horizon_seconds is not None

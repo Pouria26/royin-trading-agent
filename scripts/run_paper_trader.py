@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 
 from royin.decision import EntryOpportunityContext
 from royin.features import FeatureSnapshot, extract_features
+from royin.market_context import catalog_return, market_context
 from royin.market_data import (
     Candle,
     aggregate_closed,
@@ -21,7 +22,7 @@ from royin.market_data import (
     decode_json,
     parse_history,
 )
-from royin.markets import eligible_markets, load_restrictions, parse_catalog
+from royin.markets import eligible_markets, load_restrictions, parse_catalog, parse_spot_rules
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config/wallex-credit-market-policy.json"
@@ -41,7 +42,8 @@ def _fresh(timestamp, cutoff, max_age):
 
 
 def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
-                      account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000")):
+                      account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000"),
+                      diversify=False, tmn_only=False):
     """All eligible catalog rows, ranked by quote turnover converted to TMN at this cutoff."""
     if type(limit) is not int or not 1 <= limit <= 5:
         raise ValueError("Shortlist cap must be 1..5")
@@ -60,6 +62,8 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
         market, row = catalog[symbol], rows[symbol]
         if market.base_asset == "TON" or row.get("is_active") is False:
             continue
+        if tmn_only and market.quote_asset != "TMN":
+            continue
         rate = Decimal(1) if market.quote_asset == "TMN" else conversion
         if rate is None:
             continue
@@ -73,7 +77,16 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
             continue
         if turnover >= min_turnover_tmn:
             candidates.append(MarketShortlistRow(symbol, turnover, rate, received_at, digest))
-    return tuple(sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol))[:limit])
+    liquid = sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol))
+    if not diversify:
+        return tuple(liquid[:limit])
+    # Preserve liquidity coverage, then compare relative movers instead of only the largest assets.
+    selected = liquid[:min(2, limit)]
+    movers = sorted(liquid, key=lambda row: (
+        -(catalog_return(rows[row.symbol]) if catalog_return(rows[row.symbol]) is not None else Decimal(-1)),
+        -row.turnover_tmn, row.symbol))
+    selected.extend(row for row in movers if row not in selected)
+    return tuple(selected[:limit])
 
 
 @dataclass(frozen=True)
@@ -147,7 +160,8 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
             opportunity = EntryOpportunityContext(spread_pct=spread, round_trip_fee_pct=round_trip_fee_pct,
                 bid_depth_tmn=bid_depth, ask_depth_tmn=ask_depth, catalog_sha256=row.catalog_sha256,
                 catalog_received_at=row.received_at, candle_received_at=candle_received_at[row.symbol],
-                depth_received_at=depth_received_at[row.symbol], observed_at=cutoff)
+                depth_received_at=depth_received_at[row.symbol], observed_at=cutoff,
+                best_bid=bid, best_ask=ask)
             accepted.append(ScanCandidate(snapshot, score, opportunity))
         except (ValueError, KeyError, TypeError, IndexError, DecimalException):
             continue
@@ -165,8 +179,10 @@ class ScannerPublicFeed:
         self.cache, self.captures = {}, []
         self.last_request = None
 
-    def get(self, endpoint, params, *, cutoff):
-        if endpoint not in ("/hector/web/v1/markets", "/v1/udf/history", "/v1/depth"):
+    def get(self, endpoint, params, *, cutoff, max_age_seconds=60):
+        if type(max_age_seconds) is not int or not 0 <= max_age_seconds <= 60:
+            raise ValueError("Cache age must be 0..60 seconds")
+        if endpoint not in ("/hector/web/v1/markets", "/v1/markets", "/v1/udf/history", "/v1/depth"):
             raise ValueError("Public endpoint outside scanner allowlist")
         symbol = params.get("symbol")
         if symbol is not None and not re.fullmatch(r"[A-Z0-9]+(?:TMN|USDT)", symbol):
@@ -176,7 +192,7 @@ class ScannerPublicFeed:
             raise ValueError("Current feed cannot serve a replay cutoff")
         key = (endpoint, tuple(sorted(params.items())))
         cached = self.cache.get(key)
-        if cached and _fresh(cached[1], cutoff, 60):
+        if cached and max_age_seconds > 0 and _fresh(cached[1], cutoff, max_age_seconds):
             return decode_json(cached[0]), cached[1]
         if self.requests >= self.max_requests:
             raise ValueError("Scanner GET cap reached")
@@ -206,7 +222,7 @@ class ScannerPublicFeed:
 
 def scan_current_market(feed, *, account_symbols, account_as_of, interval_seconds=300,
                         round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash,
-                        batch_limit=3):
+                        batch_limit=3, diversify=False, tmn_only=False, use_spot_rules=False):
     """At most one catalog and two GETs per shortlisted symbol; never scan historical winners.
 
     Returns every liquidity-valid candidate at one uniform closed-candle cutoff. The entry
@@ -221,10 +237,19 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
     try:
         payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now)
         rows = shortlist_markets(payload, account_symbols=account_symbols, cutoff=int(time.time()),
-                                 received_at=received, account_as_of=account_as_of)
+                                 received_at=received, account_as_of=account_as_of,
+                                 limit=batch_limit, diversify=diversify, tmn_only=tmn_only)
     except (OSError, ValueError) as exc:
         return dict(status="BLOCKED_DATA", batch=(), errors=[type(exc).__name__], cutoff=None)
     snapshot_cutoff = now // interval_seconds * interval_seconds
+    rules = {}
+    if use_spot_rules:
+        try:
+            spot, _ = feed.get("/v1/markets",{},cutoff=int(time.time()))
+            rules = parse_spot_rules(spot,maker_fee_rate=Decimal(".0025"),taker_fee_rate=Decimal(".003"))
+            rows = tuple(row for row in rows if row.symbol in rules)
+        except (ValueError,OSError):
+            return dict(status="BLOCKED_SPOT_RULES",batch=(),errors=[],cutoff=snapshot_cutoff)
     series, depths, candle_times, depth_times = {}, {}, {}, {}
     for row in rows:
         try:
@@ -247,8 +272,29 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
         candle_received_at=candle_times, depth_received_at=depth_times,
         round_trip_fee_pct=round_trip_fee_pct, min_depth_tmn=min_depth_tmn, max_spread_pct=max_spread_pct,
         available_tmn_cash=available_tmn_cash, limit=batch_limit)
+    if int(time.time()) // interval_seconds * interval_seconds != snapshot_cutoff:
+        return dict(status="BLOCKED_CUTOFF_ADVANCED", batch=(), errors=errors, cutoff=snapshot_cutoff)
+    catalog = parse_catalog(payload)
+    eligible = eligible_markets(catalog, load_restrictions(POLICY_PATH), account_symbols=account_symbols)
+    context = market_context(payload, eligible, observed_at=received)
+    catalog_rows = {r["symbol"]: r for r in payload["result"]["markets"]}
+    enriched = []
+    for candidate in batch:
+        change = catalog_return(catalog_rows[candidate.snapshot.symbol])
+        relative = None
+        if change is not None and context.usdt_tmn_return_24h is not None:
+            crypto_return = change if catalog_rows[candidate.snapshot.symbol]["quote_asset"] == "USDT" else (
+                (1 + change) / (1 + context.usdt_tmn_return_24h) - 1)
+            relative = crypto_return - context.median_return_24h
+        enriched.append(ScanCandidate(candidate.snapshot, candidate.score,
+            candidate.opportunity.model_copy(update={"market_context":context,
+                "asset_return_24h":change, "relative_strength_24h":relative})))
+    batch = tuple(enriched)
     status = "CANDIDATES" if batch else ("BLOCKED_DATA" if errors else "NO_CANDIDATE")
-    return dict(status=status, batch=batch, errors=errors, cutoff=snapshot_cutoff)
+    return dict(status=status, batch=batch, errors=errors, cutoff=snapshot_cutoff,
+                market_context=context.model_dump(mode="json"),
+                market_rules=rules,
+                coverage=dict(catalog=len(catalog), eligible=len(eligible), researched=len(rows), accepted=len(batch)))
 
 
 def fetch_wallex_candles(

@@ -16,6 +16,7 @@ import signal
 import sys
 import tempfile
 import time
+from dataclasses import asdict, replace
 from decimal import Decimal, localcontext
 from pathlib import Path
 
@@ -28,14 +29,18 @@ from royin.config import RuntimeConfig, load_config
 from royin.datasets import load_dataset
 from royin.decision import (
     EntryOpportunityContext,
+    PositionReviewContext,
     RoleDecisionProposal,
     bind_decision,
 )
+from royin.evaluation import source_bundle_sha256
 from royin.features import extract_features
 from royin.ledger import Ledger
 from royin.logger import AuditLogger
 from royin.market_data import (
     CandleSeries,
+    aggregate_closed,
+    parse_history,
 )
 from royin.markets import parse_catalog
 from royin.model_budget import BudgetBlocked, ModelBudget
@@ -68,7 +73,7 @@ DEFAULT_MIN_NOTIONAL_TMN = Decimal("100000")
 DEFAULT_MIN_QUANTITY_USDT = Decimal("1.0")
 DEFAULT_TAKER_FEE_RATE = Decimal("0.0030")
 DEFAULT_SLIPPAGE_PCT = Decimal("0.0005")
-DEFAULT_HORIZON_MAX_SECONDS = 259200  # 72 hours: trend horizon, still bounded by the deadline
+DEFAULT_HORIZON_MAX_SECONDS = 36000  # User-selected maximum; the contest deadline may shorten it.
 DEFAULT_STOP_PCT = Decimal("0.03")
 DEFAULT_TRAIL_PCT = Decimal("0.02")
 DEFAULT_CHECKPOINT_PCT = Decimal("0.03")
@@ -176,6 +181,16 @@ class MarketPaperOrchestrator:
         db_path: Path | None = None,
         config: RuntimeConfig | None = None,
     ):
+        if mode not in ("CURRENT_PAPER","HISTORICAL_REPLAY") or model_mode not in ("REAL_MODEL","FAKE_MODEL","RECORDED"):
+            raise ValueError("Unknown execution/evidence mode")
+        if (type(duration_seconds) is not int or not 1 <= duration_seconds <= 36000
+                or type(cycles) is not int or cycles < (1 if mode == "CURRENT_PAPER" else 0)
+                or type(interval_seconds) is not int or not 1 <= interval_seconds <= 3600):
+            raise ValueError("Invalid bounded execution limits")
+        if mode == "CURRENT_PAPER" and (type(horizon_max_seconds) is not int or not 300 <= horizon_max_seconds <= 36000):
+            raise ValueError("Current holding policy must stay between five minutes and ten hours")
+        if model_mode == "RECORDED" or (mode == "HISTORICAL_REPLAY" and model_mode != "FAKE_MODEL"):
+            raise ValueError("This replay requires an explicit rule; recorded/model portfolio dispatch is not implemented")
         self.run_id = run_id
         self.mode = mode
         self.model_mode = model_mode
@@ -193,6 +208,12 @@ class MarketPaperOrchestrator:
         self.initial_capital = initial_capital
         self.dataset_path = dataset_path
         self.config = config or load_config()
+        source_root = Path(__file__).resolve().parents[1]
+        self.code_sha256 = source_bundle_sha256(source_root, [
+            *source_root.glob("src/royin/*.py"), *source_root.glob("scripts/*.py"), source_root/"requirements.lock",
+            source_root/"config/llm-budget-policy.json"])
+        self.dataset_sha256 = None
+        self.public_feed = None
 
         self.capture_dir = capture_dir or (ROOT / "artifacts/market-paper" / self.run_id)
         self.capture_dir.mkdir(parents=True, exist_ok=True)
@@ -200,26 +221,39 @@ class MarketPaperOrchestrator:
 
         self.audit = AuditLogger(self.capture_dir / "audit", False, run_id=self.run_id)
         self.ledger = Ledger(self.db_path, audit=self.audit)
-
-        # Initialize portfolio if empty
         binding = hashlib.sha256(f"paper:{self.run_id}".encode()).hexdigest()
-        self.ledger.initialize_portfolio(
-            self.initial_capital, quote_asset="TMN", binding=binding
-        )
+        self.ledger.initialize_portfolio(self.initial_capital, quote_asset="TMN", binding=binding)
+        old_binding = self.ledger.get_meta("engine_source_sha256")
+        if old_binding is not None and old_binding != self.code_sha256:
+            self.audit.close()
+            raise ValueError("Run revision changed; preserve the previous run and use an explicit new run")
+        self.ledger.set_meta("engine_source_sha256",self.code_sha256)
+        profile = json.dumps([mode,model_mode,duration_seconds,horizon_max_seconds,str(order_tmn),
+            str(initial_capital),str(stop_pct),str(trail_pct),str(activation_fraction),str(retention_ratio)],sort_keys=True)
+        old_profile = self.ledger.get_meta("engine_profile")
+        if old_profile is not None and old_profile != profile:
+            self.audit.close()
+            raise ValueError("Run settings changed; do not reinterpret an existing portfolio")
+        self.ledger.set_meta("engine_profile",profile)
+        created = self.ledger.get_meta("engine_started_at")
+        self.run_started_at = int(created) if created is not None else int(time.time())
+        if created is None:
+            self.ledger.set_meta("engine_started_at",str(self.run_started_at))
 
         self.budget = None
         self.run_envelope = None
         if self.model_mode == "REAL_MODEL":
             try:
                 self.budget = ModelBudget(self.config)
-                self.run_envelope = RoleRunEnvelope(self.budget)
+                self.run_envelope = RoleRunEnvelope(self.budget,
+                    duration_seconds=self.duration_seconds, scope_id=self.run_id)
             except (BudgetBlocked, ValueError, OSError, RuntimeError) as exc:
                 logger.warning("Could not initialize real model budget: %s", exc)
 
         self.rules = build_default_rules("USDTTMN")
         self.broker = PaperBroker(self.ledger, self.rules)
 
-        deadline = int(time.time()) + self.duration_seconds + 3600
+        deadline = self.run_started_at + self.duration_seconds
         if self.config.CHALLENGE_END_AT:
             deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
         self.protection_policy = build_default_protection_policy(
@@ -232,6 +266,28 @@ class MarketPaperOrchestrator:
             checkpoint_pct=self.checkpoint_pct,
             max_loss_tmn=self.max_loss_tmn,
         )
+        self.base_protection_policy = self.protection_policy
+        held_symbol = self.ledger.get_meta("active_symbol")
+        if held_symbol:
+            saved_rules = self.ledger.get_meta("bound_market_rules")
+            if saved_rules is None:
+                raise ValueError("Active market lacks durable observed spot rules")
+            values = json.loads(saved_rules)
+            held_rules = MarketRules(**{k:v if k in ("symbol","base_asset","quote_asset") else Decimal(v)
+                                        for k,v in values.items()})
+            if held_rules.symbol != held_symbol:
+                raise ValueError("Stored market binding mismatch")
+            if self.ledger.get_balance(held_rules.base_asset).total > 0:
+                self.rules = held_rules
+                self.broker = PaperBroker(self.ledger, held_rules)
+                saved = self.ledger.get_meta("bound_position_policy")
+                if saved is None:
+                    raise ValueError("Held position lacks a durable protection policy")
+                values = json.loads(saved)
+                for key, value in asdict(self.base_protection_policy).items():
+                    if isinstance(value, Decimal):
+                        values[key] = Decimal(values[key])
+                self.protection_policy = PositionProtectionPolicy(**values)
 
         self.risk_policy = RiskPolicy(
             max_order_tmn=self.order_tmn,
@@ -245,6 +301,18 @@ class MarketPaperOrchestrator:
         self.decision_traces = []
         self.equity_curve = []
         self.errors = []
+        previous = self.capture_dir / "manifest.json"
+        if previous.exists():
+            saved = json.loads(previous.read_text(encoding="utf-8"))
+            if saved.get("run_id") != self.run_id or saved["bindings"]["code_sha256"] != self.code_sha256:
+                raise ValueError("Previous manifest does not bind this run/revision")
+            arm = saved["arms"]["paper_portfolio"]
+            self.decision_traces = arm["decision_traces"]
+            self.equity_curve = arm["equity_curve"]
+            self.errors = saved.get("errors",[])
+            self.restored_captures = saved.get("public_captures",[])
+        else:
+            self.restored_captures = []
         self.shutdown_requested = False
         self.start_time = None
         self.completed_cycles = 0
@@ -253,6 +321,7 @@ class MarketPaperOrchestrator:
         self.shutdown_requested = True
 
     async def run_historical_replay(self, dataset_path: Path):
+        self.dataset_sha256 = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
         data, candles = load_dataset(dataset_path)
         symbol = data["symbol"]
         interval = data["interval_seconds"]
@@ -353,7 +422,7 @@ class MarketPaperOrchestrator:
                         "cutoff": cutoff,
                         "evidence_ids": ["EV_POSITION_LONG"],
                         "reason": f"Position protection: {tick.get('exit_reason') or tick.get('status')}",
-                        "role": "POSITION_REVIEWER",
+                        "role": "HOST_PROTECTION",
                     },
                     "snapshot": {
                         "symbol": symbol,
@@ -465,7 +534,7 @@ class MarketPaperOrchestrator:
         prot_state = json.loads(self.ledger.get_meta("protection_" + self.rules.symbol) or "null")
         if prot_state and prot_state.get("status") == "OPEN":
             self.broker.finalize_portfolio(
-                candles[-1].close,
+                candles[min(warmup + total_steps - 1, len(candles) - 1)].close,
                 timestamp=final_cutoff,
                 slippage_pct=DEFAULT_SLIPPAGE_PCT,
             )
@@ -473,14 +542,21 @@ class MarketPaperOrchestrator:
         return self.generate_summary()
 
     async def run(self):
+        with self.ledger.worker():
+            return await self._run_owned()
+
+    async def _run_owned(self):
         if self.mode == "HISTORICAL_REPLAY":
             ds_path = self.dataset_path or (
                 ROOT / "data/t02/normalized-c8c0f4903f000a992688564e8a90b54daab68aeff8ca7c998a7d933b41c7b5c1.json"
             )
             return await self.run_historical_replay(ds_path)
 
-        self.start_time = time.monotonic()
-        feed = ScannerPublicFeed(self.capture_dir / "raw", max_requests=24)
+        self.start_time = time.monotonic() - max(0,int(time.time())-self.run_started_at)
+        feed = ScannerPublicFeed(self.capture_dir / "raw", max_requests=32)
+        feed.captures = list(self.restored_captures)
+        feed.requests = len(feed.captures)
+        self.public_feed = feed
         now_ts = int(time.time())
         self.ledger.set_meta("engine_heartbeat", str(now_ts))
 
@@ -493,9 +569,9 @@ class MarketPaperOrchestrator:
             now_ts = int(cycle_start)
             try:
                 await self._execute_cycle(feed, now_ts)
-            except Exception as exc:
-                logger.exception("Error in paper cycle: %s", exc)
-                self.errors.append({"cycle": self.completed_cycles, "error": str(exc), "timestamp": now_ts})
+            except (ValueError, OSError, RuntimeError, TypeError, KeyError, ArithmeticError) as exc:
+                logger.error("Paper cycle failed: %s", type(exc).__name__)
+                self.errors.append({"cycle": self.completed_cycles, "error_type": type(exc).__name__, "timestamp": now_ts})
 
             self.completed_cycles += 1
             self._checkpoint_and_export(now_ts)
@@ -523,6 +599,10 @@ class MarketPaperOrchestrator:
             await self._handle_position_cycle(feed, now, prot_state)
         else:
             # Flat: scanning & entry analysis
+            cutoff = now // 300 * 300
+            if self.ledger.get_meta("last_entry_cutoff") == str(cutoff):
+                return
+            self.ledger.set_meta("last_entry_cutoff",str(cutoff))
             await self._handle_entry_cycle(feed, now)
 
     async def _handle_entry_cycle(self, feed: ScannerPublicFeed, now: int):
@@ -538,7 +618,10 @@ class MarketPaperOrchestrator:
             min_depth_tmn=Decimal("1000000"),
             max_spread_pct=Decimal("0.005"),
             available_tmn_cash=available_cash,
-            batch_limit=3,
+            batch_limit=5,
+            diversify=True,
+            tmn_only=True,
+            use_spot_rules=True,
         )
 
         batch_list = [
@@ -581,8 +664,9 @@ class MarketPaperOrchestrator:
                     run_envelope=self.run_envelope,
                     model_trace=model_trace,
                     allowed_symbols=tuple(batch_map),
-                    horizon_bounds=(600, self.horizon_max_seconds),
-                    remaining_seconds=self.horizon_max_seconds,
+                    horizon_bounds=(300, self.horizon_max_seconds),
+                    remaining_seconds=max(0, min(self.horizon_max_seconds,
+                        self.protection_policy.deadline_utc - self.protection_policy.exit_buffer_seconds - now)),
                     timeout_seconds=30,
                 )
             except BudgetBlocked as exc:
@@ -639,17 +723,26 @@ class MarketPaperOrchestrator:
         risk_result = None
         client_id = None
         if decision.action == "ENTER" and decision.symbol in batch_map:
+            submit_time = int(time.time())
             chosen_snap, _chosen_opp = batch_map[decision.symbol]
-            target_rules = build_default_rules(decision.symbol)
+            if (decision.forecast is not None
+                    and decision.forecast.cutoff + decision.forecast.horizon_seconds <= submit_time):
+                raise ValueError("Forecast horizon already expired before execution")
+            target_rules = report.get("market_rules",{}).get(decision.symbol)
+            if target_rules is None:
+                raise ValueError("Selected market lacks observed spot trading rules")
+            execution_price = _chosen_opp.best_ask
+            if execution_price is None or not 0 <= submit_time-_chosen_opp.depth_received_at <= 60:
+                raise ValueError("Entry requires a fresh observed ask price")
             risk_result = evaluate_risk(
                 decision,
                 market_rules=target_rules,
                 policy=self.risk_policy,
                 ledger=self.ledger,
-                current_time=now,
+                current_time=submit_time,
                 snapshot_sha256=chosen_snap.snapshot_sha256,
                 candle_close_time=chosen_snap.cutoff,
-                current_price=chosen_snap.last_close,
+                current_price=execution_price,
                 denied_markets=frozenset(),
             )
 
@@ -657,25 +750,38 @@ class MarketPaperOrchestrator:
                 # Rebind execution rules/broker to the model-selected market.
                 self.rules = target_rules
                 self.broker = PaperBroker(self.ledger, target_rules)
-                client_id = f"paper_enter_{now}_{decision.symbol}"
-                order = self.broker.submit_order(risk_result, client_id=client_id, timestamp=now)
+                self.ledger.set_meta("approved_decision_"+decision.decision_id,
+                    json.dumps({"decision":decision.model_dump(mode="json"),"model_trace":model_trace,
+                        "snapshot":chosen_snap.to_canonical_dict(),"opportunity":_chosen_opp.model_dump(mode="json")}))
+                self.ledger.set_meta("bound_market_rules", json.dumps(asdict(target_rules),default=str))
+                self.ledger.set_meta("active_symbol", decision.symbol)
+                client_id = f"paper_enter_{submit_time}_{decision.symbol}"
+                order = self.broker.submit_order(risk_result, client_id=client_id, timestamp=submit_time)
                 # Taker fill simulation at current price
                 if order:
                     self.broker.reconcile_order(
                         client_id,
                         simulated_state="FILLED",
-                        timestamp=now,
+                        timestamp=submit_time,
                         executed_price=risk_result.price,
                     )
                     # Arm protection
+                    horizon = decision.horizon_seconds or self.horizon_max_seconds
+                    self.protection_policy = replace(self.base_protection_policy,
+                        hard_holding_seconds=horizon,
+                        review_interval_seconds=max(1, min(decision.review_after_seconds or 1800, horizon)))
+                    self.ledger.set_meta("bound_position_policy", json.dumps(asdict(self.protection_policy), default=str))
                     self.broker.arm_protection(
-                        self.protection_policy, opened_at=now, entry_price=risk_result.price
+                        self.protection_policy, opened_at=submit_time, entry_price=risk_result.price
                     )
 
         trace = {
             "decision": decision.model_dump(mode="json"),
-            "snapshot": primary_snap.to_canonical_dict(),
-            "snapshot_sha256": primary_snap.snapshot_sha256,
+            "snapshot": batch_map.get(decision.symbol, (primary_snap, None))[0].to_canonical_dict(),
+            "snapshot_sha256": decision.snapshot_sha256,
+            "model_trace": model_trace,
+            "market_context": report.get("market_context"),
+            "coverage": report.get("coverage"),
             "risk": {
                 "approved": risk_result.approved if risk_result else None,
                 "reason": risk_result.reason if risk_result else "Action WAIT",
@@ -686,26 +792,85 @@ class MarketPaperOrchestrator:
         }
         self.decision_traces.append(trace)
 
-    async def _handle_position_cycle(self, feed: ScannerPublicFeed, now: int, state: dict):
+    async def _review_position(self, feed, now, bid, state):
+        """Model may exit early; host protection has already run and cannot be weakened."""
+        interval = 300
+        cutoff = now // interval * interval
+        if cutoff < state["opened_at"]:
+            return  # No closed post-entry candle exists yet; protection still ran.
+        start = cutoff - 40 * interval
+        try:
+            history, _ = feed.get("/v1/udf/history", {"symbol":self.rules.symbol,
+                "resolution":"1", "from":start, "to":cutoff}, cutoff=now)
+            series = aggregate_closed(parse_history(history,start=start,end=cutoff,
+                interval_seconds=60,cutoff=now), interval)
+            if series.incomplete_bins:
+                raise ValueError("Incomplete position review history")
+            qty = self.ledger.get_balance(self.rules.base_asset).total
+            snap = extract_features(series,self.rules.symbol,cutoff=cutoff,current_position_base=qty,
+                available_tmn_cash=self.ledger.get_balance("TMN").free)
+            exported = self.broker.export_state(bid,now=now)
+            position = PositionReviewContext(quantity=qty,cost_basis_tmn=Decimal(exported["cost_basis_tmn"]),
+                net_liquidation_tmn=Decimal(exported["net_liquidation_tmn"]),
+                opened_at=state["opened_at"],observed_at=now,hard_exit_at=state["hard_exit_at"],
+                initial_stop_price=Decimal(state["initial_stop_price"]),
+                trailing_stop_price=Decimal(state["trailing_stop_price"]),
+                checkpoint_profit_pct=self.protection_policy.checkpoint_profit_pct)
+            model_trace = {}
+            model_task = asyncio.create_task(decide_role(snap,position=position,config=self.config,budget=self.budget,
+                run_envelope=self.run_envelope,model_trace=model_trace,allowed_symbols=(self.rules.symbol,),
+                remaining_seconds=state["hard_exit_at"]-now,horizon_bounds=(300,self.horizon_max_seconds)))
+            try:
+                while not model_task.done():
+                    done, _ = await asyncio.wait((model_task,),timeout=3)
+                    if not done:
+                        current = json.loads(self.ledger.get_meta("protection_"+self.rules.symbol) or "null")
+                        _, protected = await self._handle_position_cycle(feed,int(time.time()),current,allow_model=False)
+                        if protected.get("action") == "EXIT":
+                            return
+                decision = await model_task
+            finally:
+                if not model_task.done():
+                    model_task.cancel()
+                    await asyncio.gather(model_task,return_exceptions=True)
+            trace = {"decision":decision.model_dump(mode="json"),"model_trace":model_trace,
+                "snapshot":snap.to_canonical_dict(),"snapshot_sha256":snap.snapshot_sha256}
+            self.decision_traces.append(trace)
+            if decision.action == "EXIT":
+                observed = int(time.time())
+                depth, received = feed.get("/v1/depth",{"symbol":self.rules.symbol},cutoff=observed,max_age_seconds=0)
+                if depth.get("success") is not True:
+                    raise ValueError("Exit requires a fresh executable quote")
+                fresh_bid = Decimal(str(depth["result"]["bid"][0]["price"]))
+                trace["settlement"] = self.broker.finalize_portfolio(fresh_bid,timestamp=received,
+                    slippage_pct=DEFAULT_SLIPPAGE_PCT)
+        except (BudgetBlocked, ValueError, OSError, KeyError, IndexError, TypeError) as exc:
+            self.errors.append({"phase":"POSITION_REVIEW", "error_type":type(exc).__name__,"timestamp":now})
+
+    async def _handle_position_cycle(self, feed: ScannerPublicFeed, now: int, state: dict, *, allow_model=True):
         # Fetch current quote for the held symbol
         symbol = self.rules.symbol
         last_price = Decimal(state.get("last_bid", state.get("entry_price", "100")))
         bid = last_price
+        source_time = state.get("last_source_time", state.get("opened_at", now))
+        received_at = now
 
         try:
-            depth_data, _ = feed.get("/v1/depth", {"symbol": symbol}, cutoff=now)
-            if depth_data.get("success") and depth_data.get("result", {}).get("bids"):
-                top_bid = depth_data["result"]["bids"][0]
+            depth_data, received = feed.get("/v1/depth", {"symbol": symbol}, cutoff=now)
+            if depth_data.get("success") and depth_data.get("result", {}).get("bid"):
+                top_bid = depth_data["result"]["bid"][0]
                 bid = Decimal(str(top_bid.get("price", last_price)))
+                source_time = received
+                received_at = received
         except (ValueError, OSError, RuntimeError):
             bid = last_price
 
         # Host protection tick
         tick = self.broker.observe_quote(
             bid,
-            source_time=now,
-            received_at=now,
-            now=now,
+            source_time=source_time,
+            received_at=received_at,
+            now=max(now, received_at),
             policy=self.protection_policy,
             slippage_pct=DEFAULT_SLIPPAGE_PCT,
         )
@@ -718,7 +883,7 @@ class MarketPaperOrchestrator:
                 "cutoff": now,
                 "evidence_ids": ["EV_POSITION_LONG"],
                 "reason": f"Position protection status: {tick.get('status')}",
-                "role": "POSITION_REVIEWER",
+                "role": "HOST_PROTECTION",
             },
             "snapshot": {
                 "symbol": symbol,
@@ -743,6 +908,11 @@ class MarketPaperOrchestrator:
         }
         self.decision_traces.append(trace)
 
+        if (allow_model and tick.get("review_due") and self.model_mode == "REAL_MODEL"
+                and self.run_envelope is not None and tick.get("status") == "PROTECTED"):
+            await self._review_position(feed, max(now, received_at), bid, tick)
+        return bid, tick
+
     def _checkpoint_and_export(self, timestamp: int):
         last_bid = Decimal("100")
         held_symbol = self.rules.symbol
@@ -762,7 +932,7 @@ class MarketPaperOrchestrator:
             "unrealized_pnl_tmn": exported.get("net_if_exit_pnl_tmn", "0"),
             "balances": {
                 "TMN": {"free": str(tmn_bal.free), "locked": str(tmn_bal.locked)},
-                "USDT": {"free": str(base_bal.free), "locked": str(base_bal.locked)},
+                self.rules.base_asset: {"free": str(base_bal.free), "locked": str(base_bal.locked)},
             },
         })
 
@@ -790,18 +960,24 @@ class MarketPaperOrchestrator:
             ]
 
         evidence_kind = "PUBLIC_MARKET_PAPER" if self.mode == "CURRENT_PAPER" else "HISTORICAL_MARKET_REPLAY"
+        captures = self.public_feed.captures if self.public_feed is not None else []
         manifest = {
-            "status": "PASS_DATA_ONLY" if self.mode == "CURRENT_PAPER" else "PASS_REPLAY",
+            "status": "PARTIAL" if self.errors else ("PASS_DATA_ONLY" if self.mode == "CURRENT_PAPER" else "PASS_REPLAY"),
             "run_id": self.run_id,
             "created_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(timestamp)),
             "evidence_kind": evidence_kind,
             "mode": self.mode,
             "model_mode": self.model_mode,
             "bindings": {
-                "code_sha256": hashlib.sha256(self.run_id.encode()).hexdigest(),
+                "code_sha256": self.code_sha256,
                 "config_sha256": hashlib.sha256(self.config.model_dump_json().encode()).hexdigest(),
-                "data_sha256": "public_wallex_feed",
+                "data_sha256": self.dataset_sha256 or hashlib.sha256(json.dumps(captures,sort_keys=True).encode()).hexdigest(),
             },
+            "public_captures": captures,
+            "errors": self.errors,
+            "protection_policy": asdict(self.protection_policy),
+            "risk_policy": asdict(self.risk_policy),
+            "model_budget_policy_sha256": self.budget.policy_hash if self.budget is not None else None,
             "arms": {
                 "paper_portfolio": {
                     "symbol": held_symbol,
@@ -882,12 +1058,16 @@ class MarketPaperOrchestrator:
 
     def generate_summary(self):
         tmn_bal = self.ledger.get_balance("TMN")
-        equity = self.ledger.get_equity({self.rules.symbol: Decimal("100")}, "TMN")
+        protection = json.loads(self.ledger.get_meta("protection_" + self.rules.symbol) or "null")
+        if self.ledger.get_balance(self.rules.base_asset).total > 0 and not protection:
+            raise ValueError("Open position has no observed valuation price")
+        prices = {self.rules.symbol: Decimal(protection["last_bid"])} if protection else {}
+        equity = self.ledger.get_equity(prices, "TMN")
         net_ret = ((equity / self.initial_capital) - Decimal(1)) * Decimal(100)
 
         return {
             "run_id": self.run_id,
-            "status": "COMPLETED",
+            "status": "PARTIAL" if self.errors else "COMPLETED",
             "mode": self.mode,
             "model_mode": self.model_mode,
             "completed_cycles": self.completed_cycles,

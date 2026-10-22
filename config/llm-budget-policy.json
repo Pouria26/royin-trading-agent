@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "source_url": "https://boxapi.ir/docs/ai/models/",
   "verified_on": "2026-10-21",
   "currency": "USD",
@@ -9,8 +9,8 @@
   "daily_limit_usd": "0.80",
   "max_requests_total": 600,
   "max_requests_daily": 200,
-  "max_input_tokens": 8192,
-  "max_output_tokens": 512,
+  "max_input_tokens": 12288,
+  "max_output_tokens": 1024,
   "rates_per_million": {
     "gpt-6-luna": {"input": "0.115", "output": "0.575"},
     "gpt-5.6-luna": {"input": "0.230", "output": "1.380"},

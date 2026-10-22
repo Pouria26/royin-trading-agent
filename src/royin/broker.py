@@ -133,6 +133,8 @@ class PaperBroker:
         """Submit an approved RiskResult to paper matching, reserving funds and worst-case fee."""
         if not risk_result.approved or risk_result.action == "WAIT":
             return None
+        if risk_result.symbol != self.rules.symbol:
+            raise ValueError("Risk/order symbol does not match broker rules")
 
         cid = client_id or f"paper_{uuid.uuid4().hex[:12]}"
         side: Literal["BUY", "SELL"] = "BUY" if risk_result.action == "ENTER" else "SELL"

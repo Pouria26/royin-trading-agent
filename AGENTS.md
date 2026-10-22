@@ -143,3 +143,16 @@ TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیج�
 Read docs/execution-readiness-review.md before execution changes. WallexLiveBroker is an offline MockTransport-only contract harness; constructor overrides cannot enable production. CANDIDATE_SHADOW stays blocked. The twelve-configuration plan is config/strategy-experiment-plan.json; its historical prospective freeze is unverified.
 
 Verified no-cost CLI help: `.\.venv\Scripts\python.exe -X utf8 scripts\evaluate_ai_role.py --help`. No flag prints help; `--run` explicitly starts paid diagnostic snapshots, capped before HTTP at 24 requests / USD 0.04 reserved per invocation, plus the shared durable global budget. This is not a portfolio backtest. Personal prompts and review output remain under ignored .local/.
+
+## Current-market checkpoint (2026-10-22)
+
+Read docs/current-market-readiness.md. Role decisions now reserve 12288 input /1024 output tokens
+under budget policy v2; this supersedes the earlier512 role-output limit, not the separate probe CLI.
+Tariffs/global daily and total cost caps are unchanged. The USD0.04 role envelope fits19 worst-case
+requests; durable scope counters and the original session deadline must survive restart.
+Current paper uses observed spot rules, currency-adjusted market breadth and a bounded diversified
+batch. Entry targets above2% gross and300..36000-second horizons are research policy, never a
+profit guarantee. A short diagnostic must WAIT when its funded session cannot contain the position.
+Public USDTTMN metadata observed minQty0.01/minNotional50000; the old one-USDT assumption is
+superseded for that public snapshot, not all credit-package conditions. Production remains blocked.
+316 core tests and a real current-model WAIT diagnostic passed; neither proves strategy profitability.
