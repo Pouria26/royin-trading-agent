@@ -1,9 +1,14 @@
 """Deterministic financial ledger for order intents, fills, fee tracking, and P&L accounting."""
 
+import json
+import re
 import sqlite3
+import threading
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal, Inexact, localcontext
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +72,14 @@ class FillRecord:
     timestamp: int
 
 
+def ledger_atomic(method):
+    @wraps(method)
+    def run(self,*args,**kwargs):
+        with self.transaction():
+            return method(self,*args,**kwargs)
+    return run
+
+
 class Ledger:
     """Atomic SQLite-backed ledger using Decimal arithmetic for all currency amounts."""
 
@@ -86,6 +99,20 @@ class Ledger:
 
     def _stage_event(self, event_type: str, category: str, payload: dict[str, Any]):
         if self._transaction_events is not None:
+            from royin.logger import AuditLogger
+            client_id=payload.get("client_id")
+            saved_origin=self.get_meta("audit_order_"+client_id) if client_id else None
+            if isinstance(self.audit,AuditLogger):
+                payload={**payload,"_audit_origin":dict(run_id=self.audit.run_id,mode=self.audit.mode,
+                    source=self.audit.source,hashes=dict(self.audit.hashes),context={k:v for k,v in self.audit.context.items()
+                        if k in ("decision_id","snapshot_sha256","symbol","cutoff")})}
+            else:
+                payload={**payload,"_audit_origin":dict(run_id="UNATTRIBUTED_LEDGER",mode="unknown",
+                    source="UNATTRIBUTED_LEDGER_REPLAY",hashes={},context={})}
+            if saved_origin:
+                payload["_audit_origin"]=json.loads(saved_origin)
+            elif event_type=="INTENT" and client_id:
+                self.set_meta("audit_order_"+client_id,json.dumps(payload["_audit_origin"]))
             self._transaction_events.append((event_type, category, payload))
         elif self.audit:
             self.audit.record_event(event_type, category, payload)
@@ -118,6 +145,9 @@ class Ledger:
             committed = False
             try:
                 yield db
+                for event_type, category, payload in self._transaction_events:
+                    db.execute("INSERT INTO audit_outbox(event_type,category,payload) VALUES (?,?,?)",
+                               (event_type, category, json.dumps(payload, default=str)))
                 db.commit()
                 committed = True
             except BaseException:
@@ -134,28 +164,62 @@ class Ledger:
                 self._transaction_events = None
 
             if self.audit and events_to_emit:
-                for event_type, category, payload in events_to_emit:
-                    self.audit.record_event(event_type, category, payload)
+                self.flush_audit()
+
+    def flush_audit(self):
+        """At-least-once delivery with stable IDs; crash after file write can duplicate an ID."""
+        if self.audit is None or self._transaction_conn is not None:
+            return
+        with self.connection() as db:
+            rows = db.execute("SELECT id,event_type,category,payload FROM audit_outbox WHERE delivered=0 ORDER BY id").fetchall()
+            for event_id, event_type, category, payload in rows:
+                try:
+                    decoded=json.loads(payload)
+                    origin=decoded.pop("_audit_origin",None)
+                    self.audit.record_event(event_type, category, {
+                        **decoded, "journal_event_id": f"{self.get_meta('journal_id')}:{event_id}",
+                    },origin=origin)
+                    with db:
+                        db.execute("UPDATE audit_outbox SET delivered=1 WHERE id=?", (event_id,))
+                except Exception:
+                    with db:
+                        db.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES ('audit_failed','1')")
+                    raise
+            with db:
+                db.execute("DELETE FROM metadata WHERE key='audit_failed'")
 
     @contextmanager
-    def worker(self):
+    def worker(self, *, account_fingerprint=None, lock_directory=None):
         """One local execution operation, including HTTP; OS releases SQLite lock on crash."""
         if self._worker_active:
             raise BlockingIOError("Another execution operation is active")
         lock = None
         self._worker_active = True
+        self._worker_owner = threading.get_ident()
         try:
-            if self.db_path != ":memory:":
-                lock = sqlite3.connect(str(Path(self.db_path).resolve()) + ".worker", timeout=0)
+            if account_fingerprint is not None or lock_directory is not None:
+                if not isinstance(account_fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", account_fingerprint) or lock_directory is None:
+                    raise ValueError("Explicit account fingerprint and shared lock directory required")
+                directory = Path(lock_directory).resolve()
+                directory.mkdir(parents=True, exist_ok=True)
+                lock_path = directory / (account_fingerprint + ".sqlite3")
+            else:
+                lock_path = Path(str(Path(self.db_path).resolve()) + ".worker") if self.db_path != ":memory:" else None
+            if lock_path is not None:
+                lock = sqlite3.connect(lock_path, timeout=0)
                 lock.execute("BEGIN EXCLUSIVE")
             yield
         finally:
             if lock is not None:
                 lock.close()
             self._worker_active = False
+            self._worker_owner = None
 
     def _init_db(self):
         with self.transaction() as db:
+            db.execute("""CREATE TABLE IF NOT EXISTS audit_outbox (
+                id INTEGER PRIMARY KEY, event_type TEXT NOT NULL, category TEXT NOT NULL,
+                payload TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0)""")
             db.execute("""
                 CREATE TABLE IF NOT EXISTS balances (
                     asset TEXT PRIMARY KEY,
@@ -223,6 +287,59 @@ class Ledger:
                     timestamp INTEGER NOT NULL
                 )
             """)
+            db.execute("INSERT OR IGNORE INTO metadata(key,value) VALUES ('journal_id',?)", (uuid.uuid4().hex,))
+
+    def initialize_portfolio(self, initial_capital, *, quote_asset, binding):
+        validate_decimal(initial_capital, "initial capital", strictly_positive=True)
+        if not isinstance(binding, str) or not re.fullmatch(r"[0-9a-f]{64}", binding) or quote_asset != "TMN":
+            raise ValueError("Exact binding and TMN portfolio required")
+        expected = json.dumps(dict(initial_capital=str(initial_capital), quote_asset=quote_asset, binding=binding), sort_keys=True)
+        with self.transaction() as db:
+            existing = self.get_meta("portfolio")
+            if existing is not None:
+                if existing != expected:
+                    raise ValueError("Existing portfolio binding mismatch; no reset")
+                return False
+            if any(db.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() for table in (
+                "balances", "order_intents", "fills", "cost_basis", "realized_pnl", "audit_outbox",
+            )) or db.execute("SELECT 1 FROM metadata WHERE key!='journal_id' LIMIT 1").fetchone():
+                raise ValueError("Unbound nonempty ledger; recovery review required")
+            self.set_balance(quote_asset, initial_capital)
+            self.set_meta("portfolio", expected)
+            self.set_meta("peak_equity_TMN", str(initial_capital))
+        return True
+
+    def claim_candle(self, symbol, cutoff, snapshot_sha256, interval_seconds):
+        if not re.fullmatch(r"[A-Z0-9]+(?:TMN|USDT)", symbol) or (
+            type(cutoff) is not int or type(interval_seconds) is not int or interval_seconds <= 0
+            or cutoff <= 0 or cutoff % interval_seconds or not re.fullmatch(r"[0-9a-f]{64}", snapshot_sha256)
+        ):
+            raise ValueError("Invalid candle claim")
+        with self.transaction():
+            previous = self.get_meta("candle_claim")
+            if previous:
+                old = json.loads(previous)
+                if old["status"] == "PENDING":
+                    raise BlockingIOError("Interrupted model/decision requires reconciliation; no duplicate inference")
+                if cutoff <= old["cutoff"]:
+                    return False
+                if cutoff != old["cutoff"] + interval_seconds:
+                    raise ValueError("Current candle gap")
+            self.set_meta("candle_claim", json.dumps(dict(symbol=symbol, cutoff=cutoff,
+                snapshot_sha256=snapshot_sha256, status="PENDING")))
+        return True
+
+    def complete_candle(self, symbol, cutoff, decision):
+        """Call in the same outer transaction as the paper intent, never around network I/O."""
+        with self.transaction():
+            claim = json.loads(self.get_meta("candle_claim") or "{}")
+            if claim.get("status") != "PENDING" or (claim.get("symbol"),claim.get("cutoff")) != (symbol,cutoff):
+                raise ValueError("No matching pending candle claim")
+            if (decision.symbol,decision.cutoff,decision.snapshot_sha256) != (symbol,cutoff,claim["snapshot_sha256"]):
+                raise ValueError("Decision claim binding mismatch")
+            self.set_meta(f"decision_{cutoff}", decision.model_dump_json())
+            self._stage_event("HOST_DECISION","ENGINE",decision.model_dump(mode="json"))
+            self.set_meta("candle_claim", json.dumps({**claim, "status":"COMPLETE"}))
 
     def record_reflection(
         self,
@@ -336,6 +453,7 @@ class Ledger:
                 r[0]: Balance(asset=r[0], free=Decimal(r[1]), locked=Decimal(r[2])) for r in rows
             }
 
+    @ledger_atomic
     def record_intent(
         self,
         *,
@@ -454,6 +572,7 @@ class Ledger:
             created_at=timestamp,
         )
 
+    @ledger_atomic
     def cancel_intent(self, client_id: str) -> bool:
         """Cancel remaining unfilled intent and unlock reserved funds from durable record."""
         with self.transaction() as db:
@@ -512,6 +631,7 @@ class Ledger:
             )
             return True
 
+    @ledger_atomic
     def record_fill(
         self,
         *,

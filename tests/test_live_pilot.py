@@ -19,6 +19,50 @@ from scripts.run_live_pilot import (
 
 
 class LivePilotTests(unittest.TestCase):
+    def test_partial_buy_and_restart_never_resubmit_or_sell(self):
+        from datetime import UTC, datetime
+        seen=[]
+        original={}
+        now=1788220805
+        def handle(request):
+            seen.append(request.method)
+            if request.method=="POST":
+                original.update(json.loads(request.content))
+            q=Decimal(original["quantity"])/2
+            p=Decimal(original["price"])
+            row=dict(clientOrderId=original["client_id"],symbol="USDTTMN",side="BUY",type="LIMIT",
+                price=str(p),origQty=original["quantity"],executedQty=str(q),executedSum=str(p*q),
+                active=True,status="PARTIALLY_FILLED",fills=[dict(symbol="USDTTMN",isBuyer=True,
+                    price=str(p),quantity=str(q),sum=str(p*q),fee=str(p*q*Decimal(".003")),feeAsset="TMN",
+                    timestamp=datetime.fromtimestamp(now,UTC).isoformat())])
+            return httpx.Response(200,json=dict(success=True,result=row))
+        ledger=Ledger()
+        ledger.set_balance("TMN",Decimal(5000000))
+        with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+            broker=WallexLiveBroker(ledger,self.rules,self.config,http_client=client,enable_live_trading=True,run_mode="live")
+            kwargs=dict(broker=broker,ledger=ledger,rules=self.rules,policy=self.policy,current_price=Decimal(260000),
+                        current_time=now,snapshot_sha256="a"*64)
+            first=run_pilot_round_trip(**kwargs)
+            second=run_pilot_round_trip(**kwargs)
+        self.assertFalse(first["buy_settled"])
+        self.assertFalse(second["sell_settled"])
+        self.assertEqual(seen,["POST","GET"])
+        self.assertEqual(first["buy_id"],second["buy_id"])
+
+    def test_sellability_fee_asset_scenarios_have_manual_residual_oracles(self):
+        args=dict(price=Decimal(100),taker_fee_rate=Decimal(".01"),step_size=Decimal(".1"),
+                  ceiling_tmn=Decimal(202),min_quantity=Decimal(1),min_notional=Decimal(100),exit_drawdown_pct=Decimal(".1"))
+        quote=evaluate_pilot_sellability(**args,fee_asset_scenario="QUOTE_BOTH")
+        base=evaluate_pilot_sellability(**args,fee_asset_scenario="BASE_BOTH")
+        mixed=evaluate_pilot_sellability(**args,fee_asset_scenario="BASE_BUY_QUOTE_SELL")
+        self.assertEqual(Decimal(quote["cash_debit_tmn"]),Decimal(202))
+        self.assertEqual(Decimal(quote["net_liquidation_tmn"]),Decimal("178.2"))
+        self.assertEqual(Decimal(base["residual_base"]),Decimal(".061"))
+        self.assertEqual(Decimal(mixed["residual_base"]),Decimal(".08"))
+        for value in (Decimal("NaN"),Decimal(1),Decimal(-1)):
+            with self.assertRaises(ValueError):
+                evaluate_pilot_sellability(**{**args,"taker_fee_rate":value})
+
     def setUp(self):
         self.rules = MarketRules(
             symbol="USDTTMN",
@@ -92,7 +136,8 @@ class LivePilotTests(unittest.TestCase):
         self.assertEqual(packet["kind"], "TECHNICAL_MICRO_PILOT_REVIEW_PACKET")
         self.assertEqual(packet["symbol"], "USDTTMN")
         self.assertEqual(packet["gates_status"]["sellability_gate"], "PASS_SELLABLE")
-        self.assertEqual(packet["recommended_action"], "READY_FOR_INTEGRATION_REVIEW")
+        self.assertEqual(packet["recommended_action"], "NO_GO_CRITICAL_CONTRACT_UNKNOWN")
+        self.assertEqual(packet["release_status"],"NO_GO")
 
     def test_prepare_packet_with_explicit_low_ceiling_is_blocked(self):
         packet = prepare_pilot_packet(
@@ -208,6 +253,11 @@ class LivePilotTests(unittest.TestCase):
             snapshot_sha256="0" * 64,
             client_id_prefix="mock_test",
         )
+
+        self.assertEqual(summary["status"],"AWAIT_FRESH_EXIT_QUOTE")
+        self.assertFalse(summary["sell_settled"])
+        summary=run_pilot_round_trip(broker,ledger,self.rules,flexible_policy,Decimal("260000"),now+60,
+            "0"*64,client_id_prefix="mock_test",exit_quote=dict(price=Decimal("260000"),timestamp=now+60))
 
         self.assertEqual(summary["status"], "COMPLETE_ROUND_TRIP")
         self.assertTrue(summary["buy_settled"])
