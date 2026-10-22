@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import re
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from typing import Literal
@@ -117,11 +117,15 @@ class MarketResearchUniverse(BaseModel):
     catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     observed_at: int = Field(strict=True, ge=0)
     markets: tuple[MarketCatalogCandidate, ...] = Field(min_length=1, max_length=256)
+    unavailable_symbols: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def unique_symbols(self):
         if len({row.symbol for row in self.markets}) != len(self.markets):
             raise ValueError("Research universe symbols must be unique")
+        if (len(set(self.unavailable_symbols)) != len(self.unavailable_symbols)
+                or not set(self.unavailable_symbols).issubset({row.symbol for row in self.markets})):
+            raise ValueError("Unavailable research symbols must be unique universe members")
         return self
 
     def screening_view(self):
@@ -132,7 +136,8 @@ class MarketResearchUniverse(BaseModel):
                 str(row.return_24h.quantize(Decimal("0.0001"),rounding=ROUND_HALF_EVEN))
                     if row.return_24h is not None else None] for row in self.markets]
         return dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
-            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp"],rows=rows)
+            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp"],rows=rows,
+            unavailable_for_current_cutoff=list(self.unavailable_symbols))
 
 
 class ReturnForecast(BaseModel):

@@ -22,9 +22,9 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(universe.markets[0].turnover_tmn,D(299999999))
         self.assertIn("turnover_million_tmn_floor",view["columns"])
 
-    async def run_case(self, *, selection=None, loaded_symbol="SOLTMN", skip_tool=False, bad_catalog=False):
+    async def run_case(self, *, selection=None, loaded_symbol="SOLTMN", skip_tool=False, bad_catalog=False, unavailable=()):
         symbols = ("BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN")
-        universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,
+        universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,unavailable_symbols=unavailable,
             markets=tuple(MarketCatalogCandidate(symbol=s,price_tmn=D(101),turnover_tmn=D(200000000),
                 return_24h=D(".01")) for s in symbols))
         anchor = snapshot("BTCTMN")
@@ -75,6 +75,12 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(decision.action,"WAIT")
                 self.assertEqual(trace["host_outcome"],"HOST_FALLBACK")
                 loader.assert_not_awaited()
+
+    async def test_known_bad_current_data_cannot_be_requested_again(self):
+        decision,trace,loader,_ = await self.run_case(selection=["SOLTMN"],unavailable=("SOLTMN",))
+        self.assertEqual(decision.action,"WAIT")
+        self.assertEqual(trace["host_outcome"],"HOST_FALLBACK")
+        loader.assert_not_awaited()
 
     async def test_final_decision_cannot_skip_model_selected_research(self):
         decision,trace,loader,_ = await self.run_case(skip_tool=True)

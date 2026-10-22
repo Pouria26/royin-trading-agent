@@ -112,6 +112,43 @@ class CurrentMarketReadinessTests(unittest.TestCase):
             asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
         self.assertEqual([row.symbol for row in infer.call_args.kwargs["market_universe"].markets],["ETHTMN"])
 
+    def test_broken_bootstrap_market_does_not_block_healthy_universe(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        snap = snapshot("ETHTMN")
+        decision = runner.RoleDecisionProposal(role="ENTRY_ANALYST",action="WAIT",symbol=snap.symbol,
+            cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+            reason="synthetic fallback boundary",invalidation="next cycle")
+        liquid = tuple(MarketShortlistRow(s,D(200000000-i),D(1),8105,"c"*64)
+            for i,s in enumerate(("BTCTMN","ETHTMN")))
+        healthy = dict(batch=[ScanCandidate(snap,D(0),opportunity())],
+            market_rules={"BTCTMN":runner.build_default_rules("BTCTMN"),"ETHTMN":runner.build_default_rules("ETHTMN")},
+            status="CANDIDATES")
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"BTCTMN","ETHTMN"})), \
+             patch.object(runner,"catalog_candidates",return_value=liquid), \
+             patch.object(runner,"scan_current_market",side_effect=[dict(status="BLOCKED_DATA",batch=(),errors=["gap"]),healthy]) as scan, \
+             patch.object(runner,"decide_role",return_value=decision) as infer,patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual([call.kwargs["selected_symbols"] for call in scan.call_args_list],[["BTCTMN"],["ETHTMN"]])
+        self.assertEqual(len(infer.call_args.kwargs["market_universe"].markets),2)
+        self.assertEqual(infer.call_args.kwargs["market_universe"].unavailable_symbols,("BTCTMN",))
+        self.assertEqual(o.decision_traces[-1]["bootstrap_attempts"][0]["status"],"BLOCKED_DATA")
+        self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
+
+    def test_bootstrap_failures_are_bounded_and_do_not_call_model(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        liquid = tuple(MarketShortlistRow(s,D(200000000-i),D(1),8105,"c"*64)
+            for i,s in enumerate(("BTCTMN","ETHTMN","SOLTMN","ADATMN")))
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{x.symbol for x in liquid})), \
+             patch.object(runner,"catalog_candidates",return_value=liquid), \
+             patch.object(runner,"scan_current_market",return_value=dict(status="BLOCKED_DATA",batch=(),errors=["gap"])) as scan, \
+             patch.object(runner,"decide_role") as infer,patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual(scan.call_count,3)
+        infer.assert_not_awaited()
+        self.assertEqual(len(o.decision_traces[-1]["bootstrap_attempts"]),3)
+
     def test_empty_research_universe_skips_deep_scan_and_paid_model(self):
         o = self.make_runner()
         o.model_mode,o.run_envelope = "REAL_MODEL",object()

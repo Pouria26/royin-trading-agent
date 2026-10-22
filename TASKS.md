@@ -344,3 +344,8 @@ The original financial UNKNOWN remains a separate unresolved incident; paper evi
 - [ ]Launch frozen3-hour real-data/real-model paper protocol with100k virtual order ceiling; inspect first checkpoint and eventual terminal state.
 - [ ]Score matured forecasts; report model-vs-zero error and net realized paper outcomes separately. Financial UNKNOWN and positive-alpha proof remain open.
 - [x]357 core tests passed in68.826s; Ruff/compileall/diff check passed before the sustained-run source freeze.
+
+- [x]First sustained attempt exposed mandatory-USDTTMN bootstrap failure before AI; intentionally stopped, raw evidence and original state preserved.
+- [x]Isolate bad seed data with at most3 permitted liquid bootstrap attempts; expose current-cutoff unavailability without changing permanent market policy.
+- [x]360 core tests (52.071s),29 focused tests, Ruff/compileall/diff checks passed.
+- [ ]Inspect fresh source-bound net-return-forward-20261023-2 first checkpoint and eventual terminal performance; no financial order enabled.

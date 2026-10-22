@@ -260,3 +260,10 @@ internal anchor is not an investment selection. Source-bound forecast expiry is 
 not order submission+horizon. New long-run role scopes48 calls/96 HTTP/USD0.50; saved legacy
 caps/counters survive migration. Pre-outcome3-hour protocol in current-market-readiness.md;
 model chooses holdings within funded time, no quota or forced trade. No alpha claim yet.
+
+2026-10-23: Mandatory USDTTMN bootstrap was a real all-market-analysis blocker when its minute
+history developed gaps. Keep data oracle strict; try at most3 liquid eligible seeds, marking failed
+seed symbols unavailable only for that cutoff. Host initialization is not the model's investment
+selection. Preserve failed run and distinguish stale RUNNING metadata from a confirmed process.
+360 core tests passed. MCP trade timestamps showed market-specific inactivity, not a proven
+exchange-wide halt or explanation of the prior empty financial POST.

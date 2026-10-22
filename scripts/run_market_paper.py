@@ -696,14 +696,18 @@ class MarketPaperOrchestrator:
         if self.model_mode == "REAL_MODEL":
             liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
                 received_at=received,account_as_of=received,tmn_only=True)
-        anchor_symbols = None
-        if liquid:
-            anchor_symbols = ["USDTTMN" if any(row.symbol == "USDTTMN" for row in liquid) else liquid[0].symbol]
-        if self.model_mode == "REAL_MODEL" and not liquid:
+        bootstrap_attempts = []
+        if self.model_mode == "REAL_MODEL":
             report = {"status":"NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE", "batch":()}
+            # Bootstrap data is not a trade pick; one broken market must not close the full universe.
+            for row in liquid[:3]:
+                report = scan_current_market(feed, **scan_options,batch_limit=1,selected_symbols=[row.symbol])
+                bootstrap_attempts.append({"symbol":row.symbol,"status":report.get("status"),
+                    "accepted":bool(report.get("batch")),"errors":report.get("errors",[])})
+                if report.get("batch"):
+                    break
         else:
-            report = scan_current_market(feed, **scan_options,
-                batch_limit=1 if self.model_mode == "REAL_MODEL" else 5, selected_symbols=anchor_symbols)
+            report = scan_current_market(feed, **scan_options,batch_limit=5)
 
         batch_list = [
             item for item in report.get("batch", [])
@@ -725,6 +729,7 @@ class MarketPaperOrchestrator:
                     "available_tmn_cash": str(available_cash),
                 },
                 "risk": {"approved": None, "action": "WAIT", "reason": "No candidate"},
+                "bootstrap_attempts":bootstrap_attempts,
             }
             self.decision_traces.append(trace)
             return
@@ -741,7 +746,9 @@ class MarketPaperOrchestrator:
                 markets=tuple(MarketCatalogCandidate(symbol=row.symbol,
                     price_tmn=decimal_number(catalog_rows[row.symbol]["price"],positive=True),
                     turnover_tmn=row.turnover_tmn, return_24h=catalog_return(catalog_rows[row.symbol]))
-                    for row in liquid if row.symbol in report["market_rules"]))
+                    for row in liquid if row.symbol in report["market_rules"]),
+                unavailable_symbols=tuple(row["symbol"] for row in bootstrap_attempts
+                    if not row["accepted"] and row["symbol"] in report["market_rules"]))
             model_deadline = time.monotonic()+30
             async def load_selected(selected):
                 def collect():
@@ -897,6 +904,7 @@ class MarketPaperOrchestrator:
             "snapshot_sha256": decision.snapshot_sha256,
             "model_trace": model_trace,
             "market_context": report.get("market_context"),
+            "bootstrap_attempts":bootstrap_attempts,
             "coverage": report.get("coverage"),
             "risk": {
                 "approved": risk_result.approved if risk_result else None,

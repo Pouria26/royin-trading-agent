@@ -63,6 +63,8 @@ ROLE_INSTRUCTIONS = {
         "symbols containing1..5 distinct exact universe symbols to research. Catalog return is past "
         "performance, not a forecast. The tool supplies closed-candle and depth evidence for your "
         "selection; choose ENTER only from its accepted candidates, or WAIT. Never skip the tool. "
+        "Skip symbols listed unavailable_for_current_cutoff: their current research data failed validation; "
+        "this is a temporary data-quality observation, not a permanent market ban. "
         "Only the tool's accepted candidates have passed host access, liquidity, freshness and cost checks. It gives you a bounded batch "
         "of candidates at one cutoff, each with exact features, cost and evidence. Choose at most one symbol "
         "for a long entry, or return WAIT (NO_TRADE). The host ordering is not a recommendation. "
@@ -631,7 +633,8 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
             universe_symbols = {row.symbol for row in market_universe.markets}
             if (selection_used or not isinstance(symbols,list) or not 1 <= len(symbols) <= 5
                     or any(not isinstance(symbol,str) for symbol in symbols)
-                    or len(set(symbols)) != len(symbols) or not set(symbols).issubset(universe_symbols)):
+                    or len(set(symbols)) != len(symbols) or not set(symbols).issubset(universe_symbols)
+                    or set(symbols).intersection(market_universe.unavailable_symbols)):
                 raise ValueError("Invalid or repeated model research selection")
             selection_used = True
             context["requested_symbols"] = symbols

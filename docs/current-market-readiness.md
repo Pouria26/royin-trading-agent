@@ -284,3 +284,28 @@ Source and config freeze occur before the run; do not edit src/scripts/config wh
 Record terminal state, real model decisions/fallbacks, selected/researched markets, full costs,
 net portfolio return, drawdown and reasons. Only score forecasts after their exact maturity;
 keep diagnostic forecasts separate from paper fills, real money and independent calibration.
+
+
+### Bootstrap isolation fix — 2026-10-23
+
+First sustained run net-return-forward-20261023-1 was intentionally stopped after a real
+pre-model data failure:3 public GETs,0 model decisions/orders/fills; process exited1.
+Its saved RUNNING manifest is stale, not an active process or completion evidence. Raw USDTTMN
+minute history had198 candles with missing cadence; no forward fill was introduced. Connector
+crosscheck showed latest USDTTMN trade19:55:43Z versus BTC22:26:40Z. These observations show
+market-specific inactivity/data failure, not an exchange-wide trading halt or a POST root cause.
+A separate public bootstrap check failed its first TLS handshake; this is failed I/O, not data pass.
+
+Previously a compulsory USDTTMN bootstrap could prevent the model from seeing the other54
+eligible liquid markets. Bootstrap now tries at most3 permitted liquid markets, in turnover order,
+until one passes unchanged candle/depth/spot checks. This is initialization, not a host trade pick.
+Failed seed symbols are marked unavailable only for that current research cutoff, included in
+the model's typed screening context, and cannot be re-requested in the same selection. The full
+catalog remains visible, the next cycle re-evaluates data, and no permanent market policy changed.
+All failed seed attempts are recorded even when a subsequent seed works. Three failed seeds
+skip the model rather than fabricating market data or looping without bounds.
+
+360 core tests passed in52.071s;29 focused tests, Ruff, compileall and diff check passed.
+New source-bound run net-return-forward-20261023-2 uses the same predeclared3-hour/181-cycle/
+1200-public-GET/100k-virtual-order protocol. Its first checkpoint and terminal state must still be
+inspected; no future result or profitability is assumed. Financial UNKNOWN remains unchanged.
