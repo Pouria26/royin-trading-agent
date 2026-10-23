@@ -153,8 +153,9 @@ class CreditCanaryTests(unittest.TestCase):
         with self.worker():
             first = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),self.now,"a"*64)
             self.assertEqual(first["stage"],"SELL")
-            final = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),self.now+1,"b"*64,
-                exit_quote=dict(price=D(249875),timestamp=self.now+1))
+            with patch("royin.canary.time.time",return_value=self.now+1):
+                final = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),self.now+1,"b"*64,
+                    exit_quote=dict(price=D(249875),timestamp=self.now+1))
             self.assertEqual(final["status"],"RECONCILIATION_OR_RESIDUAL_REQUIRED")
             self.assertEqual(final["orders_attempted"],2)
             # Buy .39 for97500, receive .38883; sell .38 for94952.5 less284.8575 fee.
@@ -171,11 +172,37 @@ class CreditCanaryTests(unittest.TestCase):
                 price="250000",quantity=".36",sum="90000",fee=".00108",feeAsset="USDT",
                 timestamp=datetime.fromtimestamp(self.now+1.123456,UTC).isoformat())])
         self.transport.inner = httpx.MockTransport(lambda _:httpx.Response(200,json={"success":True,"result":response}))
-        with self.worker():
+        with patch("royin.canary.time.time",return_value=self.now+10), self.worker():
             self.assertEqual(self.broker.reconcile_order("canary_buy",timestamp=self.now+10)["status"],"FILLED")
             self.assertEqual(self.broker.reconcile_order("canary_buy",timestamp=self.now+10)["status"],"FILLED")
         self.assertEqual(self.ledger.get_balance("USDT").free,D(".35892"))
         self.assertEqual(self.ledger.get_balance("TMN").free,D(10000))
+
+    def fill_with_receipt(self, fill_offset, receipt_offset):
+        risk = RiskResult(True,"technical","ENTER","USDTTMN",D(".36"),D(250000),D(245000),D(270))
+        result = dict(clientOrderId="canary_buy",symbol="USDTTMN",side="BUY",type="LIMIT",price="250000",
+            origQty=".36",executedQty=".36",executedSum="90000",active=False,status="FILLED",
+            fills=[dict(symbol="USDTTMN",isBuyer=True,price="250000",quantity=".36",sum="90000",
+                fee=".00108",feeAsset="USDT",timestamp=datetime.fromtimestamp(self.now+fill_offset,UTC).isoformat())])
+        self.transport.inner = httpx.MockTransport(lambda _:httpx.Response(201,json=dict(success=True,result=result)))
+        with patch("royin.canary.time.time",return_value=self.now+receipt_offset), self.worker():
+            return self.broker.submit_order(risk,client_id="canary_buy",timestamp=self.now)
+
+    def test_fill_between_send_and_receipt_settles(self):
+        self.assertEqual(self.fill_with_receipt(2,3)["status"],"FILLED")
+        self.assertEqual(self.ledger.get_balance("USDT").free,D(".35892"))
+        self.assertEqual(self.ledger.get_balance("TMN").locked,0)
+        self.assertEqual(self.ledger.get_balance("TMN").free,D(10000))
+
+    def test_fill_after_receipt_stays_unknown_and_reserved(self):
+        self.assertEqual(self.fill_with_receipt(4,3)["status"],"UNKNOWN")
+        self.assertEqual(self.ledger.get_balance("USDT").total,0)
+        self.assertEqual(self.ledger.get_balance("TMN").locked,D(90270))
+
+    def test_backwards_receipt_clock_stays_unknown_and_reserved(self):
+        self.assertEqual(self.fill_with_receipt(0,-1)["status"],"UNKNOWN")
+        self.assertEqual(self.ledger.get_balance("USDT").total,0)
+        self.assertEqual(self.ledger.get_balance("TMN").locked,D(90270))
 
     def test_runner_reconciles_real_account_delta_and_never_reports_dust_as_complete(self):
         from royin.markets import Balance

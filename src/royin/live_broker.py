@@ -155,7 +155,15 @@ class WallexLiveBroker:
                     "client_id": client_id,
                     "reconciliation_required": True,
                 }
-            status = self._settle_snapshot(client_id, timestamp, result, method)
+            from royin.canary import CreditCanaryTransport
+
+            received_at = timestamp
+            if type(self._injected_client._transport) is CreditCanaryTransport:
+                # Real fills can occur after send; only the host transport supplies receipt time.
+                received_at = response.extensions.get("royin_received_at")
+                if type(received_at) is not int or received_at < timestamp:
+                    raise ValueError("Invalid host receipt time")
+            status = self._settle_snapshot(client_id, received_at, result, method)
             return {
                 "status": status,
                 "client_id": client_id,
