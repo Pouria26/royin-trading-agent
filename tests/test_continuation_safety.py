@@ -191,9 +191,22 @@ class InventoryAndCadenceTests(unittest.TestCase):
         restored.model_mode = "REAL_MODEL"
         with patch.object(restored,"_handle_entry_cycle",new_callable=AsyncMock) as entry:
             asyncio.run(restored._execute_cycle(feed,8401))
+            asyncio.run(restored._execute_cycle(feed,8431))
+            entry.assert_not_awaited()
             asyncio.run(restored._execute_cycle(feed,8461))
             entry.assert_awaited_once()
-        self.assertEqual(restored.ledger.get_meta("next_entry_analysis_at"),"8701")
+        self.assertEqual(restored.ledger.get_meta("next_entry_analysis_at"),"8761")
+
+    def test_publication_delay_deferral_keeps_open_position_monitoring_active(self):
+        obj = self.make_runner()
+        obj.model_mode = "REAL_MODEL"
+        obj.ledger.set_balance("USDT",D(1))
+        state = {"status":"OPEN"}
+        obj.ledger.set_meta("protection_USDTTMN",json.dumps(state))
+        with patch.object(obj,"_handle_position_cycle",new_callable=AsyncMock) as monitor:
+            asyncio.run(obj._execute_cycle(MagicMock(requests=0),8401))
+        monitor.assert_awaited_once()
+        self.assertIsNone(obj.ledger.get_meta("next_entry_analysis_at"))
 
     def test_late_research_deferral_never_suppresses_position_monitoring(self):
         obj = self.make_runner()

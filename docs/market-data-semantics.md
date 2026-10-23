@@ -29,3 +29,7 @@ Bootstrap حداکثر سه بازار نقدشونده را امتحان می�
 depth بدون event timestamp مستقل فقط زمان دریافت دارد؛ تازگی دریافت، صحت قطعی قیمت اجرا نیست. یکی از بررسی‌های باز پیش از live، نمایش و سنجش best bid/ask و هزینهٔ قابل اجرا در برابر قیمت قدیمی کندل است.
 
 منابع: [کندل والکس](https://developers.wallex.ir/docs/basic-services-candles)، [آخرین معاملات و timestamp](https://developers.wallex.ir/basicservices/latesttrades)، [قرارداد UDF](https://www.tradingview.com/charting-library-docs/latest/connecting_data/UDF/). قرارداد UDF توضیح فرض پژوهش است، نه تأیید مستقل پیاده‌سازی Wallex.
+
+## Publication timing observation — 2026-10-23
+
+A real scan six seconds after a five-minute close returned199 required-window minute rows ending one minute short for ENA/COOKIE/MOG. Later, the exact ENA query returned201 including the boundary row and passed the unchanged200-closed-bar parser. Fresh HTTP and status=ok did not establish complete closed data. The real-model entry scheduler now waits through the first60seconds and defers the final60seconds of each five-minute bucket; this buffer is team policy, not an exchange finality guarantee. Data still must be complete and fresh. Deferral claims no analysis/budget slot and never suppresses existing-position protection; restart retains the existing next-analysis timestamp.
