@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import sqlite3
 import time
 import uuid
 from collections.abc import Sequence
@@ -131,8 +130,9 @@ class RoleRunEnvelope:
             self.started -= age
 
     def _durable_claim(self, *, agent_runs=0, http_attempts=0, cost=Decimal(0)):
-        self.budget.path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(self.budget.path, timeout=2)) as db, db:
+        with closing(self.budget.connect()) as db, db:
+            if self.budget.require_existing:
+                self.budget.validate_existing(db)
             db.execute("PRAGMA synchronous=FULL")
             db.execute("""CREATE TABLE IF NOT EXISTS role_run_envelopes (
                 scope TEXT PRIMARY KEY, started REAL NOT NULL, duration INTEGER NOT NULL,
@@ -289,6 +289,8 @@ async def decide(
         raise ValueError(
             "A ModelBudget instance is required for live network requests; budget bypass is prohibited."
         )
+    if not mock_client and not budget.require_existing:
+        raise BudgetBlocked("BLOCKED_MISSING_DURABLE_STATE: real requests require continuation state")
     if run_envelope is not None and (
         type(run_envelope) is not RoleRunEnvelope or run_envelope.budget is not budget
     ):
@@ -726,6 +728,7 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
     role = "POSITION_REVIEWER" if is_long else "ENTRY_ANALYST"
     context = {
         "role": role, "cutoff": snapshot.cutoff, "snapshot_sha256": snapshot.snapshot_sha256,
+        "horizon_bounds": list(horizon_bounds), "remaining_seconds": remaining_seconds,
         "snapshot": snapshot.to_canonical_dict(),
         "position": position.model_dump(mode="json") if position else None,
         "position_sha256": position.sha256 if position else None,

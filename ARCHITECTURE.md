@@ -20,6 +20,7 @@
 | `scripts/run_market_paper.py` | orchestration کاغذی، پایش و ثبت manifest؛ حالت‌های fake/real صریح |
 | `scripts/run_paper_trader.py` | collector عمومی و سازندهٔ batch؛ استراتژی legacy آن موتور واقعی AI نیست |
 | `scripts/score_market_forecast.py` | سنجش پیش‌بینیِ ثبت‌شده پس از رسیدن موعد |
+| `scripts/replay_market_paper.py` | بازپخش آفلاین تصمیم و journal حسابداری؛ بدون استنتاج، شبکه و اجرای بازار |
 | `dashboard/` | API محلی مشاهدهٔ شواهد و نمایش؛ بدون مجوز معامله |
 
 ## انتخاب بازار و نقش مدل

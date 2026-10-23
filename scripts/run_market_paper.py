@@ -38,7 +38,7 @@ from royin.decision import (
 )
 from royin.evaluation import source_bundle_sha256
 from royin.features import extract_features
-from royin.ledger import Ledger
+from royin.ledger import Ledger, validate_decimal
 from royin.logger import AuditLogger
 from royin.market_context import catalog_return
 from royin.market_data import (
@@ -55,6 +55,7 @@ from royin.risk import (
     PositionProtectionPolicy,
     RiskPolicy,
     RiskResult,
+    assess_target_net,
     evaluate_risk,
 )
 
@@ -227,6 +228,9 @@ class MarketPaperOrchestrator:
             source_root/"config/llm-budget-policy.json"])
         self.dataset_sha256 = None
         self.public_feed = None
+        # This is a continuation of an existing paid experiment, never a zero-spend bootstrap.
+        self.budget = (ModelBudget(self.config, require_existing=True)
+                       if self.model_mode == "REAL_MODEL" else None)
 
         self.capture_dir = capture_dir or (ROOT / "artifacts/market-paper" / self.run_id)
         self.capture_dir.mkdir(parents=True, exist_ok=True)
@@ -258,15 +262,10 @@ class MarketPaperOrchestrator:
         if created is None:
             self.ledger.set_meta("engine_started_at",str(self.run_started_at))
 
-        self.budget = None
         self.run_envelope = None
         if self.model_mode == "REAL_MODEL":
-            try:
-                self.budget = ModelBudget(self.config)
-                self.run_envelope = RoleRunEnvelope(self.budget,
-                    duration_seconds=self.duration_seconds, scope_id=self.run_id)
-            except (BudgetBlocked, ValueError, OSError, RuntimeError) as exc:
-                logger.warning("Could not initialize real model budget: %s", exc)
+            self.run_envelope = RoleRunEnvelope(self.budget,
+                duration_seconds=self.duration_seconds, scope_id=self.run_id)
 
         self.rules = build_default_rules("USDTTMN")
         self.broker = PaperBroker(self.ledger, self.rules)
@@ -287,6 +286,11 @@ class MarketPaperOrchestrator:
             max_loss_tmn=self.max_loss_tmn,
         )
         self.base_protection_policy = self.protection_policy
+        planned_windows = []
+        if self.mode == "CURRENT_PAPER" and self.duration_seconds == 10800 and deadline-self.run_started_at == 10800:
+            planned_windows = [dict(window_id=i+1,start=self.run_started_at+i*5400,
+                end=self.run_started_at+(i+1)*5400) for i in range(2)]
+        self.ledger.set_meta("engine_evaluation_windows",json.dumps(planned_windows))
         held_symbol = self.ledger.get_meta("active_symbol")
         if held_symbol:
             saved_rules = self.ledger.get_meta("bound_market_rules")
@@ -588,6 +592,9 @@ class MarketPaperOrchestrator:
         self.ledger.set_meta("engine_lifecycle", "RUNNING")
         now_ts = int(time.time())
         self.ledger.set_meta("engine_heartbeat", str(now_ts))
+        if self.completed_cycles == 0 and self.ledger.get_meta("engine_evaluation_windows") != "[]":
+            # Publish the planned windows before the first inference/outcome, not after scoring.
+            self._checkpoint_and_export(now_ts)
 
         while not self.shutdown_requested and self.completed_cycles < self.max_cycles:
             elapsed = time.monotonic() - self.start_time
@@ -634,6 +641,7 @@ class MarketPaperOrchestrator:
                 bid = conservative_book_price(depth,"SELL",self.rules.quantize_quantity(quantity))
                 if bid is None:
                     raise ValueError("Terminal book cannot fill the held paper quantity")
+                self._record_inventory_value(bid)
                 settlement = self.broker.finalize_portfolio(bid, timestamp=received,
                     initial_capital=self.initial_capital, slippage_pct=DEFAULT_SLIPPAGE_PCT)
                 key = "protection_" + self.rules.symbol
@@ -672,12 +680,19 @@ class MarketPaperOrchestrator:
             if feed.requests > self.public_get_cap - 16:
                 return
             cutoff = now // 300 * 300
+            next_analysis = self.ledger.get_meta("next_entry_analysis_at")
+            if next_analysis is not None and now < int(next_analysis):
+                return
             if self.ledger.get_meta("last_entry_cutoff") == str(cutoff):
                 return
-            self.ledger.set_meta("last_entry_cutoff",str(cutoff))
+            # Claim before I/O, including failures; bucket boundaries/restart grant no new call.
+            with self.ledger.transaction():
+                self.ledger.set_meta("last_entry_cutoff",str(cutoff))
+                self.ledger.set_meta("next_entry_analysis_at",str(now+300))
             await self._handle_entry_cycle(feed, now)
 
     async def _handle_entry_cycle(self, feed: ScannerPublicFeed, now: int):
+        input_state = self._replay_input_state()
         payload, received, symbols = public_symbols(feed, cutoff=now)
         available_cash = self.ledger.get_balance(self.rules.quote_asset).free
         scan_options = dict(
@@ -902,6 +917,17 @@ class MarketPaperOrchestrator:
                         denied_markets=load_restrictions(ROOT/"config/wallex-credit-market-policy.json"))
                     execution_evidence = dict(assumption="WORST_CONSUMED_ASK_WITHIN_LIMIT",
                         limit_price=str(risk_result.price),fill_price=str(actual_fill_price),received_at=received)
+                    if risk_result.approved and decision.forecast is not None:
+                        unwind_bid = conservative_book_price(depth,"SELL",risk_result.quantity)
+                        if unwind_bid is None or unwind_bid > actual_fill_price:
+                            raise ValueError("No conservative full-quantity unwind quote")
+                        economics = assess_target_net(forecast=decision.forecast,rules=target_rules,
+                            quantity=risk_result.quantity,entry_price=risk_result.price,
+                            spread_pct=1-unwind_bid/actual_fill_price,slippage_pct=DEFAULT_SLIPPAGE_PCT)
+                        execution_evidence["target_net_check"] = economics
+                        if not economics["approved"]:
+                            risk_result = replace(risk_result,approved=False,
+                                reason="Rejected: conditional target cannot clear executable entry and exit costs")
                 except (ValueError,OSError,RuntimeError,KeyError,IndexError,TypeError,ArithmeticError) as exc:
                     risk_result = replace(risk_result,approved=False,
                         reason="Executable entry book rejected: "+type(exc).__name__)
@@ -943,6 +969,9 @@ class MarketPaperOrchestrator:
             "snapshot": batch_map.get(decision.symbol, (primary_snap, None))[0].to_canonical_dict(),
             "snapshot_sha256": decision.snapshot_sha256,
             "model_trace": model_trace,
+            "host_input_state": input_state,
+            "opportunity": batch_map.get(decision.symbol, (None,None))[1].model_dump(mode="json")
+                if decision.symbol in batch_map else None,
             "market_context": report.get("market_context"),
             "bootstrap_attempts":bootstrap_attempts,
             "execution":execution_evidence,
@@ -982,6 +1011,7 @@ class MarketPaperOrchestrator:
                 trailing_stop_price=Decimal(state["trailing_stop_price"]),
                 checkpoint_profit_pct=self.protection_policy.checkpoint_profit_pct)
             model_trace = {}
+            input_state = self._replay_input_state()
             model_task = asyncio.create_task(decide_role(snap,position=position,config=self.config,budget=self.budget,
                 run_envelope=self.run_envelope,model_trace=model_trace,allowed_symbols=(self.rules.symbol,),
                 remaining_seconds=state["hard_exit_at"]-now,horizon_bounds=(300,self.horizon_max_seconds)))
@@ -1000,7 +1030,8 @@ class MarketPaperOrchestrator:
                     await asyncio.gather(model_task,return_exceptions=True)
             trace = {"issued_at_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "decision":decision.model_dump(mode="json"),"model_trace":model_trace,
-                "snapshot":snap.to_canonical_dict(),"snapshot_sha256":snap.snapshot_sha256}
+                "snapshot":snap.to_canonical_dict(),"snapshot_sha256":snap.snapshot_sha256,
+                "host_input_state":input_state}
             self.decision_traces.append(trace)
             if decision.action == "EXIT":
                 protection_key = "protection_"+self.rules.symbol
@@ -1045,6 +1076,8 @@ class MarketPaperOrchestrator:
         except (ValueError, OSError, RuntimeError, KeyError, IndexError, TypeError, ArithmeticError):
             bid = last_price
 
+        if execution_available and 0 <= max(now, received_at)-source_time <= 60:
+            self._record_inventory_value(bid)
         # Host protection tick
         tick = self.broker.observe_quote(
             bid,
@@ -1096,12 +1129,31 @@ class MarketPaperOrchestrator:
             await self._review_position(feed, max(now, received_at), bid, tick)
         return bid, tick
 
+    def _replay_input_state(self):
+        with self.ledger.connection() as db:
+            count = db.execute("SELECT COUNT(*) FROM audit_outbox WHERE event_type IN ('INTENT','FILL','CANCEL')").fetchone()[0]
+        return dict(accounting_event_count=count,balances={asset:dict(free=str(b.free),locked=str(b.locked))
+            for asset,b in self.ledger.get_all_balances().items()})
+
+    def _record_inventory_value(self, price):
+        validate_decimal(price, "observed inventory price", strictly_positive=True)
+        value = self.ledger.get_balance(self.rules.base_asset).total * price
+        key = "peak_inventory_value_TMN"
+        self.ledger.set_meta(key, str(max(Decimal(self.ledger.get_meta(key) or "0"), value)))
+
     def _checkpoint_and_export(self, timestamp: int):
-        last_bid = Decimal("100")
+        last_bid = Decimal("1")  # No price affects valuation when base inventory is zero.
         held_symbol = self.rules.symbol
         prot = json.loads(self.ledger.get_meta("protection_" + held_symbol) or "null")
         if prot and prot.get("last_bid"):
             last_bid = Decimal(prot["last_bid"])
+        base_bal = self.ledger.get_balance(self.rules.base_asset)
+        if base_bal.total > 0:
+            if not prot or not prot.get("last_bid"):
+                raise ValueError("Positive inventory lacks an observed valuation price")
+            validate_decimal(last_bid, "last observed bid", strictly_positive=True)
+            if 0 <= timestamp-int(prot.get("last_source_time", 0)) <= self.protection_policy.max_quote_age_seconds:
+                self._record_inventory_value(last_bid)
 
         exported = self.broker.export_state(last_bid, now=timestamp)
         tmn_bal = self.ledger.get_balance("TMN")
@@ -1141,6 +1193,9 @@ class MarketPaperOrchestrator:
                 {"fill_id": r[0], "client_id": r[1], "price": r[2], "quantity": r[3], "fee": r[4], "fee_asset": r[5], "timestamp": r[6]}
                 for r in db.execute("SELECT fill_id, client_id, price, quantity, fee, fee_asset, timestamp FROM fills").fetchall()
             ]
+            accounting_events = [dict(event_type=kind,payload={k:v for k,v in json.loads(payload).items()
+                if k != "_audit_origin"}) for kind,payload in db.execute(
+                    "SELECT event_type,payload FROM audit_outbox WHERE event_type IN ('INTENT','FILL','CANCEL') ORDER BY id")]
 
         evidence_kind = "PUBLIC_MARKET_PAPER" if self.mode == "CURRENT_PAPER" else "HISTORICAL_MARKET_REPLAY"
         captures = self.public_feed.captures if self.public_feed is not None else []
@@ -1160,10 +1215,13 @@ class MarketPaperOrchestrator:
             "public_get_attempts": int(self.ledger.get_meta("engine_public_attempts") or "0"),
             "public_get_cap": self.public_get_cap,
             "worker_state": self.ledger.get_meta("engine_lifecycle"),
+            "evaluation_windows": json.loads(self.ledger.get_meta("engine_evaluation_windows") or "[]"),
             "errors": self.errors,
             "protection_policy": asdict(self.protection_policy),
             "risk_policy": asdict(self.risk_policy),
             "model_budget_policy_sha256": self.budget.policy_hash if self.budget is not None else None,
+            "accounting": dict(schema_version=1,events=accounting_events,
+                balances=self._replay_input_state()["balances"],realized_pnl_tmn=str(self.ledger.get_realized_pnl())),
             "arms": {
                 "paper_portfolio": {
                     "symbol": held_symbol,
@@ -1177,14 +1235,15 @@ class MarketPaperOrchestrator:
                     "max_drawdown_pct": str(round(max_dd, 4)),
                     "total_fees_paid_tmn": exported.get("quote_fees_tmn", "0"),
                     "total_fees_paid_base": "0",
-                    "peak_exposure_tmn": str(DEFAULT_MAX_ORDER_TMN),
+                    "peak_exposure_tmn": self.ledger.get_meta("peak_inventory_value_TMN") or "0",
+                    "peak_exposure_definition": "ONE_POSITION_OBSERVED_INVENTORY_VALUE_AT_FILL_OR_QUOTE",
                     "residual_dust_base": str(base_bal.total),
                     "simulated_market_exit_slippage_tmn": "0",
                     "decisions_count": len(self.decision_traces),
                     "orders_submitted": len(orders),
                     "total_orders_including_stop_finalization": len(orders),
                     "fills_count": len(fills),
-                    "closed_round_trips": len(fills) // 2,
+                    "closed_round_trips": int(self.ledger.get_meta("closed_round_trips") or "0"),
                     "equity_curve": self.equity_curve,
                     "orders": orders,
                     "fills": fills,
@@ -1366,26 +1425,30 @@ def main(argv=None):
     capture_dir = Path(args.capture_dir) if args.capture_dir else (ROOT / "artifacts/market-paper" / run_id)
     db_path = Path(args.db_path) if args.db_path else (capture_dir / "paper.sqlite3")
 
-    orch = MarketPaperOrchestrator(
-        run_id=run_id,
-        mode=args.mode,
-        model_mode=args.model_mode,
-        duration_seconds=args.duration_seconds,
-        cycles=args.cycles,
-        interval_seconds=args.interval_seconds,
-        public_get_cap=args.public_get_cap,
-        horizon_max_seconds=args.horizon_max,
-        retention_ratio=args.retention_ratio,
-        activation_fraction=args.activation_fraction,
-        order_tmn=args.order_tmn,
-        stop_pct=args.stop_pct,
-        trail_pct=args.trail_pct,
-        checkpoint_pct=args.checkpoint_pct,
-        max_loss_tmn=args.max_loss_tmn,
-        dataset_path=Path(args.dataset_path) if args.dataset_path else None,
-        capture_dir=capture_dir,
-        db_path=db_path,
-    )
+    try:
+        orch = MarketPaperOrchestrator(
+            run_id=run_id,
+            mode=args.mode,
+            model_mode=args.model_mode,
+            duration_seconds=args.duration_seconds,
+            cycles=args.cycles,
+            interval_seconds=args.interval_seconds,
+            public_get_cap=args.public_get_cap,
+            horizon_max_seconds=args.horizon_max,
+            retention_ratio=args.retention_ratio,
+            activation_fraction=args.activation_fraction,
+            order_tmn=args.order_tmn,
+            stop_pct=args.stop_pct,
+            trail_pct=args.trail_pct,
+            checkpoint_pct=args.checkpoint_pct,
+            max_loss_tmn=args.max_loss_tmn,
+            dataset_path=Path(args.dataset_path) if args.dataset_path else None,
+            capture_dir=capture_dir,
+            db_path=db_path,
+        )
+    except BudgetBlocked as exc:
+        print(json.dumps(dict(status="BLOCKED", reason=str(exc), model_http=0, orders_sent=0)))
+        return 2
 
     # Register graceful shutdown signals
     for sig in (signal.SIGINT, signal.SIGTERM):

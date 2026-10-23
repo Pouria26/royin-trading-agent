@@ -317,6 +317,8 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         proposal["opportunity_sha256"] = opp.sha256
         proposal["review_after_seconds"] = 600
         proposal["forecast"]["review_after_seconds"] = 600
+        # A valid-entry fixture must clear the coarse price tick and both fee assets.
+        proposal["forecast"]["target_return_fraction"] = ".05"
         decision = bind_decision(MarketEntryProposal.model_validate(proposal),decision_id="chosen-eth",
             symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,
             available_evidence_ids=tuple(snap.evidences))
@@ -343,6 +345,34 @@ class CurrentMarketReadinessTests(unittest.TestCase):
             self.assertEqual(restarted.protection_policy.sha256,saved_hash)
         finally:
             restarted.close()
+
+    def test_positive_candle_target_below_fresh_ask_is_rejected_before_reservation(self):
+        o = self.make_runner()
+        snap = snapshot("ETHTMN")
+        opp = opportunity().model_copy(update={"best_ask":D(104),"best_bid":D("103.99")})
+        proposal = enter_proposal(snap,horizon=7200)
+        proposal["opportunity_sha256"] = opp.sha256
+        proposal["forecast"]["target_return_fraction"] = ".021"
+        decision = bind_decision(MarketEntryProposal.model_validate(proposal),decision_id="cost-counterexample",
+            symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,
+            available_evidence_ids=tuple(snap.evidences))
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        feed = MagicMock()
+        feed.get.return_value = ({"success":True,"result":{
+            "bid":[{"price":"103.99","quantity":"10000"}],
+            "ask":[{"price":"104","quantity":"10000"}]}},8105)
+        rules = runner.replace(runner.build_default_rules("ETHTMN"),tick_size=D(".01"),min_notional=D(50000))
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
+             patch.object(runner,"scan_current_market",return_value={"batch":[ScanCandidate(snap,D(0),opp)],
+                "market_rules":{"ETHTMN":rules}}), \
+             patch.object(runner,"decide_role",return_value=decision),patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(feed,8105))
+        self.assertFalse(o.decision_traces[-1]["risk"]["approved"])
+        self.assertIn("conditional target",o.decision_traces[-1]["risk"]["reason"])
+        self.assertFalse(o.decision_traces[-1]["execution"]["target_net_check"]["approved"])
+        self.assertFalse(o.broker.orders)
+        self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
+        self.assertEqual(o.ledger.get_balance("TMN").locked,D(0))
 
     def test_model_exit_survives_missing_book_and_recovers_without_a_second_model_call(self):
         o = self.make_runner()

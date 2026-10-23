@@ -153,6 +153,42 @@ def calculate_retention_stop_price(
     return ticks * tick_size
 
 
+def assess_target_net(*, forecast, rules, quantity, entry_price, spread_pct, slippage_pct):
+    """Conditional proceeds at the stated target, NOT expected value or a fill forecast.
+
+    Use the observed full-quantity spread and a downward tick/slippage haircut. Check
+    both base/quote fee assets independently; do not charge both for the same fill.
+    Residual base is valued at zero because the challenge requires realized TMN.
+    """
+    for value, name in ((quantity, "quantity"), (entry_price, "entry price")):
+        validate_decimal(value, name, strictly_positive=True)
+    for value in (spread_pct, slippage_pct):
+        validate_decimal(value, "execution cost fraction")
+        if value >= 1:
+            raise ValueError("Execution cost fractions must be below one")
+    if forecast.symbol != rules.symbol or forecast.target_return_fraction is None:
+        raise ValueError("A bound target forecast is required")
+    target = forecast.reference_price * (1 + forecast.target_return_fraction)
+    exit_price = (target * (1-spread_pct) * (1-slippage_pct) / rules.tick_size).to_integral_value(
+        rounding=ROUND_DOWN) * rules.tick_size
+    notional, fee = quantity * entry_price, rules.taker_fee_rate
+    scenarios = []
+    for entry_asset in ("quote", "base"):
+        base = quantity if entry_asset == "quote" else quantity * (1-fee)
+        debit = notional * (1+fee) if entry_asset == "quote" else notional
+        for exit_asset in ("quote", "base"):
+            sold = rules.quantize_quantity(base if exit_asset == "quote" else base/(1+fee))
+            proceeds = sold * exit_price * (1-fee if exit_asset == "quote" else 1)
+            sellable = sold >= rules.min_quantity and sold * exit_price >= rules.min_notional
+            scenarios.append(dict(entry_fee_asset=entry_asset, exit_fee_asset=exit_asset,
+                sellable=sellable, sellable_quantity=str(sold), entry_debit_tmn=str(debit),
+                proceeds_tmn=str(proceeds), net_at_target_tmn=str(proceeds-debit)))
+    return dict(policy="CONDITIONAL_TARGET_NET_V1", target_price=str(target),
+        exit_price_bound=str(exit_price), spread_fraction=str(spread_pct),
+        slippage_fraction=str(slippage_pct), fee_fraction=str(fee), scenarios=scenarios,
+        approved=all(s["sellable"] and Decimal(s["net_at_target_tmn"]) > 0 for s in scenarios))
+
+
 def evaluate_risk(
     decision: Decision,
     *,

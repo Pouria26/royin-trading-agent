@@ -15,7 +15,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.usage import UsageLimits
 
 from royin.config import load_config
-from royin.model_budget import ModelBudget
+from royin.model_budget import BudgetBlocked, ModelBudget
 
 
 class ProbeDecision(BaseModel):
@@ -34,7 +34,7 @@ SCENARIOS = {
 
 
 async def probe(config, scenario="stale"):
-    budget = ModelBudget(config)
+    budget = ModelBudget(config, require_existing=True)
     async with httpx2.AsyncClient(
         timeout=20, follow_redirects=False, trust_env=False,
         event_hooks={"request": [budget.before_request]},
@@ -110,6 +110,9 @@ def main():
         for scenario in (SCENARIOS if args.eval else ("stale",)):
             failed |= bool(asyncio.run(probe(config, scenario)))
         return int(failed)
+    except BudgetBlocked:
+        print("BLOCKED: durable model budget unavailable; no model request was sent.")
+        return 2
     except Exception as exc:  # noqa: BLE001 - CLI boundary must not leak provider secrets.
         # Provider exceptions can contain headers or request URLs: print only the type.
         print(f"FAIL: {type(exc).__name__}; check provider access and quota without sharing secrets.")

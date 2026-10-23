@@ -4,6 +4,10 @@
 
 ## قراردادهای معتبر — 2026-10-23
 
+- ادامهٔ میزبان تازه: نبود process محلی یا گذشت زمان، terminal میزبان قبلی نیست. DB اصلی بودجه/مالی و مالکیت باید منتقل شوند؛ مسیرهای پولی `require_existing=True` و SQLite mode=rw دارند و missing/empty/corrupt state را بازسازی نمی‌کنند. منبع: بررسی source و تست‌های continuation؛ signature مستقل DB فراهم نشده است.
+- target نسبت به LAST_CLOSE فقط فرض آینده است؛ گیت `CONDITIONAL_TARGET_NET_V1` آن را با entry limit، spread کلquantity، لغزش، tick/step و چهار حالت مستقل fee در base/quote می‌سنجد. نتیجه EV/احتمال برد نیست؛ dust ارزش تومانی فرضی نمی‌گیرد. منبع: counterexample close100/ask103 و oracle دستی.
+- journal جدید INTENT/FILL/CANCEL و host_input_state امکان بازپخش تصمیم/حسابداری را می‌دهند؛ artifact قدیمی بدون context کافی PARTIAL و اجرای بازار UNCONFIRMED می‌ماند. replay با inference تازه و scorer اصلی ادغام نشود. منبع: تست‌های آفلاین مصنوعی و oracle fee/partial/cancel؛۳۹۳هسته/۱۰داشبورد/۴self-check پاس، بدون سنجش سود واقعی.
+
 - هدف، موتور واقعی برای بازارهای مجاز اسپات است؛ paper و تست زیرساخت پایان کار نیستند. تضمین سود یا نمره نداریم. بریف، سیاست بازار، وضعیت جاری و تسک‌ها مرجع‌اند.
 - مدل دو نقش Entry Analyst/Position Reviewer دارد. host مالک پول/سایز/stop/deadline/مجوز است. read_market_snapshot فقط دادهٔ خواندنی می‌دهد؛ snapshot/evidence/schema-valid مجوز معامله نیست.
 - انتخاب بازار به یک نماد یا shortlist ثابت محدود نیست. مدل فهرست نقدشوندهٔ واجد شرایط را می‌بیند و۱..۵ نماد را بررسی می‌کند. bootstrap یک ابزار آماده‌سازی داده است و توصیهٔ سرمایه‌گذاری نیست.
@@ -20,6 +24,10 @@
 
 ## پیگیری فعال
 
+2026-10-23 / تحویل a76a420: علت نبود خرید را در سه دسته جدا بررسی کن: WAITواقعی مدل، fallbackفنی، و مسدودبودن transportمالی. snapshot23:50UTCاجرای main۱۵تصمیم (۱۱معتبر/۴fallback)،۹نماد درخواستی متمایز و۶contextمعتبر متمایز،۰سفارش داشت. دلیل WAITها بازارنزولی/هزینه/نبود شاهد >۲٪بود، نه اثبات نبود فرصت در تمامcatalog. نامزد۳۷۳هسته/۱۰داشبورد پاس؛ providerورود درنسخهٔقبلی آزموده شد، خروج مدل واقعی درموقعیت باز هنوز نه. به درخواست محدودیت توکن و انتقال، پایلوت پولی تازه شروع نشد.
+
+2026-10-23 / آزمون providerنامزد dacb5a6: مدل واقعی۱۰نماد خواست و۸داده معتبر پذیرفت،۲HTTP/۲۱GET و۳۵٫۳۲۸ثانیه، evidence/batch/provider/hashمعتبر. مهلت۶۰ثانیهٔ پژوهش در این نمونه کار کرد؛ مقایسهٔ کنترل‌شدهٔ latency نیست. این diagnosticبا remaining_seconds=0،بدون سفارش/افق ورود بود؛ alphaیا fundedforward نیست. budgetهمان فایل اصلی و رزروUSD0.00871424بود،نه invoice؛ main/sourceاجرای قبلی تغییر نکرد. جزئیات در docs/current-market-readiness.md.
+
 2026-10-23: طبق دستور تازه، PR قبلی روی main ادغام و شاخهٔ remote حذف شد؛ ادامه روی main و شاخهٔ بعدی بدون پیشوند codex. HANDOFF.md انتقال خودبسنده است؛ شواهد زمان‌دار آن باید بازبینی شوند. تغییر MD منبع3799e4a اجرای فعال را تغییر نداد.
 
 سنجش23:11UTC از کپی بایتی ثابت manifest،۱GET و۱outcomeاز۵forecast (۴pending) داد. USOON30min با q50−۰٫۴٪، outcome−۰٫۰۵۳۲۵٪ و point error بیشتر ازصفر؛ جهت درست مزیت مقدار را ثابت نکرد. گزارش ignored در artifacts/forecast-outcomes/20261022T231125Z_142a366e/report.json. سنجش manifest فعال باید روی کپی ثابت باشد تا sourcehash حین درخواست عوض نشود.
@@ -27,6 +35,8 @@
 `net-return-forward-20261023-2` از source3799e4a در حال آزمون۳ساعته است؛ handle و PID محلی در `.local/review/market-readiness/active-forward-process.json` ثبت‌اند. snapshot RUNNING به‌تنهایی کافی نیست. آخرین checkpoint و نتیجهٔ نهایی از فرایند/manifest واقعی بررسی شوند. پس از پایان، بررسی executable bid/ask در برابر close، خطاهای مدل، outcome و گیت مالی ادامه دارد.
 
 2026-10-23: مستندات فعال از۳۲به۱۸Markdown تلخیص شدند. گزارش مرحله/Blueprint محلی آرشیو است؛ clone همکاران به آن وابسته نیست. قرارداد داده، canary و scorer در Git باقی‌اند. لینک‌های داخلی و hash آرشیو بررسی شدند؛ گزارش قدیمی fake با سود AI جاری یکی نشود.
+
+## پیشینهٔ محفوظ نامزد
 
 2026-10-23 / نامزد market-research-coverage: محدودیت عمیق۵نماد با دیده‌شدن catalog۵۴نمادی فرق دارد. نسخهٔ نامزد۱۰نماد، تاریخچهٔ durable درخواست/پذیرش و bid/ask در مدل دارد؛ سقف ورودی پیش‌فرض۱۰۰k است. تا پایان اجرای منجمد، روی main اعمال نشده. افزایش سرمایه باید host-enforced و بر شواهد مستقل باشد؛ قضاوت زبانی مدل Kelly یا احتمال برد کالیبره نیست. اندازهٔ۱۰۰k شامل fee ممکن است برای minNotional۱۰۰k کافی نباشد؛ minimum را ضعیف نکن، ورودی را رد کن.
 
