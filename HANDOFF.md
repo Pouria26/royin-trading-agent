@@ -1,3 +1,7 @@
+## Financial preparation regression — 2026-10-23, 17:25 Tehran
+
+Two fresh preparation attempts read the dedicated account successfully (5,000,000 TMN, zero locked/non-TMN assets, zero open orders) but failed before authorization/orders: read counters made an uninitialized financial ledger nonempty. Both failed directories are retained, with zero intents/fills. Preparation now stores preflight read accounting in a separate durable ledger. A regression exercises the actual initialization order rather than authorizing only an in-memory fixture. No historical DB or counters were reset. Targeted17 tests and full480 core tests passed (84.587s); Ruff and diff checks passed. Actual new execution remains pending.
+
 ## Current authority and checked phase — 2026-10-23, after 17:18 Tehran
 
 Latest direct operator instruction authorizes real autonomous execution and delegates trading judgment. Fixed 150k-only new-mission policy is superseded by VOLATILITY_CAPITAL_V1: 0.5% account planned risk, ATR stop, 50% asset / 80% mission ceilings, first completed actual round-trip <=150k, one position with rotation. Daily UTC loss 2%, persistent mission drawdown 4%, risk halves after 1% drawdown. No confidence-as-probability sizing. Historical UNKNOWN/reserve/counter8 remain immutable; this authorization creates an independent lane and is not historical exchange finality.

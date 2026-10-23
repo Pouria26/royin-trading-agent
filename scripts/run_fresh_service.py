@@ -620,7 +620,9 @@ def prepare(root, permit, contract, config, *, old_state, instruction):
                 account_fingerprint=permit.account_sha256, lock_directory=Path.home() / ".royin-credit-locks"
             ),
         ):
-            reads = AccountReads(config, ledger, run / "account-captures", client)
+            # Read-attempt accounting must not make the financial portfolio nonempty before authorization.
+            preflight = Ledger(run / "preflight.sqlite3")
+            reads = AccountReads(config, preflight, run / "account-captures", client)
             balances, ids = reads.snapshot()
             if any(b.locked or (a != "TMN" and b.total) for a, b in balances.items()):
                 raise ValueError("Fresh mission requires cash-only account")

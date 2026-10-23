@@ -436,6 +436,39 @@ class FreshMissionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.make_broker()
 
+    def test_prepare_keeps_read_attempts_separate_from_uninitialized_financial_portfolio(self):
+        from royin.markets import Balance
+        from royin.service_contract import ServiceContract
+
+        (self.root / ".royin-volume-id").write_text("synthetic-volume-identity")
+        (self.root / "missions").mkdir()
+        contract = ServiceContract(service_id="svc_prepare_regression",
+            started_at=datetime.fromtimestamp(1000, UTC),
+            submission_deadline_at=datetime.fromtimestamp(2000, UTC),
+            trading_end_at=datetime.fromtimestamp(3000, UTC),
+            finalize_start_at=datetime.fromtimestamp(2000, UTC))
+        config = self.config.model_copy(update={
+            "TRADING_END_AT": datetime.fromtimestamp(3000, UTC),
+            "FINALIZE_START_AT": datetime.fromtimestamp(2000, UTC),
+            "SUBMISSION_DEADLINE_AT": datetime.fromtimestamp(2000, UTC)})
+        def snapshot(reads):
+            reads.ledger.set_meta("fresh_account_gets", "3")
+            return {"TMN": Balance(D(5000000), D(5000000), D(0))}, []
+        with patch.object(run_fresh_service.AccountReads, "snapshot", snapshot), \
+                patch("royin.model_budget.ModelBudget"), \
+                patch.object(run_fresh_service.subprocess, "check_output", side_effect=["a" * 40, ""]), \
+                patch.object(run_fresh_service, "signals_for", return_value=SimpleNamespace(
+                    code_sha256="b" * 64, close=lambda: None)):
+            result = run_fresh_service.prepare(self.root, self.permit, contract, config,
+                old_state=self.root / "old.sqlite3", instruction=self.instruction)
+        self.assertEqual(result["orders_sent"], 0)
+        financial = Ledger(self.root / "missions" / contract.service_id / "financial.sqlite3")
+        self.assertEqual(financial.get_balance("TMN").free, D(150000))
+        self.assertEqual(financial.get_meta("service_state"), "PREPARED")
+        self.assertIsNone(financial.get_meta("fresh_account_gets"))
+        preflight = Ledger(self.root / "missions" / contract.service_id / "preflight.sqlite3")
+        self.assertEqual(preflight.get_meta("fresh_account_gets"), "3")
+
     def test_entry_coordinator_uses_ai_selection_and_records_real_order_without_paper_fill(self):
         self.permit = self.permit.model_copy(update=dict(start_at=8000, entry_end_at=9000, end_at=10000))
         self.authorize()
