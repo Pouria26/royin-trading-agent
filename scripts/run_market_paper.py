@@ -699,6 +699,10 @@ class MarketPaperOrchestrator:
                 return
             if self.ledger.get_meta("last_entry_cutoff") == str(cutoff):
                 return
+            if self.model_mode == "REAL_MODEL" and cutoff + 300 - now <= 60:
+                # Do not phase-lock expensive research into the last minute of every candle.
+                self.ledger.set_meta("entry_block_reason", "DEFERRED_CLOSED_CANDLE_TIME")
+                return
             # Claim before I/O, including failures; bucket boundaries/restart grant no new call.
             with self.ledger.transaction():
                 self.ledger.set_meta("last_entry_cutoff",str(cutoff))
@@ -1366,6 +1370,8 @@ class MarketPaperOrchestrator:
             "valid_model_decisions": sum((row.get("model_trace") or {}).get("host_outcome") == "MODEL_DECISION"
                 for row in self.decision_traces),
             "model_host_fallbacks": sum((row.get("model_trace") or {}).get("host_outcome") == "HOST_FALLBACK"
+                for row in self.decision_traces),
+            "model_host_deferred": sum((row.get("model_trace") or {}).get("host_outcome") == "HOST_DEFERRED"
                 for row in self.decision_traces),
             "manifest_path": str(self.capture_dir / "manifest.json"),
         }

@@ -191,6 +191,13 @@ def replay_decision(row, states):
         if row["decision"]["action"] != "WAIT" or row["decision"].get("forecast") is not None:
             raise ValueError("Host fallback cannot create a trade")
         return dict(status="PRESERVED_HOST_FALLBACK")
+    if trace.get("host_outcome") == "HOST_DEFERRED":
+        if (trace.get("defer_reason") != "INSUFFICIENT_CLOSED_CANDLE_TIME"
+                or trace.get("requests") or trace.get("responses")
+                or row["decision"]["action"] != "WAIT" or row["decision"].get("forecast") is not None
+                or row.get("client_id") is not None or (row.get("risk") or {}).get("approved") is True):
+            raise ValueError("Deferred research cannot contain model HTTP, forecast or trade")
+        return dict(status="PRESERVED_HOST_DEFERRED")
     if (trace.get("host_outcome") != "MODEL_DECISION" or trace.get("provider") != "boxapi"
             or trace.get("evidence_kind") != "REAL_MODEL_ATTEMPT"):
         raise ValueError("Explicit original real-provider evidence is required")
@@ -277,7 +284,8 @@ def replay_manifest(path, expected_sha256, output_dir, *, bundle=False):
         captures.append((source,sha))
     accounting, states = replay_accounting(manifest)
     rows = [replay_decision(row,states) for row in manifest["arms"]["paper_portfolio"]["decision_traces"]]
-    verified = all(r["status"] in ("VERIFIED_HOST_DECISION","PRESERVED_HOST_FALLBACK","PRESERVED_HOST_EVENT") for r in rows)
+    verified = all(r["status"] in ("VERIFIED_HOST_DECISION","PRESERVED_HOST_FALLBACK",
+        "PRESERVED_HOST_DEFERRED","PRESERVED_HOST_EVENT") for r in rows)
     root = Path(__file__).resolve().parents[1]
     report = dict(evidence_kind="RECORDED_HOST_REPLAY",origin_run_id=manifest["run_id"],
         origin_manifest_sha256=expected_sha256,origin_model_mode="REAL_MODEL",mode="RECORDED_HOST_REPLAY",

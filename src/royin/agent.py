@@ -629,6 +629,14 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
                 0 <= int(time.time()) - cutoff < snapshot.interval_seconds
             ):
                 raise ValueError("Stale or future current-role snapshot")
+            if (market_universe is not None and kwargs["config"].RUN_MODE == "shadow"
+                    and cutoff + snapshot.interval_seconds - int(time.time()) <= timeout):
+                trace = kwargs.get("model_trace")
+                if trace is not None:
+                    if trace:
+                        raise ValueError("Each role call requires a fresh trace container")
+                    trace.update(host_outcome="HOST_DEFERRED",defer_reason="INSUFFICIENT_CLOSED_CANDLE_TIME")
+                raise BudgetBlocked("CLOSED_CANDLE_TIME: full bounded research must fit before the next cutoff")
             if not set(market_batch).issubset(set(kwargs.get("allowed_symbols") or ())):
                 raise ValueError("Explicit verified account universe required")
             if not isinstance(run_envelope, RoleRunEnvelope) or run_envelope.budget is not kwargs.get("budget"):

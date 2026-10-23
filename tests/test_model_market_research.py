@@ -1,18 +1,44 @@
 """Model-directed research boundaries with synthetic provider traffic, never alpha evidence."""
 import json
+import tempfile
 import unittest
 from decimal import Decimal as D
-from unittest.mock import AsyncMock
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import httpx2
 
-from royin.agent import decide_role
+from royin.agent import RoleRunEnvelope, decide_role
 from royin.config import RuntimeConfig
 from royin.decision import MarketCatalogCandidate, MarketResearchUniverse
+from royin.model_budget import BudgetBlocked, ModelBudget
 from tests.test_market_selection import enter_proposal, opportunity, snapshot
 
 
 class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_current_research_must_fit_candle_before_envelope_claim_or_model_http(self):
+        with tempfile.TemporaryDirectory() as temp:
+            config = RuntimeConfig(BOXAPI_API_KEY="fake",LLM_COST_BUDGET="2.40",
+                LLM_TOKEN_BUDGET=6000000,LLM_COST_CURRENCY="USD")
+            budget = ModelBudget(config,Path(temp)/"budget.sqlite3")
+            budget.reserve()
+            envelope = RoleRunEnvelope(budget)
+            snap = snapshot("BTCTMN")
+            universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8149,
+                markets=(MarketCatalogCandidate(symbol="BTCTMN",price_tmn=D(101),turnover_tmn=D(200000000)),))
+            trace = {}
+            with patch("time.time",return_value=8149),patch("royin.agent.decide",new_callable=AsyncMock,
+                    side_effect=AssertionError("Late research reached the model")) as model, \
+                 self.assertRaisesRegex(BudgetBlocked,"CLOSED_CANDLE_TIME"):
+                await decide_role(snap,market_batch={snap.symbol:(snap,opportunity())},
+                    market_universe=universe,market_loader=AsyncMock(),config=config,
+                    budget=budget,run_envelope=envelope,allowed_symbols=(snap.symbol,),
+                    timeout_seconds=60,model_trace=trace)
+            model.assert_not_awaited()
+            self.assertEqual(envelope.agent_runs,0)
+            self.assertEqual(envelope.http_attempts,0)
+            self.assertEqual(trace["host_outcome"],"HOST_DEFERRED")
+
     def test_screening_view_preserves_universe_and_explicit_units(self):
         universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,
             markets=(MarketCatalogCandidate(symbol="SOLTMN",price_tmn=D(101),

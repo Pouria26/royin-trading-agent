@@ -177,6 +177,35 @@ class InventoryAndCadenceTests(unittest.TestCase):
             asyncio.run(restored._execute_cycle(feed,8699))
             entry.assert_awaited_once()
 
+    def test_real_research_defers_late_cycle_without_claim_and_preserves_cadence_after_restart(self):
+        obj = self.make_runner()
+        obj.model_mode = "REAL_MODEL"
+        feed = MagicMock(requests=0)
+        with patch.object(obj,"_handle_entry_cycle",new_callable=AsyncMock) as entry:
+            asyncio.run(obj._execute_cycle(feed,8399))
+            entry.assert_not_awaited()
+        self.assertIsNone(obj.ledger.get_meta("next_entry_analysis_at"))
+        self.assertEqual(obj.ledger.get_meta("entry_block_reason"),"DEFERRED_CLOSED_CANDLE_TIME")
+        obj.close()
+        restored = self.make_runner()
+        restored.model_mode = "REAL_MODEL"
+        with patch.object(restored,"_handle_entry_cycle",new_callable=AsyncMock) as entry:
+            asyncio.run(restored._execute_cycle(feed,8401))
+            asyncio.run(restored._execute_cycle(feed,8461))
+            entry.assert_awaited_once()
+        self.assertEqual(restored.ledger.get_meta("next_entry_analysis_at"),"8701")
+
+    def test_late_research_deferral_never_suppresses_position_monitoring(self):
+        obj = self.make_runner()
+        obj.model_mode = "REAL_MODEL"
+        obj.ledger.set_balance("USDT",D(1))
+        state = {"status":"OPEN"}
+        obj.ledger.set_meta("protection_USDTTMN",json.dumps(state))
+        with patch.object(obj,"_handle_position_cycle",new_callable=AsyncMock) as monitor:
+            asyncio.run(obj._execute_cycle(MagicMock(requests=0),8399))
+        monitor.assert_awaited_once()
+        self.assertIsNone(obj.ledger.get_meta("next_entry_analysis_at"))
+
     def test_wait_exposure_is_zero_and_custom_limit_is_not_reported_as_inventory(self):
         obj = self.make_runner()
         with patch.object(runner,"ROOT",self.root):

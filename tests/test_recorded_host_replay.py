@@ -110,6 +110,21 @@ class RecordedHostReplayTests(unittest.TestCase):
         report = replay.replay_manifest(self.source,self.save(),self.root/"fallback")
         self.assertEqual(report["decisions"][0]["status"],"PRESERVED_HOST_FALLBACK")
 
+    def test_deferred_research_is_preserved_only_without_model_http_or_trade(self):
+        self.row["model_trace"] = dict(host_outcome="HOST_DEFERRED",
+            defer_reason="INSUFFICIENT_CLOSED_CANDLE_TIME")
+        self.row["decision"]["forecast"] = None
+        report = replay.replay_manifest(self.source,self.save(),self.root/"deferred")
+        self.assertEqual(report["status"],"PASS_RECORDED_HOST_REPLAY")
+        self.assertEqual(report["decisions"][0]["status"],"PRESERVED_HOST_DEFERRED")
+        for mutation in (dict(decision={**self.row["decision"],"action":"ENTER"}),
+                         dict(client_id="unexplained-order"),dict(risk={"approved":True}),
+                         dict(model_trace={**self.row["model_trace"],"requests":["{}"]}),
+                         dict(model_trace={**self.row["model_trace"],"responses":[{}]}),
+                         dict(model_trace={**self.row["model_trace"],"defer_reason":"invented"})):
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                replay.replay_decision({**self.row,**mutation},[])
+
     def test_replay_output_cannot_be_scored_as_a_new_real_forecast(self):
         replay.replay_manifest(self.source,self.save(),self.root/"result")
         with self.assertRaises(ValueError),patch("urllib.request.urlopen") as network:
