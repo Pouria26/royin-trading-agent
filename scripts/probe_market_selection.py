@@ -65,13 +65,15 @@ async def main(argv=None):
     )
     (run_dir / "scan.json").write_text(json.dumps(
         {"status": report["status"], "cutoff": report["cutoff"], "errors": report["errors"],
+         "rejections":report.get("rejections",[]),
          "catalog_received_at": received, "catalog_sha256": hashlib.sha256(
              json.dumps(payload, default=str, sort_keys=True).encode()).hexdigest(),
          "profile": "PUBLIC_MARKET_PAPER; catalog universe, not account-verified"},
         indent=2, default=str), encoding="utf-8")
     if not report["batch"]:
         print(json.dumps({"run_id": run_id, "status": report["status"],
-                          "errors": report["errors"], "http_requests": feed.requests}, default=str))
+                          "errors": report["errors"],"rejections":report.get("rejections",[]),
+                          "http_requests": feed.requests}, default=str))
         return 0
     batch = {item.snapshot.symbol: (item.snapshot, item.opportunity) for item in report["batch"]}
     (run_dir / "batch.json").write_text(json.dumps([

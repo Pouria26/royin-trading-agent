@@ -1,5 +1,11 @@
 # برنامهٔ جاری پروژه
 
+## نامزد مستقل تشخیص رد غربالگر — ۲۳ اکتبر ۲۰۲۶
+
+این تغییر بر پایهٔ e089bc3 در checkout آفلاین آماده شده و به اجرای منجمد f8a1748 اعمال نشده است. دلیل‌های محدود و بدون متن خام برای freshness/cutoff، ساختار و ترتیب book، spread، عمق، دریافت و parsing تاریخچه و metadata غایب ثبت می‌شوند؛ bootstrap، پژوهش مدل، manifest و probe آن‌ها را حفظ می‌کنند. آستانه‌ها، انتخاب، prompt و گیت‌های مالی تغییر نکرده‌اند. پاسخ depth با array/null یا ساختار ناقص، همان نماد را رد می‌کند؛ regression قبلاً AttributeError و علت نامناسب را نشان داد.
+
+پذیرش نامزد: ۴۱۶ تست هسته در ۴۵٫۴۸۵ ثانیه و ۱۱ تست داشبورد در ۲٫۷۶۰ ثانیه، صفر fail/skip؛ Ruff، compileall، چهار self-check و config پاس. ۲۳ capture واقعی سه چرخهٔ نخست اجرای فعال، بدون HTTP یا مدل دوباره بررسی شدند: تصمیم‌های قبلی عیناً برابر، ۸ مورد SPREAD_TOO_WIDE و یک HISTORY_PARSE_FAILED. این audit شاهد AI یا سود تازه نیست. نامزد فقط پس از تعیین پایان، رفع freeze و بررسی Git/process/state جاری ادغام شود؛ worker دوم یا reset مجاز نیست.
+
 ## ادغام تازهٔ main و ادامهٔ فعال — ۲۳ اکتبر ۲۰۲۶
 
 - **VERIFIED_REMOTE_INTEGRATION:** انتقال bundle در24f0daa ثبت شد؛ شش commit تازه تاabbfe39 با pull درخواست‌شده وارد و تعارض‌های docs/ignore حل شدند. در snapshot دقیق stage‌شده،۴۱۲تست هسته در۷۶٫۵۵۸ثانیه و۱۱تست داشبورد در۲٫۴۱۱ثانیه،۰fail/۰skip پاس شدند. اجرای نخست هسته یک خطای مسیر پایتون تست قفل داشت؛ با sys.executable و بدون تغییر invariant رفع و suite کامل دوباره اجرا شد. Ruff0.17.1،compileall،چهارself-check،Node syntax و دوconfig check پاس‌اند.

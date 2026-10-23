@@ -1,5 +1,13 @@
 # وضعیت جاری موتور و شواهد
 
+## نامزد آفلاین دلایل رد — برپایهe089bc3، اعمال‌نشده به اجرای فعال
+
+علت‌های رد غربالگر اکنون با code و مقادیر Decimal دارای واحد ثبت می‌شوند: STALE_INPUT، CLOSED_CANDLE_CUTOFF_MISMATCH، DEPTH_UNAVAILABLE، INVALID_BOOK_SHAPE/VALUE/SPREAD، UNSORTED_BOOK، SPREAD_TOO_WIDE، DEPTH_TOO_SHALLOW، INVALID_SERIES_OR_FEATURES و شکست HISTORY_FETCH/PARSE یا DEPTH_FETCH. نبود spot metadata نیز SPOT_RULES_MISSING است. این‌ها توضیح مشاهدات‌اند؛ آستانهٔ gate و ادعای سود از آن‌ها نتیجه نمی‌شود. فیلدهای rejections/scanner_rejections/research_rejections در مسیر گزارش حفظ می‌شوند؛ prompt/context/hash تصمیم معتبر تغییر نکرده‌اند.
+
+regression مؤثر: depth به‌شکل array در کد قبلی AttributeError می‌داد؛ اکنون همان نماد INVALID_BOOK_SHAPE می‌گیرد و بازار سالم همچنان قابل بررسی است. regressionهای stale، cutoff، spread، depth، float، ترتیب book، gap و ماندگاری در manifest نیز پاس‌اند. شکست parse با stale ثانویه جایگزین نمی‌شود؛ متن خام response یا exception به گزارش اضافه نمی‌شود.
+
+سوئیت نامزد: ۴۱۶ هسته در ۴۵٫۴۸۵ ثانیه و ۱۱ داشبورد در ۲٫۷۶۰ ثانیه، صفر fail/skip؛ Ruff، compileall، چهار self-check و config پاس. audit واقعی اولین سه چرخهٔ صرفاً غربالگری با ۲۳ capture ثابت، HTTP/مدل/سفارش صفر و تصمیم‌های عیناً برابر نسخهٔ فعال داشت؛ ۸ spread و یک history parse. این نتیجه شواهد جدید استراتژی نیست. سورس f8a1748 اجرای اصلی منجمد بماند؛ نامزد پس از رفع freeze و بازبینی وضعیت ادغام شود.
+
 ## ادغام remote و پذیرش مستقل — ۲۳ اکتبر ۲۰۲۶
 
 pull صریح کاربر شش commit تازه تاabbfe39 را پس از انتقال محلی24f0daa وارد کرد. تعارض‌های مستندات/ignore با حفظ پیشینه حل شدند. 859f076 ساعت دریافت کامل پاسخ را درroyin_received_at برای fill اعمال می‌کند؛74be2de وضعیت HTTP و علت محدود شکست را ثبت می‌کند و تلاش لغو را با نتیجهٔ قطعی لغو یکی نمی‌داند. UNKNOWN قدیمی، reserve، intent، مجوز منقضی و هشتattempt محفوظ و live بسته است.

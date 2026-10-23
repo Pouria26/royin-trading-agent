@@ -169,7 +169,7 @@ class ScanCandidate:
 def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
                           candle_received_at, depth_received_at, round_trip_fee_pct,
                           min_depth_tmn, max_spread_pct, available_tmn_cash, limit=3,
-                          snapshot_cutoff=None):
+                          snapshot_cutoff=None, rejections=None):
     """Bounded expensive stage: every liquidity-valid candidate, ordered for cheap review.
 
     Host ordering is not a selection. The model chooses one symbol or NO_TRADE; ATR and
@@ -180,6 +180,9 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
         decimal_number(amount, positive=True)
     if type(limit) is not int or not 1 <= limit <= MAX_RESEARCH_SYMBOLS:
         raise ValueError("Invalid batch limit")
+    if rejections is not None and not isinstance(rejections,list):
+        raise ValueError("Rejection diagnostics require a list")
+    rejections = [] if rejections is None else rejections
     if round_trip_fee_pct >= 1 or max_spread_pct >= 1 or len(shortlist) > MAX_RESEARCH_SYMBOLS:
         raise ValueError("Invalid scanner limits")
     snapshot_cutoff = cutoff if snapshot_cutoff is None else snapshot_cutoff
@@ -190,21 +193,35 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
         if not all(_fresh(t, cutoff, 60) for t in (
             row.received_at, candle_received_at.get(row.symbol), depth_received_at.get(row.symbol),
         )):
+            rejections.append(dict(symbol=row.symbol,reason="STALE_INPUT"))
             continue
+        failure_reason = "INVALID_SERIES_OR_FEATURES"
         try:
             series = series_by_symbol[row.symbol]
             closed_at = series.candles[-1].open_time + series.interval_seconds
             # One uniform cutoff: the model must compare candidates from the same instant.
             if closed_at != snapshot_cutoff:
+                rejections.append(dict(symbol=row.symbol,reason="CLOSED_CANDLE_CUTOFF_MISMATCH",
+                    closed_at=closed_at,required_cutoff=snapshot_cutoff))
                 continue
             snapshot = extract_features(series, row.symbol, cutoff=snapshot_cutoff,
                                         available_tmn_cash=available_tmn_cash)
+            failure_reason = "INVALID_BOOK_VALUE"
             depth = depth_by_symbol[row.symbol]
-            if depth.get("success") is not True:
+            if not isinstance(depth,dict):
+                rejections.append(dict(symbol=row.symbol,reason="INVALID_BOOK_SHAPE"))
                 continue
-            book = depth["result"]
-            bids, asks = book["bid"], book["ask"]
-            if not bids or not asks or len(bids) > 100 or len(asks) > 100:
+            if depth.get("success") is not True:
+                rejections.append(dict(symbol=row.symbol,reason="DEPTH_UNAVAILABLE"))
+                continue
+            book = depth.get("result")
+            if not isinstance(book,dict):
+                rejections.append(dict(symbol=row.symbol,reason="INVALID_BOOK_SHAPE"))
+                continue
+            bids, asks = book.get("bid"), book.get("ask")
+            if (not isinstance(bids,list) or not isinstance(asks,list)
+                    or not bids or not asks or len(bids) > 100 or len(asks) > 100):
+                rejections.append(dict(symbol=row.symbol,reason="INVALID_BOOK_SHAPE"))
                 continue
             def levels(rows):
                 return [(decimal_number(r["price"], positive=True),
@@ -213,10 +230,14 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
             if any(a[0] <= b[0] for a, b in pairwise(bids)) or (
                 any(a[0] >= b[0] for a, b in pairwise(asks))
             ):
+                rejections.append(dict(symbol=row.symbol,reason="UNSORTED_BOOK"))
                 continue
             bid, ask = bids[0][0], asks[0][0]
             spread = (ask - bid) / bid
             if not 0 <= spread <= max_spread_pct:
+                rejections.append(dict(symbol=row.symbol,
+                    reason="SPREAD_TOO_WIDE" if spread > max_spread_pct else "INVALID_BOOK_SPREAD",
+                    spread_fraction=str(spread),max_spread_fraction=str(max_spread_pct)))
                 continue
             with localcontext() as context:
                 context.prec = 128
@@ -224,6 +245,8 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
                 bid_depth = sum((p*q*row.quote_to_tmn for p, q in bids if p >= bid*(1-max_spread_pct)), Decimal(0))
                 ask_depth = sum((p*q*row.quote_to_tmn for p, q in asks if p <= ask*(1+max_spread_pct)), Decimal(0))
             if min(bid_depth, ask_depth) < min_depth_tmn:
+                rejections.append(dict(symbol=row.symbol,reason="DEPTH_TOO_SHALLOW",
+                    bid_depth_tmn=str(bid_depth),ask_depth_tmn=str(ask_depth),minimum_depth_tmn=str(min_depth_tmn)))
                 continue
             # Ordering evidence only; the entry model decides whether it is attractive.
             obi = (bid_depth - ask_depth) / (bid_depth + ask_depth) if (bid_depth + ask_depth) > 0 else Decimal(0)
@@ -234,7 +257,8 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
                 depth_received_at=depth_received_at[row.symbol], observed_at=cutoff,
                 best_bid=bid, best_ask=ask)
             accepted.append(ScanCandidate(snapshot, score, opportunity))
-        except (ValueError, KeyError, TypeError, IndexError, DecimalException):
+        except (ValueError, KeyError, TypeError, IndexError, DecimalException) as exc:
+            rejections.append(dict(symbol=row.symbol,reason=failure_reason,error_type=type(exc).__name__))
             continue
     return tuple(sorted(accepted, key=lambda c: (-c.score, c.snapshot.symbol))[:limit])
 
@@ -313,8 +337,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
         raise ValueError("Unsupported scanner interval")
     now = int(time.time())
     if account_symbols is None or not _fresh(account_as_of, now, 3600):
-        return dict(status="BLOCKED_ACCESS", batch=(), errors=[], cutoff=None)
-    errors = []
+        return dict(status="BLOCKED_ACCESS", batch=(), errors=[], rejections=[], cutoff=None)
+    errors, rejections = [], []
     try:
         payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now)
         rows = shortlist_markets(payload, account_symbols=account_symbols, cutoff=int(time.time()),
@@ -322,40 +346,49 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
                                  limit=batch_limit, diversify=diversify, tmn_only=tmn_only,
                                  selected_symbols=selected_symbols)
     except (OSError, ValueError) as exc:
-        return dict(status="BLOCKED_DATA", batch=(), errors=[type(exc).__name__], cutoff=None)
+        return dict(status="BLOCKED_DATA", batch=(), errors=[type(exc).__name__], rejections=[], cutoff=None)
     snapshot_cutoff = now // interval_seconds * interval_seconds
     rules = {}
     if use_spot_rules:
         try:
             spot, _ = feed.get("/v1/markets",{},cutoff=int(time.time()))
             rules = parse_spot_rules(spot,maker_fee_rate=Decimal(".0025"),taker_fee_rate=Decimal(".003"))
+            rejections.extend(dict(symbol=row.symbol,reason="SPOT_RULES_MISSING") for row in rows if row.symbol not in rules)
             rows = tuple(row for row in rows if row.symbol in rules)
         except (ValueError,OSError):
-            return dict(status="BLOCKED_SPOT_RULES",batch=(),errors=[],cutoff=snapshot_cutoff)
+            return dict(status="BLOCKED_SPOT_RULES",batch=(),errors=[],rejections=[],cutoff=snapshot_cutoff)
     series, depths, candle_times, depth_times = {}, {}, {}, {}
     for row in rows:
+        phase = "HISTORY_FETCH"
         try:
             end = now // interval_seconds * interval_seconds
             start = end - 40 * interval_seconds
             history, candle_times[row.symbol] = feed.get("/v1/udf/history", {
                 "symbol": row.symbol, "resolution": "1", "from": start, "to": end,
             }, cutoff=now)
+            phase = "HISTORY_PARSE"
             minute = parse_history(history, start=start, end=end, interval_seconds=60, cutoff=now)
             bars = aggregate_closed(minute, interval_seconds)
             if bars.incomplete_bins:
                 raise ValueError("Incomplete aggregation")
             series[row.symbol] = bars
+            phase = "DEPTH_FETCH"
             depths[row.symbol], depth_times[row.symbol] = feed.get(
                 "/v1/depth", {"symbol": row.symbol}, cutoff=int(time.time()))
         except (OSError, ValueError) as exc:
             errors.append(dict(symbol=row.symbol, error_type=type(exc).__name__))
+            rejections.append(dict(symbol=row.symbol,reason=phase+"_FAILED",error_type=type(exc).__name__))
+    quality_rejections = []
     batch = build_candidate_batch(rows, series_by_symbol=series, depth_by_symbol=depths,
         cutoff=int(time.time()), snapshot_cutoff=snapshot_cutoff,
         candle_received_at=candle_times, depth_received_at=depth_times,
         round_trip_fee_pct=round_trip_fee_pct, min_depth_tmn=min_depth_tmn, max_spread_pct=max_spread_pct,
-        available_tmn_cash=available_tmn_cash, limit=batch_limit)
+        available_tmn_cash=available_tmn_cash, limit=batch_limit,rejections=quality_rejections)
+    # Preserve the primary failed fetch/parse rather than adding its secondary missing timestamps.
+    failed_symbols = {row["symbol"] for row in rejections}
+    rejections.extend(row for row in quality_rejections if row["symbol"] not in failed_symbols)
     if int(time.time()) // interval_seconds * interval_seconds != snapshot_cutoff:
-        return dict(status="BLOCKED_CUTOFF_ADVANCED", batch=(), errors=errors, cutoff=snapshot_cutoff)
+        return dict(status="BLOCKED_CUTOFF_ADVANCED", batch=(), errors=errors,rejections=rejections,cutoff=snapshot_cutoff)
     catalog = parse_catalog(payload)
     eligible = eligible_markets(catalog, load_restrictions(POLICY_PATH), account_symbols=account_symbols)
     context = market_context(payload, eligible, observed_at=received)
@@ -373,7 +406,7 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
                 "asset_return_24h":change, "relative_strength_24h":relative})))
     batch = tuple(enriched)
     status = "CANDIDATES" if batch else ("BLOCKED_DATA" if errors else "NO_CANDIDATE")
-    return dict(status=status, batch=batch, errors=errors, cutoff=snapshot_cutoff,
+    return dict(status=status, batch=batch, errors=errors,rejections=rejections,cutoff=snapshot_cutoff,
                 market_context=context.model_dump(mode="json"),
                 market_rules=rules,
                 coverage=dict(catalog=len(catalog), eligible=len(eligible), researched=len(rows), accepted=len(batch)))

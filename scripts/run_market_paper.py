@@ -745,7 +745,8 @@ class MarketPaperOrchestrator:
                 self.ledger.set_meta("engine_bootstrap_after_symbol", row.symbol)
                 report = scan_current_market(feed, **scan_options,batch_limit=1,selected_symbols=[row.symbol])
                 bootstrap_attempts.append({"symbol":row.symbol,"status":report.get("status"),
-                    "accepted":bool(report.get("batch")),"errors":report.get("errors",[])})
+                    "accepted":bool(report.get("batch")),"errors":report.get("errors",[]),
+                    "rejections":report.get("rejections",[])})
                 if report.get("batch"):
                     break
         else:
@@ -772,6 +773,7 @@ class MarketPaperOrchestrator:
                 },
                 "risk": {"approved": None, "action": "WAIT", "reason": "No candidate"},
                 "bootstrap_attempts":bootstrap_attempts,
+                "scanner_rejections":report.get("rejections",[]),
             }
             self.decision_traces.append(trace)
             return
@@ -828,6 +830,7 @@ class MarketPaperOrchestrator:
                 report["coverage"]["model_visible_catalog"] = len(universe.markets)
                 report["coverage"]["model_requested_symbols"] = list(selected)
                 model_trace["research_errors"] = researched.get("errors", [])
+                model_trace["research_rejections"] = researched.get("rejections", [])
                 return {item.snapshot.symbol:(item.snapshot,item.opportunity) for item in report["batch"]}
             try:
                 decision = await decide_role(
@@ -1003,6 +1006,7 @@ class MarketPaperOrchestrator:
                 if decision.symbol in batch_map else None,
             "market_context": report.get("market_context"),
             "bootstrap_attempts":bootstrap_attempts,
+            "scanner_rejections":report.get("rejections",[]),
             "execution":execution_evidence,
             "coverage": report.get("coverage"),
             "risk": {

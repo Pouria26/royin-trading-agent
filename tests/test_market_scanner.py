@@ -180,6 +180,77 @@ class ScannerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             decode_closed_minutes(json.dumps(payload,default=str).encode(), start=600,end=720,step=120,cutoff=720)
 
+    def test_rejection_diagnostics_do_not_change_accepted_candidates_or_hashes(self):
+        reasons = []
+        self.assertEqual(self.batch(rejections=reasons), self.batch())
+        self.assertEqual(reasons, [])
+
+    def test_each_quality_gate_reports_its_observed_failure_without_relaxing_it(self):
+        rows = self.shortlist(selected_symbols=["BTCTMN"])
+        symbol = "BTCTMN"
+        unsorted = depth()
+        unsorted["result"]["bid"].append(dict(price="100",quantity="1000"))
+        floating = depth()
+        floating["result"]["ask"][0]["quantity"] = 1000.5
+        future = Candle(8100,D(100),D(102),D(98),D(100),D(200))
+        cases = [
+            (dict(depth_received_at={symbol:8000}), "STALE_INPUT"),
+            (dict(series_by_symbol={symbol:CandleSeries((*series().candles,future),60)}), "CLOSED_CANDLE_CUTOFF_MISMATCH"),
+            (dict(depth_by_symbol={symbol:dict(success=False)}), "DEPTH_UNAVAILABLE"),
+            (dict(depth_by_symbol={symbol:unsorted}), "UNSORTED_BOOK"),
+            (dict(depth_by_symbol={symbol:floating}), "INVALID_BOOK_VALUE"),
+            (dict(min_depth_tmn=D("1e20")), "DEPTH_TOO_SHALLOW"),
+            (dict(max_spread_pct=D(".0001")), "SPREAD_TOO_WIDE"),
+            (dict(series_by_symbol={symbol:CandleSeries(series().candles[:10]+series().candles[11:],60)}), "INVALID_SERIES_OR_FEATURES"),
+        ]
+        for changes, expected in cases:
+            with self.subTest(reason=expected):
+                rejected = []
+                self.assertEqual(self.batch(rows,rejections=rejected,**changes), ())
+                self.assertEqual(len(rejected),1)
+                self.assertEqual((rejected[0]["symbol"],rejected[0]["reason"]),(symbol,expected))
+                if expected == "SPREAD_TOO_WIDE":
+                    self.assertGreater(D(rejected[0]["spread_fraction"]),D(rejected[0]["max_spread_fraction"]))
+                if expected == "DEPTH_TOO_SHALLOW":
+                    self.assertLess(D(rejected[0]["bid_depth_tmn"]),D(rejected[0]["minimum_depth_tmn"]))
+
+    def test_pipeline_preserves_primary_history_failure_instead_of_secondary_staleness(self):
+        feed = MagicMock()
+        def get(endpoint,params,**kwargs):
+            if endpoint.endswith("markets"):
+                return catalog(),30005
+            if endpoint.endswith("depth"):
+                return dict(success=True,result=dict(bid=[dict(price="100",quantity="1000")],
+                    ask=[dict(price="101",quantity="1000")])),30005
+            times = list(range(params["from"],params["to"],60))
+            if params["symbol"] == "ETHTMN":
+                times.pop(10)
+            return dict(s="ok",t=times,o=["100"]*len(times),h=["102"]*len(times),
+                l=["98"]*len(times),c=["100"]*len(times),v=["1000"]*len(times)),30005
+        feed.get.side_effect=get
+        with patch("time.time",return_value=30005):
+            report=scan_current_market(feed,account_symbols={"BTCTMN","ETHTMN"},account_as_of=30000,
+                round_trip_fee_pct=D(".006"),min_depth_tmn=D(10000),max_spread_pct=D(".005"),
+                available_tmn_cash=D(1234))
+        self.assertEqual(report["status"],"BLOCKED_DATA")
+        self.assertEqual(report["batch"],())
+        self.assertEqual(feed.get.call_count,4)
+        self.assertEqual(len(report["rejections"]),2)
+        self.assertEqual({r["symbol"]:r["reason"] for r in report["rejections"]},
+            {"ETHTMN":"HISTORY_PARSE_FAILED","BTCTMN":"SPREAD_TOO_WIDE"})
+        self.assertNotIn("STALE_INPUT",str(report["rejections"]))
+
+    def test_malformed_depth_document_rejects_only_that_symbol(self):
+        rows=self.shortlist(selected_symbols=["BTCTMN","ETHTMN"])
+        healthy=self.batch([row for row in rows if row.symbol=="ETHTMN"])
+        for bad in ([],dict(success=True,result=[]),dict(success=True,result=dict(bid=None,ask=[])),
+                    dict(success=True,result=dict(ask=[]))):
+            with self.subTest(document=bad):
+                rejected=[]
+                batch=self.batch(rows,depth_by_symbol={"BTCTMN":bad,"ETHTMN":depth()},rejections=rejected)
+                self.assertEqual(batch,healthy)
+                self.assertEqual(rejected,[dict(symbol="BTCTMN",reason="INVALID_BOOK_SHAPE")])
+
     def test_public_get_cap_cache_age_and_no_fallback_on_error(self):
         with tempfile.TemporaryDirectory() as temp:
             feed = ScannerPublicFeed(Path(temp), max_requests=2)

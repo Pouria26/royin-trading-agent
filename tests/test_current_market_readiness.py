@@ -170,14 +170,25 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         o.model_mode,o.run_envelope = "REAL_MODEL",object()
         liquid = tuple(MarketShortlistRow(s,D(200000000-i),D(1),8105,"c"*64)
             for i,s in enumerate(("BTCTMN","ETHTMN","SOLTMN","ADATMN")))
+        def blocked(*args,**kwargs):
+            symbol=kwargs["selected_symbols"][0]
+            return dict(status="BLOCKED_DATA",batch=(),errors=["gap"],
+                rejections=[dict(symbol=symbol,reason="HISTORY_PARSE_FAILED",error_type="ValueError")])
         with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{x.symbol for x in liquid})), \
              patch.object(runner,"catalog_candidates",return_value=liquid), \
-             patch.object(runner,"scan_current_market",return_value=dict(status="BLOCKED_DATA",batch=(),errors=["gap"])) as scan, \
+             patch.object(runner,"scan_current_market",side_effect=blocked) as scan, \
              patch.object(runner,"decide_role") as infer,patch("time.time",return_value=8105):
             asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
         self.assertEqual(scan.call_count,3)
         infer.assert_not_awaited()
         self.assertEqual(len(o.decision_traces[-1]["bootstrap_attempts"]),3)
+        attempted=[call.kwargs["selected_symbols"][0] for call in scan.call_args_list]
+        self.assertEqual([row["rejections"][0]["symbol"] for row in o.decision_traces[-1]["bootstrap_attempts"]],attempted)
+        self.assertEqual(o.decision_traces[-1]["scanner_rejections"][0]["symbol"],attempted[-1])
+        o._checkpoint_and_export(8105)
+        stored=json.loads((o.capture_dir/"manifest.json").read_text())["arms"]["paper_portfolio"]["decision_traces"][-1]
+        self.assertEqual([row["rejections"][0]["reason"] for row in stored["bootstrap_attempts"]],
+            ["HISTORY_PARSE_FAILED"]*3)
 
     def test_failed_seed_batch_rotates_after_restart_and_reaches_the_fourth_market(self):
         o = self.make_runner()

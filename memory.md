@@ -1,5 +1,9 @@
 # حافظهٔ فنی پایدار
 
+## تشخیص رد و پاسخ depth نامعتبر — 2026-10-23، نامزد آفلاین
+
+NO_CANDIDATE علت اقتصادی یا کیفیت واحدی ندارد. علت ثابت با واحد مشخص، بدون متن خام exception در report.rejections ثبت و در bootstrap/research/manifest/probe حفظ شود. شکست HISTORY_FETCH/PARSE یا DEPTH_FETCH علت اصلی است؛ timestamp غایبِ ثانویه جای آن را نگیرد. اگر public JSON ساختار depth/result یا bid/ask را نقض کند، همان نماد رد شود و بازارهای سالم همچنان بررسی شوند. تست shape قبلاً AttributeError نشان داد؛ اصلاح با آستانه‌های قیمت، عمق، fee، بودجه و UNKNOWN ثابت، در نامزد ۴۱۶ هسته/۱۱ داشبورد پاس شد. audit با ۲۳ capture همان تصمیم‌های سابق و ۸ رد spread/یک parse را داد. اجرای اصلی f8a1748 منجمد است و نامزد هنوز فعال نیست.
+
 ## قرارداد مقدم پس از pull — 2026-10-23
 
 سورس شش commit remote تاabbfe39 پس از24f0daa ادغام شد. 859f076 خطای زمان fill دررفت‌وبرگشت شبکه و74be2de تفکیک علت خطا را اصلاح می‌کنند؛UNKNOWN/intent/reserve/counter راحل یاreset نمی‌کنند. آمار۳۸۷تست وprobeهای حساب دربخشremote گزارش همکار است،نه آزمون یااستعلام تازهٔاین میزبان. آزمون مستقل ادغام:۴۱۲هسته/۱۱داشبورد،۰fail/۰skip،Ruff/compileall/چهارself-check/config پاس. مسیر ثابت .venv درتست قفل worker بهsys.executable اصلاح شد تا snapshot تمیز هم همان پایتون معتبر را اجرا کند؛ رفتار قفل تغییر نکرد.
