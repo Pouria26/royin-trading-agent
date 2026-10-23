@@ -1,3 +1,6 @@
 # Preserve the byte hash referenced by historical diagnostic manifests on Windows.
 /config/strategy-experiment-plan.json text eol=lf
 /config/portfolio-ai-protocol-v6.json text eol=lf
+# Keep downloaded font bytes and upstream license text stable across Windows clones.
+/dashboard/static/fonts/*.woff2 binary
+/dashboard/static/fonts/*-OFL.txt text eol=lf whitespace=-blank-at-eol
