@@ -84,6 +84,50 @@ class DashboardTests(unittest.TestCase):
         self.write()
         self.assertFalse(self.sources.evaluation("portfolio:test_run", "bound-dataset")["comparable"])
 
+    def test_paired_run_projects_each_arm_without_exporting_raw_model_messages(self):
+        directory = self.root / "artifacts/paired-paper/paired_test"
+        directory.mkdir(parents=True)
+        protocol = dict(evidence_kind="PROSPECTIVE_SHARED_INPUT_PAPER_ENTRY_ABLATION",
+                        run_id="paired_test", revision="abc123", source_sha256="a" * 64,
+                        started_at=1700000000, deadline=1700010800,
+                        arms=["cash", "hold", "rule", "boxapi", "apmix"])
+        (directory / "protocol.json").write_text(json.dumps(protocol))
+        for name in ("hold", "rule", "boxapi", "apmix"):
+            path = directory / name / "manifest.json"
+            path.parent.mkdir()
+            data = copy.deepcopy(self.data)
+            data["run_id"] = "paired_test-" + name
+            data["arms"] = {"paper_portfolio": data["arms"]["rule_ai"]}
+            trace = data["arms"]["paper_portfolio"]["decision_traces"][0]
+            trace["model_trace"] = dict(host_outcome="HOST_FALLBACK", host_validation_code="BINDING_SYMBOL",
+                                       requests=["NEVER_EXPORT_RAW_MODEL"], responses=["PRIVATE_RESPONSE"])
+            path.write_text(json.dumps(data))
+        self.assertIn("paired:paired_test", self.sources.catalog())
+        result = self.sources.evaluation("paired:paired_test", "bound-dataset")
+        self.assertEqual([arm["name"] for arm in result["arms"]], ["hold", "rule", "boxapi", "apmix"])
+        self.assertEqual(result["revision"], "abc123")
+        self.assertFalse(result["comparable"])  # Unequal protection times are not synchronized curves.
+        self.assertEqual(result["arms"][2]["decision_diagnostics"]["host_fallbacks"], 1)
+        rows = self.sources.rows("paired:paired_test", "bound-dataset", "boxapi", "decisions")
+        self.assertEqual(rows["items"][0]["decision_origin"], "HOST_FALLBACK")
+        self.assertNotIn("NEVER_EXPORT_RAW_MODEL", json.dumps(result) + json.dumps(rows))
+        self.assertNotIn("PRIVATE_RESPONSE", json.dumps(result) + json.dumps(rows))
+        (directory / "progress.json").write_text(json.dumps(dict(
+            status="RUNNING", updated_at=1700000000, cycle=17, public_gets=100)))
+        self.assertEqual(self.sources.paired_status()["status"], "STALE")
+        (directory / "report.json").write_text(json.dumps(dict(
+            protocol=protocol, status="STOPPED_FLAT", finished_at=1700010800)))
+        self.assertEqual(self.sources.paired_status()["run_state"], "STOPPED_FLAT")
+        wrong = dict(protocol, revision="wrong")
+        (directory / "report.json").write_text(json.dumps(dict(
+            protocol=wrong, status="STOPPED_FLAT", finished_at=1700010800)))
+        self.assertEqual(self.sources.paired_status()["run_state"], "UNKNOWN")
+        path = directory / "boxapi/manifest.json"
+        data["run_id"] = "different-run"
+        path.write_text(json.dumps(data))
+        with self.assertRaises(ValueError):
+            self.sources.evaluation("paired:paired_test", "bound-dataset")
+
     def test_import_is_inert_and_empty_root_never_supplies_demo(self):
         import dashboard.server
         import dashboard.sources
@@ -214,6 +258,14 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(headers["Cache-Control"],"no-store")
                 self.assertNotIn("Access-Control-Allow-Origin",headers)
                 self.assertEqual(json.loads(body)["account"]["status"],"UNAVAILABLE")
+                for filename in ("Vazirmatn-Variable.woff2", "InterVariable.woff2"):
+                    code, headers, font = request("GET", "/fonts/" + filename)
+                    self.assertEqual(code, 200)
+                    self.assertEqual(headers["Content-Type"], "font/woff2")
+                    self.assertTrue(font.startswith(b"wOF2"))
+                    self.assertEqual(request("HEAD", "/fonts/" + filename)[2], b"")
+                self.assertEqual(request("GET", "/fonts/../../.env")[0], 404)
+                self.assertEqual(request("GET", "/fonts/sources.json")[0], 404)
                 for method in ("POST","PUT","PATCH","DELETE","OPTIONS","TRACE","CONNECT"):
                     self.assertEqual(request(method,"/api/v1/overview")[0],405)
                 self.assertEqual(request("HEAD","/api/v1/overview")[2],b"")

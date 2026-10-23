@@ -31,7 +31,14 @@ Browser → same-origin monitoring API → allowlisted evidence projections.
 تمام routeها مصرف‌کننده UI دارند. GET/HEAD؛ mutationهای استاندارد 405، route
 ناشناخته 404، query/داده نامعتبر 400، فایل موقتاً ناموجود 503. Host و Origin
 محلی، no CORS، no-store، CSP خودمیزبان، خطای عمومی بدون path/traceback.
-static فقط /، /app.js، /style.css است؛ ریشه مخزن قابل browse نیست.
+static فقط /، /app.js، /style.css و دو مسیر دقیق فونت WOFF2 است؛ ریشه مخزن قابل browse نیست.
+
+فونت فارسی وزیرمتن و لاتین Inter محلی‌اند؛ مجوزهای OFL، منبع نسخه‌بسته و hash
+در `static/fonts/` هستند. endpoint عمومی برای browse آن پوشه وجود ندارد.
+آزمون‌های `artifacts/paired-paper/*/protocol.json` نیز با چهار manifest فرزند
+همان run نمایش داده می‌شوند. hash ترکیبی، checkpoint اتمیک یا تأیید یکسانی
+checkout نیست. پیشرفت و پایان ثبت‌شدهٔ آزمون در نمای کلی می‌آید؛ وجود فایل
+RUNNING به‌تنهایی اثبات زنده‌بودن PID نیست. پاسخ خام مدل به API پایش صادر نمی‌شود.
 
 | Route | Query | UI |
 |---|---|---|

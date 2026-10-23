@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const state = {runs: [], evaluation: null, overview: null, section: 'decisions', offset: 0,
   page: null, paused: false, busy: false, request: 0, events: [], lastSuccess: null, connected: null, errorText: ''};
-const labels = {cash: 'وجه نقد', hold_shared_risk: 'نگهداری با ریسک مشترک', rule: 'قاعده بدون AI', rule_ai: 'قاعده + AI'};
+const labels = {cash: 'وجه نقد', hold: 'نگهداری با ریسک مشترک', hold_shared_risk: 'نگهداری با ریسک مشترک', rule: 'قاعده بدون AI', rule_ai: 'قاعده + AI', boxapi: 'GPT-6-luna', apmix: 'Sonnet 4.6 / APMix'};
 const statusLabels = {AVAILABLE: 'موجود', UNAVAILABLE: 'در دسترس نیست', EMPTY: 'بدون رکورد', STALE: 'داده کهنه', INVALID: 'شاهد نامعتبر'};
 const featureUnits = {last_close: 'TMN', trend_sma_fast: 'TMN', trend_sma_slow: 'TMN', atr_14: 'TMN',
   available_tmn_cash: 'TMN', current_position_base: 'USDT', rsi_14: 'index', volume_ratio: 'ratio'};
@@ -64,6 +64,17 @@ function renderOffline() {
 function renderOverview() {
   const o = state.overview;
   if (!o) return;
+  const test = o.paired_test;
+  $('paired-test').hidden = !test?.run_id;
+  if (test?.run_id) {
+    $('test-run').textContent = test.run_id.split(':')[1];
+    $('test-progress').replaceChildren();
+    definition($('test-progress'), 'شروع', time(test.started_at));
+    definition($('test-progress'), 'پایان برنامه‌ریزی‌شده', time(test.deadline));
+    definition($('test-progress'), 'چرخهٔ ثبت‌شده', format(test.cycle));
+    definition($('test-progress'), 'وضعیت گزارش', test.run_state + ' / ' + (statusLabels[test.status] || test.status));
+    $('test-note').textContent = 'پول مجازی؛ نتیجه تا پایان اجرا موقت است. آخرین پالس: ' + time(test.observed_at) + ' · گزارش فایل، تأیید مستقل فرایند نیست.';
+  }
   const feed = o.observation;
   $('mode').textContent = feed.mode;
   const paperMode = ['CURRENT_PAPER','PUBLIC_MARKET_PAPER'].includes(feed.mode);
@@ -203,6 +214,12 @@ function renderEvaluation() {
     for (const [asset,balance] of Object.entries(arm.latest_balances || {})) {
       definition($('metrics'),'آزاد / قفل‌شده · '+asset,short(balance.free)+' / '+short(balance.locked)+' '+asset,format(balance.free)+' / '+format(balance.locked)+' '+asset);
     }
+    const diagnostic = arm.decision_diagnostics;
+    if (['boxapi','apmix'].includes(arm.name) && diagnostic) {
+      definition($('metrics'), 'WAIT معتبر مدل', format(diagnostic.valid_model_waits));
+      definition($('metrics'), 'ENTER معتبر مدل', format(diagnostic.valid_model_enters));
+      definition($('metrics'), 'پاسخ نامعتبر / fallback میزبان', format(diagnostic.host_fallbacks));
+    }
     $('risk-note').textContent = '≈ نمایش کوتاه؛ مقدار دقیق در جدول و عنوان مقدار. ' + (arm.drawdown_basis || 'تعریف افت در دسترس نیست') + ' · سیاست جاری stop و kill-switch نامعلوم است.';
   }
   $('comparison').replaceChildren(...e.arms.map(a => {
@@ -234,7 +251,7 @@ function showDetail(record) {
   const content = $('detail-content'); content.replaceChildren();
   const add = (title,value) => content.append(node('h3',title),node('pre',JSON.stringify(value,null,2)));
   if (state.section === 'decisions') {
-    add('تصمیم ثبت‌شده / نتیجه مدل با نوع شاهد همین run', {decision_id:record.decision_id,action:record.action,reason:record.reason,evidence_ids:record.evidence_ids,observed_at:record.observed_at});
+    add('تصمیم ثبت‌شده / نتیجه مدل با نوع شاهد همین run', {decision_id:record.decision_id,action:record.action,decision_origin:record.decision_origin,host_validation_code:record.host_validation_code,reason:record.reason,evidence_ids:record.evidence_ids,observed_at:record.observed_at});
     add('ورودی feature / شناسه binding', {snapshot_sha256:record.snapshot_sha256,binding:record.feature_binding,
       features:Object.fromEntries(Object.entries(record.features).map(([k,v])=>[k,{value:v,unit:featureUnits[k]}]))});
     add('نتیجه میزبان / risk gate',record.risk);
@@ -251,6 +268,7 @@ function renderRows() {
   $('activity-list').replaceChildren(...rows.map(record => {
     const row = node('article',null,'record'), identity=node('div'), body=node('div');
     identity.append(node('strong',record.symbol || 'UNKNOWN'),node('small',record.action || record.side || 'UNKNOWN'));
+    if (record.decision_origin === 'HOST_FALLBACK') identity.append(node('small','رد پاسخ / میزبان'));
     body.append(node('p',record.reason || ('وضعیت: '+(record.state || 'UNKNOWN'))),node('small',record.decision_id || record.client_id || 'شناسه نامعلوم'));
     const date=node('time',record.observed_at ? time(record.observed_at) : 'زمان ثبت نشده'); date.title=time(record.observed_at,true);
     const button=node('button','بررسی جزئیات'); button.addEventListener('click',()=>showDetail(record));
@@ -266,11 +284,20 @@ async function loadRows() {
   if (!$('run').value || !$('dataset').value || !$('arm').value) return;
   const request = ++state.request;
   $('activity-state').textContent = 'در حال دریافت رکوردها…';
+  state.page = null;
+  $('activity-list').replaceChildren(node('p','در حال دریافت رکوردهای همین انتخاب…','empty'));
+  $('activity-list').setAttribute('aria-busy','true');
+  $('previous').disabled = true; $('next').disabled = true;
   try {
     const page = await api(state.section, selection({arm:$('arm').value,offset:state.offset,limit:25,action:$('action').value}));
     if (request !== state.request) return;
     state.page = page;renderRows();
-  } catch (e) {if (request === state.request) $('activity-state').textContent = 'INVALID / UNAVAILABLE · '+e.message;}
+  } catch (e) {
+    if (request === state.request) {
+      $('activity-state').textContent = 'INVALID / UNAVAILABLE · '+e.message;
+      $('activity-list').replaceChildren(node('p','رکورد انتخاب‌شده در دسترس نیست.','empty'));
+    }
+  } finally { if (request === state.request) $('activity-list').setAttribute('aria-busy','false'); }
 }
 async function loadEvaluation() {
   if (!$('run').value || !$('dataset').value) return;
@@ -300,9 +327,9 @@ async function refresh() {
   try {
     const [overview,runs]=await Promise.all([api('overview'),api('runs')]);
     state.connected=true;state.overview=overview;state.runs=runs.items;
-    const activeRun = 'paper:' + (overview.engine_snapshot?.run_id || '');
+    const activeRun = overview.paired_test?.run_id || ('paper:' + (overview.engine_snapshot?.run_id || ''));
     const selectedRun = $('run').value || (state.runs.some(r=>r.run_id === activeRun) ? activeRun : '');
-    options($('run'),state.runs.map(r=>[r.run_id,((r.evidence_kind || '').includes('SYNTHETIC')?'SYNTHETIC / ':r.evidence_kind === 'PUBLIC_MARKET_PAPER'?'PAPER / ':'HISTORICAL / ')+r.run_id.split(':')[1]+' · '+r.status]),selectedRun);
+    options($('run'),state.runs.map(r=>[r.run_id,((r.evidence_kind || '').includes('SYNTHETIC')?'SYNTHETIC / ':(r.evidence_kind || '').includes('PAPER')?'PAPER / ':'HISTORICAL / ')+r.run_id.split(':')[1]+' · '+r.status]),selectedRun);
     renderOverview();chooseDataset();
     if (!state.runs.length) {
       $('research-state').textContent='EMPTY · هیچ artifact پشتیبانی‌شده‌ای وجود ندارد.';
@@ -331,7 +358,7 @@ for (const section of ['decisions','orders']) $(section+'-tab').addEventListener
   $('action').disabled=section==='orders';loadRows();
 });
 $('previous').addEventListener('click',()=>{state.offset=Math.max(0,state.offset-25);loadRows();});
-$('next').addEventListener('click',()=>{if(state.page?.next_offset!==null){state.offset=state.page.next_offset;loadRows();}});
+$('next').addEventListener('click',()=>{if(state.page?.next_offset!=null){state.offset=state.page.next_offset;loadRows();}});
 $('close-detail').addEventListener('click',()=>$('detail').close());
 $('pause').addEventListener('click',()=>{state.paused=!state.paused;$('pause').setAttribute('aria-pressed',String(state.paused));$('pause').textContent=state.paused?'ادامه تازه‌سازی':'توقف تازه‌سازی';$('connection').textContent=state.paused?'تازه‌سازی نمایش متوقف است':'آماده تازه‌سازی';});
 $('refresh').addEventListener('click',refresh);

@@ -5,6 +5,7 @@ import json
 import re
 import sqlite3
 import threading
+from collections import Counter
 from contextlib import closing
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, localcontext
@@ -257,6 +258,7 @@ class Sources:
     def catalog(self):
         entries = {}
         for family, pattern in (("paper", "artifacts/market-paper/*/manifest.json"),
+                                ("paired", "artifacts/paired-paper/*/protocol.json"),
                                 ("portfolio", "artifacts/portfolio-ai/*/manifest.json"),
                                 ("historical", "artifacts/evaluation/*/manifest.json")):
             for path in sorted(self.root.glob(pattern), reverse=True)[:60]:
@@ -271,7 +273,7 @@ class Sources:
         freshness = "PAPER" if "PAPER" in (kind or "") else "HISTORICAL"
         result.update(source="LOCAL_ARCHIVED_MANIFEST", evidence_kind=ident(kind), run_id=key,
                       revision=ident(data.get("revision")), sha256=sha,
-                      observed_at=timestamp(data.get("created_at_utc", data.get("created_at"))),
+                      observed_at=timestamp(data.get("created_at_utc", data.get("created_at", data.get("started_at")))),
                       warnings=["ARCHIVED_NOT_CURRENT_WORKER", "BINDINGS_NOT_REVALIDATED_AGAINST_CHECKOUT"],
                       gate=ident(data.get("primary_status", data.get("selection_status", data.get("status")))),
                       mode=mode, freshness=freshness,
@@ -288,7 +290,7 @@ class Sources:
             try:
                 data, sha = self.read(path)
                 meta = self.meta(key, data, sha)
-                if key.startswith("portfolio:") or key.startswith("paper:"):
+                if key.startswith(("portfolio:", "paper:", "paired:")):
                     datasets = ["bound-dataset"]
                 else:
                     datasets = [name for name in data.get("results", {}) if ident(name)]
@@ -304,7 +306,29 @@ class Sources:
             raise KeyError("unknown run")
         data, sha = self.read(self.catalog()[run])
         meta = self.meta(run, data, sha)
-        if run.startswith("portfolio:") or run.startswith("paper:"):
+        if run.startswith("paired:"):
+            if dataset != "bound-dataset":
+                raise KeyError("unknown dataset")
+            if (data.get("evidence_kind") != "PROSPECTIVE_SHARED_INPUT_PAPER_ENTRY_ABLATION"
+                    or data.get("run_id") != run.split(":", 1)[1]
+                    or data.get("arms") != ["cash", "hold", "rule", "boxapi", "apmix"]
+                    or not digest(data.get("source_sha256"))):
+                raise ValueError("invalid paired protocol")
+            arms, hashes = {}, {}
+            for name in ("hold", "rule", "boxapi", "apmix"):
+                child, child_sha = self.read(self.catalog()[run].parent / name / "manifest.json")
+                if child.get("run_id") != data["run_id"] + "-" + name:
+                    raise ValueError("paired child run binding")
+                arms[name] = child["arms"]["paper_portfolio"]
+                hashes[name] = child_sha
+            meta["sha256"] = hashlib.sha256(json.dumps(
+                dict(protocol=sha, manifests=hashes), sort_keys=True).encode()).hexdigest()
+            meta["protocol_sha256"] = sha
+            meta["bindings"]["code_sha256"] = data["source_sha256"]
+            meta["warnings"].append("PAIRED_CHILD_HASHES_READ_SEPARATELY_NOT_AN_ATOMIC_CHECKPOINT")
+            acceptance = dict(sha256=None, start=timestamp(data.get("started_at")),
+                              end=timestamp(data.get("deadline")))
+        elif run.startswith(("portfolio:", "paper:")):
             if dataset != "bound-dataset":
                 raise KeyError("unknown dataset")
             arms = data.get("arms", {})
@@ -326,13 +350,28 @@ class Sources:
         output = []
         signatures = []
         for name, arm in arms.items():
+            traces = bounded_list(arm.get("decision_traces"))
+            diagnostics = Counter()
+            for trace in traces:
+                outcome = trace.get("model_trace", {}).get("host_outcome")
+                action = trace.get("decision", {}).get("action")
+                if outcome == "HOST_FALLBACK":
+                    diagnostics["host_fallbacks"] += 1
+                elif outcome == "MODEL_DECISION":
+                    diagnostics["valid_model_decisions"] += 1
+                    if action == "WAIT":
+                        diagnostics["valid_model_waits"] += 1
+                    elif action == "ENTER":
+                        diagnostics["valid_model_enters"] += 1
             row = dict(name=name, symbol=ident(arm.get("symbol")), evidence_kind=ident(arm.get("evidence_kind")),
                        metrics={k: decimal(arm.get(k)) for k in METRICS},
                        counts={k: count(arm.get(k)) for k in COUNTS}, curve=[],
                        execution_model=text(arm.get("execution_model")),
                        benchmark_contract=text(arm.get("benchmark_contract")),
                        pnl_contract=text(arm.get("pnl_contract")), drawdown_basis=text(arm.get("drawdown_basis")),
-                       latest_balances=None, peak_equity_tmn=None, latest_unrealized_pnl_tmn=None)
+                       latest_balances=None, peak_equity_tmn=None, latest_unrealized_pnl_tmn=None,
+                       decision_diagnostics={key: diagnostics[key] for key in
+                           ("host_fallbacks", "valid_model_decisions", "valid_model_waits", "valid_model_enters")})
             peak = None
             for point in bounded_list(arm.get("equity_curve")):
                 equity = decimal(point.get("net_equity_tmn"), negative=False)
@@ -356,7 +395,7 @@ class Sources:
                                arm.get("execution_model"), arm.get("drawdown_basis"),
                                tuple(p["observed_at"] for p in row["curve"])))
             output.append(row)
-        comparable = bool(signatures and signatures[0][0] and signatures[0][-1]
+        comparable = bool(not run.startswith("paired:") and signatures and signatures[0][0] and signatures[0][-1]
                           and all(s == signatures[0] for s in signatures))
         meta.update(dataset=dataset, acceptance=acceptance, arms=output, comparable=comparable,
                     units=dict(money="TMN", base="asset symbol in balances", drawdown="percent"),
@@ -417,6 +456,8 @@ class Sources:
                                and snapshot.get("symbol") == decision.get("symbol")
                                and snapshot.get("cutoff") == decision.get("cutoff"))
                 row_item = dict(decision_id=did, symbol=ident(decision.get("symbol")),
+                                 decision_origin=ident(trace.get("model_trace", {}).get("host_outcome")),
+                                 host_validation_code=ident(trace.get("model_trace", {}).get("host_validation_code")),
                                  action=ident(decision.get("action")), reason=text(decision.get("reason")),
                                  observed_at=timestamp(decision.get("cutoff")), snapshot_sha256=snap_hash,
                                  evidence_ids=[ident(v) for v in bounded_list(decision.get("evidence_ids"))][:25],
@@ -464,6 +505,51 @@ class Sources:
                     next_offset=offset + limit if offset + limit < len(rows) else None,
                     units=dict(price="TMN for USDTTMN", quantity="USDT for USDTTMN", fee="fee_asset"))
         return meta
+
+    def paired_status(self):
+        result = envelope(run_state="UNKNOWN", deadline=None, started_at=None, cycle=None, public_gets=None)
+        candidates = []
+        for key, path in self.catalog().items():
+            if not key.startswith("paired:"):
+                continue
+            try:
+                protocol, sha = self.read(path)
+                started = timestamp(protocol.get("started_at"))
+                if (protocol.get("run_id") != key.split(":", 1)[1] or not started
+                        or protocol.get("evidence_kind") != "PROSPECTIVE_SHARED_INPUT_PAPER_ENTRY_ABLATION"):
+                    raise ValueError("paired protocol")
+                candidates.append((started, key, path, protocol, sha))
+            except (OSError, ValueError, TypeError, AttributeError):
+                continue
+        if not candidates:
+            return result
+        started, key, path, protocol, sha = max(candidates, key=lambda row: row[0])
+        result.update(run_id=key, source="PAIRED_PAPER_COORDINATOR", evidence_kind=protocol["evidence_kind"],
+                      revision=ident(protocol.get("revision")), started_at=started,
+                      deadline=timestamp(protocol.get("deadline")), protocol_sha256=sha)
+        try:
+            progress, progress_sha = self.read(path.parent / "progress.json")
+            observed = timestamp(progress.get("updated_at"))
+            if not observed:
+                raise ValueError("missing paired heartbeat")
+            age = (datetime.now(UTC) - datetime.fromisoformat(observed)).total_seconds()
+            result.update(status="INVALID" if age < 0 else "STALE" if age > 120 else "AVAILABLE",
+                          run_state=ident(progress.get("status")), observed_at=observed,
+                          sha256=progress_sha, cycle=count(progress.get("cycle")),
+                          public_gets=count(progress.get("public_gets")),
+                          warnings=["RECORDED_PROGRESS_NOT_PROCESS_ATTESTATION", "PAPER_NOT_EXCHANGE_ACCOUNT"])
+            if (path.parent / "report.json").is_file():
+                terminal, terminal_sha = self.read(path.parent / "report.json")
+                if (terminal.get("protocol") != protocol
+                        or terminal.get("status") not in ("STOPPED_FLAT", "STOPPED_OPEN")
+                        or timestamp(terminal.get("finished_at")) is None):
+                    raise ValueError("terminal paired binding")
+                result.update(status="AVAILABLE", run_state=terminal["status"], sha256=terminal_sha,
+                              observed_at=timestamp(terminal.get("finished_at")),
+                              warnings=["TERMINAL_REPORT_NOT_PROCESS_ATTESTATION", "PAPER_NOT_EXCHANGE_ACCOUNT"])
+        except (OSError, ValueError, TypeError, AttributeError):
+            result.update(status="UNAVAILABLE", run_state="UNKNOWN", warnings=["PAIRED_PROGRESS_UNAVAILABLE"])
+        return result
 
     def overview(self):
         observation = envelope()
@@ -631,6 +717,7 @@ class Sources:
         result = envelope("AVAILABLE")
         result.update(server="SERVER_AVAILABLE", server_time=datetime.now(UTC).isoformat(),
                       observation=observation, account=account, engine_snapshot=engine_snapshot,
+                      paired_test=self.paired_status(),
                       reservation=usage, archived_usage=review, model=diagnostic, reflections=reflections,
                       risk=dict(status="UNAVAILABLE", stop=None, kill_switch=None),
                       warnings=["CANDIDATE_APPROVAL_NOT_ATTESTED", "DASHBOARD_IS_READ_ONLY"])

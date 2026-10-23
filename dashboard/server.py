@@ -14,7 +14,9 @@ except ImportError:
 ASSETS = Path(__file__).resolve().parent / "static"
 ROUTES = {"/": ("index.html", "text/html; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
-          "/style.css": ("style.css", "text/css; charset=utf-8")}
+          "/style.css": ("style.css", "text/css; charset=utf-8"),
+          "/fonts/Vazirmatn-Variable.woff2": ("fonts/Vazirmatn-Variable.woff2", "font/woff2"),
+          "/fonts/InterVariable.woff2": ("fonts/InterVariable.woff2", "font/woff2")}
 
 
 def handler_for(sources):
