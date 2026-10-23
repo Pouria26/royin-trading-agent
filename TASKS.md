@@ -1,3 +1,7 @@
+## اصلاح وقفهٔ shared-book — ۲۳ اکتبر
+
+run اول349e136 پس از۱۰۴ثانیه و۱۳GET، باTypeError تبدیل Decimal، صفرسفارش و STOPPED_FLAT/PARTIAL پایان یافت؛ هر دو مدل یک WAIT معتبر دادند. خطای کپی/hash book در runner رفع و شش book واقعی آفلاین بررسی شد؛ regression نوع Decimal در unit/integration افزوده شد.۳۱تست مرتبط و full suite تازه،۴۴۷تست در۵۷٫۱۸۶ثانیه پاس؛ Ruff/compileall/diff پاس. failure مستقل harness مرگ worker ویندوز با اجرای مستقیم مفسر پایه رفع شد؛ قفل واقعی دست‌نخورده است. قبل از run2، نتیجهٔ suite و commit را بررسی کنید. هیچ reset/سفارش مالی انجام نشد.
+
 ## فاز جاری — مقایسهٔ مشترک ورود، ۲۳ اکتبر ۲۰۲۶
 
 DONE برای پیاده‌سازی و آزمون آفلاین: coordinator مستقل paper با cash/hold/rule/GPT/Claude، داده و book مشترک، ledger جدا، horizon۳۰دقیقه و خروج مستقل از مدل. ایراد ثبت‌نشدن سفارش فروش نهایی PaperBroker در جدول پایدار با تست rollback اصلاح شد؛ replay اکنون PnL هر round-trip و نتیجهٔ حذف بهترین معامله را می‌دهد. ۴۴۷ هسته در۵۸٫۱۷۵ثانیه و۱۱داشبورد در۱٫۸۲۲ثانیه پاس؛ Ruff/compileall/self-check/config پاس. این‌ها تست مصنوعی‌اند، نه سود بازار.

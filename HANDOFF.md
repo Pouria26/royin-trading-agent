@@ -1,3 +1,7 @@
+## وقفهٔ run اول و ادامهٔ تازه — ۲۳ اکتبر
+
+paired-entry-forward-20261023-1 روی349e136 با۰سفارش،۱۳GET وTypeError عددی book در۱۰۴ثانیهSTOPPED_FLAT/PARTIAL شد؛ مصرف/manifest اصلی حفظ شدند. Decimal copy/hash و harness PID ویندوز اصلاح،۴۴۷تست در۵۷٫۱۸۶ثانیه پاس شد. run بعدی شناسهٔ تازه می‌خواهد؛ پیش از edit، artifacts/paired-paper وPID واقعی را چک کنید. SOL smoke موعدرسیده−۰٫۹۱٪ دربرابرq50+۰٫۶٪ بود و از baselineصفر ضعیف‌تر شد؛ سودآوری ثابت نشده است.
+
 ## وضعیت مقدم — مقایسهٔ prospective ورود، ۲۳ اکتبر ۲۰۲۶
 
 مسیر مقایسهٔ کاغذی shared-input/shared-book اضافه و ۴۴۷ تست هسته/۱۱داشبورد پاس شد؛ [قرارداد دقیق و فرمان اجرا](docs/paired-entry-evaluation.md). پیش از تغییر، process و artifacts/paired-paper را بررسی کنید: run فعال source منجمد دارد. این یادداشت به‌تنهایی شروع/پایان worker را ثابت نمی‌کند؛ protocol/progress/report و PID باید خوانده شوند. چهار arm مستقل و cash، entry-only و خروج host هستند، نه اجرای کامل Position Reviewer.

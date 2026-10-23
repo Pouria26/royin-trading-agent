@@ -15,6 +15,7 @@ import sqlite3
 import subprocess
 import time
 from contextlib import ExitStack
+from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
@@ -132,7 +133,7 @@ class SharedBooks:
         if not 0 <= int(time.time()) - received <= 60:
             raise ValueError("Shared execution book expired")
         # A caller cannot mutate the book seen by another arm.
-        return json.loads(json.dumps(payload)), received
+        return deepcopy(payload), received
 
 
 async def protect(arms, feed):
@@ -311,7 +312,7 @@ async def entry_round(arms, feed, report, output, round_id, *, should_stop=None)
                 symbol: dict(
                     received_at=value[1],
                     sha256=hashlib.sha256(
-                        json.dumps(value[0], sort_keys=True).encode()
+                        json.dumps(value[0], sort_keys=True, default=str).encode()
                     ).hexdigest(),
                 )
                 for symbol, value in books.books.items()

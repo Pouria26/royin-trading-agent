@@ -1,3 +1,7 @@
+## ۲۰۲۶-۱۰-۲۳ — Decimal در دادهٔ واقعی و PID مالک lock
+
+decoder عمومی ممکن است عدد JSON را به Decimal تبدیل کند؛ deepcopy برای اشتراک مستقل book نوع/دقت را حفظ می‌کند، JSON round-trip بدون encoder خطاست. runner مقایسه روی349e136 با همین TypeError پس از۱۰۴ثانیه،۱۳GET و صفرسفارش متوقف شد؛ این خروجی اقتصادی معتبر نیست. شش book واقعی آفلاین سازگار و regression نوع عددی در unit/integration پاس شد. sys.executable در venv ویندوز launcher با PID متفاوت بود؛ تست crash باید مفسر پایه را با source path صریح اجرا کند تا child.kill واقعاً صاحب lock را متوقف کند. تغییر فقط harness است، نه افزودن retry یا تضعیف قفل production.
+
 ## ۲۰۲۶-۱۰-۲۳ — ثبت سفارش خروج و ارزیابی مشترک ورود
 
 تست کامل coordinator→ledger→manifest→replay آشکار کرد finalize_portfolio سفارش SELL نهایی را فقط در حافظه می‌ساخت؛ بازیابی پس از تراکنش آن را حذف می‌کرد، با وجود ثبت fill در ledger. INSERT سفارش به همان تراکنش اضافه شد؛ خرابی INSERT باید کل intent/fill/cash/stop را rollback کند. ۴۴۷تست هسته/۱۱داشبورد پاس‌اند. این اصلاح paper است، نه حل UNKNOWN مالی.

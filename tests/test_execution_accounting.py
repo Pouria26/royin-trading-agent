@@ -214,9 +214,11 @@ class ExecutionAccountingTests(unittest.TestCase):
             second.worker(),
         ):
             self.fail("second worker entered")
-        code = "from royin.ledger import Ledger; import sys,time; l=Ledger(sys.argv[1]);\nwith l.worker():\n print('LOCKED',flush=True); time.sleep(30)"
+        code = "import sys; sys.path.insert(0,sys.argv.pop(1)); from royin.ledger import Ledger; import time; l=Ledger(sys.argv[1]);\nwith l.worker():\n print('LOCKED',flush=True); time.sleep(30)"
+        # Windows venv python.exe may redirect to a second process; kill the actual lock owner.
         child = subprocess.Popen(
-            [sys.executable, "-c", code, str(self.path)],
+            [getattr(sys, "_base_executable", sys.executable), "-c", code,
+             str(Path(__file__).resolve().parents[1] / "src"), str(self.path)],
             stdout=subprocess.PIPE,
             text=True,
         )

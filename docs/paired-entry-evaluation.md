@@ -33,3 +33,11 @@
 تست integration همین مسیر آشکار کرد که `PaperBroker.finalize_portfolio` fill فروش نهایی را در ledger ثبت می‌کرد، ولی سفارش فروش را در جدول `broker_orders` پایدار نمی‌کرد؛ بازیابی حافظه آن را حذف و replay کامل را ناسازگار می‌کرد. INSERT سفارش اکنون در همان تراکنش fill، intent و حفاظت است. تست خرابی درج، rollback پول/موجودی/سود/intent/fill/stop را بررسی می‌کند؛ تست کامل coordinator نیز manifest تا replay را پوشش می‌دهد. این اصلاح مربوط به paper است و UNKNOWN مالی قبلی را حل نمی‌کند.
 
 اعتبارسنجی این فاز: ۴۴۷ تست هسته در ۵۸٫۱۷۵ ثانیه و ۱۱ تست داشبورد در ۱٫۸۲۲ ثانیه پاس؛ Ruff قفل‌شده، compileall، چهار self-check و config نمونه پاس. تست‌های جدید مصنوعی‌اند؛ نتیجهٔ provider/بازار تازه باید از artifact اجرای واقعی خوانده شود.
+
+## وقفهٔ نخست و اصلاح قرارداد عددی
+
+`paired-entry-forward-20261023-1` روی349e136 با۱۳GET عمومی، یک WAIT معتبر از هر مدل و صفر سفارش/fill پس از۱۰۴ثانیه `STOPPED_FLAT/PARTIAL` شد. خروجی قبلی و مصرف مدل حذف یا reset نشدند. book واقعی Wallex quantity/price عددی دارد که decoder به Decimal تبدیل می‌کند؛ کپی با json.dumps و hash همان شیء TypeError ایجاد می‌کرد. hold در این run به همین خطای میزبان رد شد؛ پس مقایسهٔ اقتصادی معتبر حاصل نشد.
+
+کپی با deepcopy مقدار و نوع Decimal را حفظ می‌کند؛ hash JSON ضبط‌شده Decimal را با رشتهٔ دقیق نمایش می‌دهد. تست مشترک و integration ابتدا دادهٔ رشته‌ای داشتند؛ اکنون Decimal را در هر دو مسیر دارند. regression ابتدا قرمز و سپس پاس شد؛ شش book واقعی ذخیره‌شده نیز آفلاین، با۰HTTP/۰سفارش بررسی شدند. یک failure مستقل تست مرگ worker هم نشان داد launcher محیط مجازی Windows PID جدا از مفسر صاحب lock دارد؛ harness اکنون مفسر پایه و source path صریح را اجرا می‌کند تا kill همان صاحب lock باشد. منطق قفل production ضعیف نشد. ۳۱ تست مرتبط در۴٫۰۲۹ثانیه پاس شدند؛ log نخستین failure محفوظ است. اجرای بعدی الزاماً run ID و revision تازه دارد.
+
+پس از اصلاح Decimal و harness، مجموعهٔ کامل دوباره۴۴۷تست در۵۷٫۱۸۶ثانیه پاس شد؛ Ruff/compileall/diff نیز پاس.

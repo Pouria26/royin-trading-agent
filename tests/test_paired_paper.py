@@ -82,8 +82,8 @@ class SharedPaperExecutionTests(unittest.TestCase):
                     {
                         "success": True,
                         "result": {
-                            "bid": [{"price": "100.99", "quantity": "100000"}],
-                            "ask": [{"price": "101", "quantity": "100000"}],
+                            "bid": [{"price": D("100.99"), "quantity": D("100000.25")}],
+                            "ask": [{"price": D("101"), "quantity": D("100000.25")}],
                         },
                     },
                     8105,
@@ -134,7 +134,7 @@ class SharedPaperExecutionTests(unittest.TestCase):
         original = {
             "success": True,
             "result": {
-                "bid": [{"price": "100", "quantity": "10"}],
+                "bid": [{"price": D("100.125"), "quantity": D("10.25")}],
                 "ask": [{"price": "101", "quantity": "10"}],
             },
         }
@@ -145,7 +145,8 @@ class SharedPaperExecutionTests(unittest.TestCase):
             first, _ = common.get("/v1/depth", {"symbol": "ETHTMN"}, cutoff=8105)
             first["result"]["bid"][0]["price"] = "999"
             second, _ = common.get("/v1/depth", {"symbol": "ETHTMN"}, cutoff=8105)
-            self.assertEqual(second["result"]["bid"][0]["price"], "100")
+            self.assertEqual(second["result"]["bid"][0]["price"], D("100.125"))
+            self.assertIsInstance(second["result"]["bid"][0]["quantity"], D)
         with patch("time.time", return_value=8166), self.assertRaisesRegex(ValueError, "expired"):
             common.get("/v1/depth", {"symbol": "ETHTMN"}, cutoff=8166)
         self.assertEqual(feed.get.call_count, 1)
@@ -231,8 +232,8 @@ class SharedPaperExecutionTests(unittest.TestCase):
                     {
                         "success": True,
                         "result": {
-                            "bid": [{"price": "100.99", "quantity": "100000"}],
-                            "ask": [{"price": "101", "quantity": "100000"}],
+                            "bid": [{"price": D("100.99"), "quantity": D("100000.25")}],
+                            "ask": [{"price": D("101"), "quantity": D("100000.25")}],
                         },
                     },
                     8105,
