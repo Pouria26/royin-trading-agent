@@ -156,6 +156,11 @@ class RoleRunEnvelope:
         self.contract_sha256 = service_contract.sha256 if service_contract else None
         if service_contract and not budget.is_priced_usd:
             self.agent_limit = service_contract.max_role_decisions
+        if service_contract and budget.credit_id:
+            self.agent_limit = service_contract.max_role_decisions
+            self.cost_limit_usd = budget.total_limit
+            self.contract_sha256 = hashlib.sha256(
+                (service_contract.sha256 + ":" + budget.credit_id).encode()).hexdigest()
         if self.scope_id is not None:
             age = self._durable_claim()
             self.started -= age

@@ -1,3 +1,11 @@
+## Funded BoxAPI continuation — 2026-10-23, evening
+
+Operator selects BoxAPI only and authorizes95% of newly reported USD2.9709 credit: USD2.822355 maximum, gpt-6-luna. Separate credential-bound allocation is appended to ORIGINAL BoxAPI ledger;303 prior reservations and old2.40/.80 limits remain. New service uses15minute durable entry cadence,30second host risk polling, max323 roles/647HTTP,22M tokens and1.10USD Tehran-day cap. No spend is refunded or manufactured. See docs/funded-boxapi-runtime.md.
+
+Actual prior Liara324a74a release/disk/UID/restart passed infrastructure checks, but APMix production inputs timed out; same fixed six-case server comparison gave no qualified APMix/River model. A small identical-input APMix local diagnostic succeeded while server failed; root cause remains unconfirmed. Alternative experiments stopped. Mission6 is retained with stale RUNNING metadata after maintenance restart; actual maintenance=true, exclusive owner lock free, zero financial orders/fills. Do not rewrite that historical metadata to invent graceful completion.
+
+New source validation:491 core tests in173.991s and13 dashboard tests in1.926s passed; Ruff, compileall, example config and diff checks passed. Funded-key regressions preserve legacy consumption, bind credentials, reject duplicate/missing initialization, enforce exact cap across midnight/concurrency and retain restart cadence. New BoxAPI server run is not yet activated at this checkpoint. Next: committed allowlisted release, append funded allocation once on the persistent disk, prepare new Linux-bound mission7, activate one worker and verify actual BoxAPI output/financial counts. No Git push.
+
 ## Real provider and server observations — 2026-10-23, 17:44 Tehran
 
 Mission4 produced an actual APMix read-tool request selecting10 markets, but all researched rows were rejected STALE_INPUT; this was data freshness, not a valid model WAIT or alpha evidence. Captured catalog/history cache timestamps could age beyond60s during post-model collection. The corrected research path explicitly refreshes all four public input types; the existing60s freshness and same-cutoff gates remain unchanged. A regression proves an aging cached catalog is rejected while fresh collection succeeds. Mission4 stopped PAUSED_RESTART, zero orders/fills; its one model reservation remains consumed.

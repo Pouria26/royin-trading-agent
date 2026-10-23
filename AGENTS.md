@@ -1,3 +1,7 @@
+## Latest model authority — 2026-10-23, evening
+
+Operator selects BoxAPI only; stop alternative-provider experiments. A distinct new key has reported USD2.9709 credit and explicit95% spending authorization: maximum USD2.822355. Append a credential-bound funded allocation to ORIGINAL data/llm-budget.sqlite3; retain all303 historical reservations, original key limits and external usage. Missing ledger/allocation blocks before HTTP; changing keys is not a reset. Funded multi-day contract uses900s entry analysis and30s host risk polling. Existing scope limits remain durable. See docs/funded-boxapi-runtime.md. Actual deployment/model verification must be read from current receipts, not inferred from this note.
+
 ## Latest financial authority — 2026-10-23
 
 The operator now authorizes the new independent VOLATILITY_CAPITAL_V1 mission; see docs/dynamic-capital-policy.md. Historical fixed-new-lane150k-only statements below are superseded for this explicit permit; first actual round-trip stays capped150k. Preserve original UNKNOWN/reserve/counter8 and budgets. One position, risk-based sizing; no calibrated-probability claim.

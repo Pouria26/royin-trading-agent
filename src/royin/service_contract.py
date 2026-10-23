@@ -21,7 +21,7 @@ class ServiceContract(BaseModel):
     finalize_start_at: AwareDatetime
     credit_expires_at: AwareDatetime | None = None
     poll_seconds: Literal[15, 30, 60] = 30
-    analysis_interval_seconds: Literal[300] = 300
+    analysis_interval_seconds: Literal[300, 900, 1200] = 300
     max_public_gets: int = Field(default=40000, ge=64, le=50000, strict=True)
     max_role_decisions: int = Field(default=1200, ge=1, le=2304, strict=True)
     max_debit_tmn: Decimal = Field(

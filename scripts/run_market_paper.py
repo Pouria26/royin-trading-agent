@@ -753,7 +753,8 @@ class MarketPaperOrchestrator:
             # Claim before I/O, including failures; bucket boundaries/restart grant no new call.
             with self.ledger.transaction():
                 self.ledger.set_meta("last_entry_cutoff",str(cutoff))
-                self.ledger.set_meta("next_entry_analysis_at",str(now+300))
+                cadence = self.service_contract.analysis_interval_seconds if self.service_contract else 300
+                self.ledger.set_meta("next_entry_analysis_at",str(now+cadence))
             await self._handle_entry_cycle(feed, now)
 
     async def _handle_entry_cycle(self, feed: ScannerPublicFeed, now: int):

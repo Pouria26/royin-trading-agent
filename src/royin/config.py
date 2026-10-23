@@ -35,6 +35,7 @@ class RuntimeConfig(BaseModel):
     LLM_BASE_URL: str = "https://ai.boxapi.ir/ai/v1"
     LLM_MODEL: str = "gpt-6-luna"
     BOXAPI_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    BOXAPI_CREDIT_ID: str | None = Field(default=None, pattern=r"^[a-z0-9_-]{1,64}$")
     DEVORA_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     DAHL_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     RIVER_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
@@ -52,7 +53,7 @@ class RuntimeConfig(BaseModel):
     ARTIFACTS_DIR: Path = Path("artifacts")
 
     @field_validator(
-        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY", "DEVORA_API_KEY", "DAHL_API_KEY",
+        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY", "BOXAPI_CREDIT_ID", "DEVORA_API_KEY", "DAHL_API_KEY",
         "RIVER_API_KEY", "APMIX_API_KEY", "CODECRAFT_API_KEY",
         "LLM_TOKEN_BUDGET", "LLM_COST_BUDGET", "LLM_COST_CURRENCY",
         "CHALLENGE_END_AT", "FINALIZE_START_AT", "SUBMISSION_DEADLINE_AT", "TRADING_END_AT", "CREDIT_EXPIRES_AT", mode="before",
@@ -125,6 +126,8 @@ class RuntimeConfig(BaseModel):
 
     @model_validator(mode="after")
     def closed_gates(self):
+        if self.BOXAPI_CREDIT_ID and (self.LLM_PROVIDER != "boxapi" or not self.BOXAPI_API_KEY):
+            raise ValueError("A funded BoxAPI allocation requires its own selected credential")
         if (PROVIDER_ORIGINS[self.LLM_PROVIDER] != self.LLM_BASE_URL
                 or self.LLM_MODEL not in PROVIDER_MODELS[self.LLM_PROVIDER]):
             raise ValueError("Model and exact HTTPS origin must match the selected provider")

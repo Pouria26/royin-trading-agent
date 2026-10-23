@@ -24,6 +24,9 @@ class ModelBudget:
         self.audit = audit
         self.config = config
         self.is_priced_usd = config.LLM_PROVIDER == "boxapi"
+        self.credit_id = config.BOXAPI_CREDIT_ID if self.is_priced_usd else None
+        if self.credit_id and not require_existing:
+            raise BudgetBlocked("Funded credit requires the original durable ledger")
         name = "llm-budget.sqlite3" if self.is_priced_usd else f"{config.LLM_PROVIDER}-model-usage.sqlite3"
         self.path = Path(path) if path is not None else ROOT / "data" / name
         self.require_existing = require_existing
@@ -52,12 +55,19 @@ class ModelBudget:
             or (config.LLM_COST_BUDGET is None or config.LLM_TOKEN_BUDGET is None)
         ):
             raise BudgetBlocked("Explicit USD and token budgets are required")
-        self.total_limit = min(decimal_number(p["total_limit_usd"]), config.LLM_COST_BUDGET)
-        if not 0 < self.total_limit <= Decimal("2.40"):
-            raise BudgetBlocked("Budget must preserve at least USD 0.60 of the reported USD 3")
-        self.daily_limit = decimal_number(p["daily_limit_usd"])
-        if not 0 < self.daily_limit <= Decimal("0.80"):
-            raise BudgetBlocked("Daily budget exceeds the three-day allocation")
+        if self.credit_id:
+            with closing(self.connect()) as db:
+                grant = self._credit(db)
+            self.total_limit = min(Decimal(grant[1]) / 1_000_000_000, config.LLM_COST_BUDGET)
+            self.daily_limit = Decimal(grant[2]) / 1_000_000_000
+            self.policy.update({k: p["funded_credit"][k] for k in ("max_requests_total", "max_requests_daily")})
+        else:
+            self.total_limit = min(decimal_number(p["total_limit_usd"]), config.LLM_COST_BUDGET)
+            if not 0 < self.total_limit <= Decimal("2.40"):
+                raise BudgetBlocked("Budget must preserve at least USD 0.60 of the reported USD 3")
+            self.daily_limit = decimal_number(p["daily_limit_usd"])
+            if not 0 < self.daily_limit <= Decimal("0.80"):
+                raise BudgetBlocked("Daily budget exceeds the three-day allocation")
         rate = p["rates_per_million"][config.LLM_MODEL]
         self.input_rate = decimal_number(rate["input"], positive=True)
         self.output_rate = decimal_number(rate["output"], positive=True)
@@ -90,6 +100,14 @@ class ModelBudget:
 
     def validate_durable(self, db):
         self.validate_existing(db,allow_empty=not self.is_priced_usd)
+        if self.credit_id:
+            self._credit(db)
+        elif self.is_priced_usd and db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='boxapi_credits'").fetchone():
+            key = self.config.model_api_key
+            fingerprint = hashlib.sha256(key.get_secret_value().encode()).hexdigest() if key else None
+            if db.execute("SELECT 1 FROM boxapi_credits WHERE credential_sha256=?", (fingerprint,)).fetchone():
+                raise BudgetBlocked("Funded BoxAPI key requires its original credit allocation")
         try:
             binding = dict(db.execute("SELECT key,value FROM provider_usage_binding"))
         except sqlite3.OperationalError:
@@ -106,6 +124,68 @@ class ModelBudget:
         if any(row[0] not in PROVIDER_MODELS[self.config.LLM_PROVIDER]
                 for row in db.execute("SELECT DISTINCT model FROM model_reservations")):
             raise BudgetBlocked("BLOCKED_INVALID_DURABLE_STATE: model belongs to another provider")
+
+    def _credit(self, db):
+        try:
+            row = db.execute("SELECT credential_sha256,limit_nano_usd,daily_nano_usd,token_limit "
+                "FROM boxapi_credits WHERE credit_id=?", (self.credit_id,)).fetchone()
+            columns = {r[1] for r in db.execute("PRAGMA table_info(model_reservations)")}
+        except sqlite3.Error:
+            raise BudgetBlocked("BLOCKED_MISSING_DURABLE_STATE: funded BoxAPI allocation") from None
+        key = self.config.model_api_key
+        fingerprint = hashlib.sha256(key.get_secret_value().encode()).hexdigest() if key else None
+        funded = json.loads(POLICY_PATH.read_bytes())["funded_credit"]
+        cap = decimal_number(funded["max_reported_credit_usd"]) * decimal_number(funded["spend_fraction"])
+        if (not row or row[0] != fingerprint or "credit_id" not in columns
+                or any(type(n) is not int or n <= 0 for n in row[1:])
+                or Decimal(row[1]) > cap * 1_000_000_000
+                or Decimal(row[2]) > decimal_number(funded["daily_limit_usd"]) * 1_000_000_000):
+            raise BudgetBlocked("BLOCKED_INVALID_DURABLE_STATE: funded provider/key/limit binding")
+        return row
+
+    @staticmethod
+    def initialize_boxapi_credit(config, path, *, reported_credit_usd, reason):
+        """Append a separately funded key allowance to the original ledger; never reset spend."""
+        import re
+
+        if (config.LLM_PROVIDER != "boxapi" or not config.BOXAPI_CREDIT_ID or not config.model_api_key
+                or not isinstance(reason, str) or not re.fullmatch(r"[a-z0-9-]{1,64}", reason)
+                or config.LLM_COST_CURRENCY != "USD" or not config.LLM_TOKEN_BUDGET):
+            raise BudgetBlocked("Explicit funded BoxAPI authorization required")
+        funded = json.loads(POLICY_PATH.read_bytes())["funded_credit"]
+        reported = decimal_number(reported_credit_usd, positive=True)
+        if reported > decimal_number(funded["max_reported_credit_usd"]):
+            raise BudgetBlocked("Reported credit exceeds the authorized policy")
+        cap = reported * decimal_number(funded["spend_fraction"])
+        if config.LLM_COST_BUDGET is None or not 0 < config.LLM_COST_BUDGET <= cap:
+            raise BudgetBlocked("Funded spending must preserve five percent of reported credit")
+        # mode=rw deliberately refuses a missing original database.
+        try:
+            db = sqlite3.connect(Path(path).resolve().as_uri()+"?mode=rw", uri=True, timeout=2)
+        except sqlite3.Error:
+            raise BudgetBlocked("BLOCKED_MISSING_DURABLE_STATE: original BoxAPI ledger") from None
+        with closing(db), db:
+            db.execute("PRAGMA synchronous=FULL")
+            db.execute("BEGIN IMMEDIATE")
+            ModelBudget.validate_existing(db)
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='provider_usage_binding'").fetchone():
+                raise BudgetBlocked("External usage cannot replace the original BoxAPI ledger")
+            db.execute("CREATE TABLE IF NOT EXISTS boxapi_credits (credit_id TEXT PRIMARY KEY,"
+                "credential_sha256 TEXT NOT NULL UNIQUE,limit_nano_usd INTEGER NOT NULL,"
+                "daily_nano_usd INTEGER NOT NULL,token_limit INTEGER NOT NULL,"
+                "reason TEXT NOT NULL,authorized_at TEXT NOT NULL)")
+            if "credit_id" not in {r[1] for r in db.execute("PRAGMA table_info(model_reservations)")}:
+                db.execute("ALTER TABLE model_reservations ADD COLUMN credit_id TEXT")
+            try:
+                db.execute("INSERT INTO boxapi_credits VALUES (?,?,?,?,?,?,?)", (
+                    config.BOXAPI_CREDIT_ID, hashlib.sha256(config.model_api_key.get_secret_value().encode()).hexdigest(),
+                    int(config.LLM_COST_BUDGET * 1_000_000_000),
+                    int(decimal_number(funded["daily_limit_usd"]) * 1_000_000_000),
+                    config.LLM_TOKEN_BUDGET, reason, datetime.now(UTC).isoformat()))
+            except sqlite3.IntegrityError:
+                raise BudgetBlocked("Funded key or allocation already exists; restore and continue it") from None
+        return dict(status="APPENDED_FUNDED_BOXAPI_CREDIT", limit_usd=str(config.LLM_COST_BUDGET),
+            reservations_reset=False)
 
     @staticmethod
     def initialize_provider_state(config, path):
@@ -144,15 +224,20 @@ class ModelBudget:
                 db.execute("""CREATE TABLE IF NOT EXISTS model_reservations (
                     id INTEGER PRIMARY KEY, day TEXT NOT NULL, nano_usd INTEGER NOT NULL,
                     tokens INTEGER NOT NULL, model TEXT NOT NULL, policy_hash TEXT NOT NULL)""")
+            columns = {r[1] for r in db.execute("PRAGMA table_info(model_reservations)")}
+            where, args = (" WHERE credit_id=?", (self.credit_id,)) if self.credit_id else (
+                (" WHERE credit_id IS NULL", ()) if "credit_id" in columns else ("", ()))
             total, total_tokens, count = db.execute(
                 "SELECT COALESCE(SUM(nano_usd),0),COALESCE(SUM(tokens),0),COUNT(*) "
-                "FROM model_reservations"
+                "FROM model_reservations" + where, args
             ).fetchone()
             daily, daily_count = db.execute(
-                "SELECT COALESCE(SUM(nano_usd),0),COUNT(*) FROM model_reservations WHERE day=?",
-                (day,),
+                "SELECT COALESCE(SUM(nano_usd),0),COUNT(*) FROM model_reservations" + where
+                + (" AND" if where else " WHERE") + " day=?", (*args, day),
             ).fetchone()
             token_limit = self.config.LLM_TOKEN_BUDGET
+            if self.credit_id:
+                token_limit = min(token_limit, self._credit(db)[3])
             if not self.is_priced_usd:
                 token_limit = min(token_limit,int(db.execute(
                     "SELECT value FROM provider_usage_binding WHERE key='token_limit'").fetchone()[0]))
@@ -164,11 +249,11 @@ class ModelBudget:
                 or daily_count >= p["max_requests_daily"]
             ):
                 raise BudgetBlocked("Persistent model budget exhausted; no request sent")
-            db.execute(
-                "INSERT INTO model_reservations(day,nano_usd,tokens,model,policy_hash) "
-                "VALUES (?,?,?,?,?)",
-                (day, nano_usd, tokens, self.config.LLM_MODEL, self.policy_hash),
-            )
+            extra = ",credit_id" if self.credit_id else ""
+            db.execute("INSERT INTO model_reservations(day,nano_usd,tokens,model,policy_hash" + extra
+                + ") VALUES (?,?,?,?,?" + (",?" if self.credit_id else "") + ")",
+                (day, nano_usd, tokens, self.config.LLM_MODEL, self.policy_hash)
+                + ((self.credit_id,) if self.credit_id else ()))
         # No refund: timeout, failure or process death may still be billed by the provider.
         return cost
 
