@@ -1,3 +1,7 @@
+## Separate monitoring application — 2026-10-23 evening
+
+Cloud dashboard royin-monitor runs sourceecdad5e with Basic authentication and HMAC file-only publication. Trading app/source026a1be/PID1/config/permit were not restarted or changed. Do not restart the financial app to fix monitoring or create a second publisher: its single-owner lock/settings are under /state/monitoring, source modules under the committed monitoring release folder. No financial/API keys belong in dashboard env; login file is local ignored .local/review/royin-dashboard-login.txt. Monitor restart auto-restores on next push; engine restart requires publisher relaunch and stale is explicit. See docs/cloud-dashboard.md and actual acceptance receipts.
+
 ## Active source freeze — 2026-10-23 evening
 
 Liara financial mission9 runs source026a1bea29820fc4b43e67f6cc1cea13e99b54ea from a read-only persistent release directory on the existing tested image. All68 file hashes and actual import roots/source/config binding passed; health/readiness200, UID10001. Preserve full environment including PYTHONSAFEPATH=1 and explicit release PYTHONPATH. Do not hot-edit source or create another worker. Restart the existing prepared mission with the same original disk/state/permit/funded allocation. Latest BoxAPI-only authority below governs; earlier provider/deployment notes are historical. See docs/liara-runtime-validation.md. Live order/fill/profit must be read separately, not inferred from these checks.
