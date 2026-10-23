@@ -7,7 +7,30 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 
+def provision_and_drop(root):
+    """Liara mounts an initially root-owned disk; never recurse through existing private state."""
+    if getattr(os, "getuid", lambda: -1)() != 0:
+        return
+    if not os.path.ismount(root):
+        raise ValueError("Refusing root startup without the dedicated persistent mount")
+    paths = [root, *(root / name for name in ("home", "cache", "data", "artifacts", "local", "missions"))]
+    for path in paths:
+        if path.is_symlink():
+            raise ValueError("Persistent bootstrap path cannot be a symlink")
+        path.mkdir(mode=0o700, exist_ok=True)
+        if not path.is_dir() or path.stat().st_uid not in (0, 10001):
+            raise ValueError("Unexpected persistent directory owner or type")
+        os.chown(path, 10001, 10001)
+        os.chmod(path, 0o700)
+    os.setgroups([])
+    os.setgid(10001)
+    os.setuid(10001)
+    if os.getuid() != 10001:
+        raise ValueError("Privilege drop failed")
+
+
 def main():
+    provision_and_drop(Path("/state"))
     if os.environ.get("ROYIN_MAINTENANCE", "false") == "true":
         duration = int(os.environ.get("ROYIN_MAINTENANCE_SECONDS", "1800"))
         if not 10 <= duration <= 3600:

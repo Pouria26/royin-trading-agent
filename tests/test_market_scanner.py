@@ -95,6 +95,29 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(report["batch"][0].snapshot.available_tmn_cash,D(1234))
         self.assertEqual(report["cutoff"], 30000)
 
+    def test_fresh_research_does_not_reuse_catalog_that_ages_out_during_collection(self):
+        for force in (False, True):
+            with self.subTest(force_fresh=force):
+                clock = [30005]
+                feed = MagicMock()
+                def get(endpoint, params, *, max_age_seconds, clock=clock, **kwargs):
+                    if endpoint.endswith("markets"):
+                        return catalog(), 30005 if max_age_seconds == 0 else 29950
+                    clock[0] = 30020
+                    if endpoint.endswith("depth"):
+                        return depth(), 30020
+                    times = list(range(params["from"], params["to"], 60))
+                    return dict(s="ok",t=times,o=["100"]*len(times),h=["102"]*len(times),
+                        l=["98"]*len(times),c=["100"]*len(times),v=["1000"]*len(times)),30020
+                feed.get.side_effect = get
+                with patch("time.time",side_effect=lambda clock=clock:clock[0]):
+                    report = scan_current_market(feed, account_symbols={"ETHTMN"}, account_as_of=30000,
+                        round_trip_fee_pct=D(".006"),min_depth_tmn=D(10000),max_spread_pct=D(".005"),
+                        available_tmn_cash=D(150000),selected_symbols=["ETHTMN"],force_fresh=force)
+                self.assertEqual(len(report["batch"]), 1 if force else 0)
+                if not force:
+                    self.assertEqual(report["rejections"][0]["reason"], "STALE_INPUT")
+
     def shortlist(self, payload=None, **kwargs):
         params = dict(account_symbols={"BTCTMN", "ETHTMN", "TONTMN", "TONUSDT", "BTCUSDT"},
                       cutoff=8105, received_at=8100, account_as_of=8100)

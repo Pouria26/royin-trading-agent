@@ -83,7 +83,7 @@ to it. No profitability or production readiness follows from fixture tests.
 `scripts/package_release.py` exports an explicit committed allowlist with hashes;
 it excludes .env, credentials, raw artifacts, databases, research, and .git.
 Do not deploy the working repository as an unrestricted archive. Docker uses the
-pinned Python image and exact requirements lock, non-root UID10001, one worker,
+pinned Python image and exact requirements lock, a root-only disk provisioning step followed by UID10001, one worker,
 and `/state` for all persistent data/artifacts. The default entrypoint requires
 prepared state. Explicit maintenance reports `MAINTENANCE_NO_ENGINE`, not readiness.
 
@@ -92,7 +92,7 @@ Use `scripts/backup_runtime_state.py` for a SQLite backup API snapshot, with a
 without its journal is not a safe transfer. Preserve the original model ledger,
 external consumption ledger and historical financial evidence. Confirm source
 owner shutdown before transferring exclusive execution ownership to Liara.
-Upload private state over Liara FTPS with verified TLS, never in an image/build.
+Upload private state over verified-TLS Liara FTPS or the official CLI WSS exec channel, never in an image/build. WSS transfer disables terminal echo/canonical mode before private input and returns only hashes/counts.
 
 On the team account create one dedicated Docker app and persistent disk, mount
 `/state`, verify writable ownership for UID10001 and the volume marker, prepare

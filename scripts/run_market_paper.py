@@ -857,7 +857,8 @@ class MarketPaperOrchestrator:
                     previous_deadline = feed.deadline_monotonic
                     feed.deadline_monotonic = min(model_deadline-1,time.monotonic()+35)
                     try:
-                        return scan_current_market(feed,**scan_options,batch_limit=MAX_RESEARCH_SYMBOLS,selected_symbols=selected)
+                        return scan_current_market(feed,**scan_options,batch_limit=MAX_RESEARCH_SYMBOLS,
+                                                   selected_symbols=selected,force_fresh=True)
                     finally:
                         feed.deadline_monotonic = previous_deadline
                 job = asyncio.create_task(asyncio.to_thread(collect))

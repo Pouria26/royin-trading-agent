@@ -16,7 +16,8 @@ RUN python -m pip install --no-cache-dir --no-deps --editable . \
 ARG RELEASE_REVISION=uncommitted
 LABEL org.opencontainers.image.revision=$RELEASE_REVISION
 ENV ROYIN_RELEASE_REVISION=$RELEASE_REVISION
-USER 10001:10001
+# The entrypoint provisions the mounted disk, then drops privileges before serving or trading.
+USER 0:0
 EXPOSE 3000
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["python", "-m", "deploy.entrypoint"]

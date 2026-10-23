@@ -333,7 +333,7 @@ class ScannerPublicFeed:
 def scan_current_market(feed, *, account_symbols, account_as_of, interval_seconds=300,
                         round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash,
                         batch_limit=3, diversify=False, tmn_only=False, use_spot_rules=False,
-                        selected_symbols=None):
+                        selected_symbols=None, force_fresh=False):
     """At most one catalog and two GETs per shortlisted symbol; never scan historical winners.
 
     Returns every liquidity-valid candidate at one uniform closed-candle cutoff. The entry
@@ -346,7 +346,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
         return dict(status="BLOCKED_ACCESS", batch=(), errors=[], rejections=[], cutoff=None)
     errors, rejections = [], []
     try:
-        payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now)
+        payload, received = feed.get("/hector/web/v1/markets", {}, cutoff=now,
+                                     max_age_seconds=0 if force_fresh else 60)
         rows = shortlist_markets(payload, account_symbols=account_symbols, cutoff=int(time.time()),
                                  received_at=received, account_as_of=account_as_of,
                                  limit=batch_limit, diversify=diversify, tmn_only=tmn_only,
@@ -357,7 +358,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
     rules = {}
     if use_spot_rules:
         try:
-            spot, _ = feed.get("/v1/markets",{},cutoff=int(time.time()))
+            spot, _ = feed.get("/v1/markets",{},cutoff=int(time.time()),
+                              max_age_seconds=0 if force_fresh else 60)
             rules = parse_spot_rules(spot,maker_fee_rate=Decimal(".0025"),taker_fee_rate=Decimal(".003"))
             rejections.extend(dict(symbol=row.symbol,reason="SPOT_RULES_MISSING") for row in rows if row.symbol not in rules)
             rows = tuple(row for row in rows if row.symbol in rules)
@@ -371,7 +373,7 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
             start = end - 40 * interval_seconds
             history, candle_times[row.symbol] = feed.get("/v1/udf/history", {
                 "symbol": row.symbol, "resolution": "1", "from": start, "to": end,
-            }, cutoff=now)
+            }, cutoff=now, max_age_seconds=0 if force_fresh else 60)
             phase = "HISTORY_PARSE"
             minute = parse_history(history, start=start, end=end, interval_seconds=60, cutoff=now)
             bars = aggregate_closed(minute, interval_seconds)
@@ -380,7 +382,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
             series[row.symbol] = bars
             phase = "DEPTH_FETCH"
             depths[row.symbol], depth_times[row.symbol] = feed.get(
-                "/v1/depth", {"symbol": row.symbol}, cutoff=int(time.time()))
+                "/v1/depth", {"symbol": row.symbol}, cutoff=int(time.time()),
+                max_age_seconds=0 if force_fresh else 60)
         except (OSError, ValueError) as exc:
             errors.append(dict(symbol=row.symbol, error_type=type(exc).__name__))
             rejections.append(dict(symbol=row.symbol,reason=phase+"_FAILED",error_type=type(exc).__name__))
