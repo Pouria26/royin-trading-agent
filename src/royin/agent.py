@@ -100,7 +100,7 @@ ROLE_INSTRUCTIONS = {
         "Return WAIT (HOLD) or EXIT using only cited evidence IDs. Consider cost basis, estimated net "
         "liquidation, holding age, momentum, volatility and the supplied host policy. A profit checkpoint "
         "is a review trigger, never a compulsory exit or cap on profit. Exhaustion can justify EXIT "
-        "before the checkpoint. Host stops/deadline take priority and cannot be changed. Never ENTER, "
+        "before the checkpoint. When net_liquidation_tmn > cost_basis_tmn (profitable trade), prioritize locking in profit with EXIT if EV_MOMENTUM_STALL, EV_WICK_REJECTION, EV_RSI_OVERBOUGHT, or EV_TREND_BEARISH indicates momentum reversal. Propose EXIT if holding age is extensive without forward progress. Host stops/deadline take priority and cannot be changed. Never ENTER, "
         "size, price or change stops/targets; leave optional risk fields null. Echo role, cutoff, "
         "snapshot_sha256, null opportunity_sha256 and position_sha256 exactly. If you attach a forecast, "
         "set parent_forecast_id to the original forecast and never extend its horizon. Give a concise reason and invalidation. "

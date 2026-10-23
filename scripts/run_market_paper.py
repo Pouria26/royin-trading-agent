@@ -62,12 +62,14 @@ try:
     from scripts.run_paper_trader import (
         ScannerPublicFeed,
         catalog_candidates,
+        quant_candidate_score,
         scan_current_market,
     )
 except ImportError:
     from run_paper_trader import (
         ScannerPublicFeed,
         catalog_candidates,
+        quant_candidate_score,
         scan_current_market,
     )
 
@@ -272,8 +274,8 @@ class MarketPaperOrchestrator:
         self.broker = PaperBroker(self.ledger, self.rules)
 
         deadline = self.run_started_at + self.duration_seconds
-        if self.mode == "CURRENT_PAPER":
-            deadline = min(deadline, self.run_started_at + (self.max_cycles-1)*self.interval_seconds)
+        if self.mode == "CURRENT_PAPER" and self.max_cycles > 0:
+            deadline = min(deadline, self.run_started_at + self.max_cycles * self.interval_seconds)
         if self.config.CHALLENGE_END_AT:
             deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
         self.protection_policy = build_default_protection_policy(
@@ -694,8 +696,16 @@ class MarketPaperOrchestrator:
         )
         liquid = ()
         if self.model_mode == "REAL_MODEL":
-            liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
+            raw_liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
                 received_at=received,account_as_of=received,tmn_only=True)
+            catalog_rows = {r["symbol"]: r for r in payload["result"]["markets"]}
+            btc_ret = catalog_return(catalog_rows.get("BTCTMN", {}))
+            cash_ret = catalog_return(catalog_rows.get("USDTTMN", {}))
+            liquid = tuple(sorted(raw_liquid, key=lambda row: (
+                -quant_candidate_score(row, catalog_rows, btc_ret, cash_ret),
+                -row.turnover_tmn,
+                row.symbol,
+            )))
         bootstrap_attempts = []
         if self.model_mode == "REAL_MODEL":
             report = {"status":"NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE", "batch":()}
@@ -910,7 +920,8 @@ class MarketPaperOrchestrator:
                 # Rebind execution rules/broker to the model-selected market.
                 self.rules = target_rules
                 self.broker = PaperBroker(self.ledger, target_rules)
-                self.ledger.set_meta("approved_decision_"+decision.decision_id,
+                decision_id = getattr(decision, "decision_id", f"dec_{decision.cutoff}_{submit_time}")
+                self.ledger.set_meta("approved_decision_" + decision_id,
                     json.dumps({"decision":decision.model_dump(mode="json"),"model_trace":model_trace,
                         "snapshot":chosen_snap.to_canonical_dict(),"opportunity":_chosen_opp.model_dump(mode="json")}))
                 self.ledger.set_meta("bound_market_rules", json.dumps(asdict(target_rules),default=str))
