@@ -4,6 +4,10 @@
 
 ## قراردادهای معتبر — 2026-10-23
 
+- انتقال میزبان: نبود فرایند محلی یا گذشت زمان، پایان اجرای میزبان دیگر نیست. source main حفظ شد؛ نامزد آفلاین08f403c تا terminal/مالکیت معتبر ادغام نمی‌شود. منبع: بررسیGit/process/نبودartifacts وhashبرابر در۲۳اکتبر۰۶:۳۷تهران؛۳۹۳هسته/۱۰داشبورد/۴self-checkنامزد پاس، نه سود/provider تازه.
+- ادامهٔ درخواست پولی باید DB اصلی بودجه را با backup سازگار، schema و prior reservations معتبر داشته باشد؛ نبود state مصرف صفر نیست. نامزد باSQLite mode=rw وگاردمرزشبکه آن را enforceمی‌کند؛ bootstrapآزمون مصنوعی مجوزHTTPواقعی ندارد. intent/reserve/۸attemptcanary قبلی resetنشوند.
+- بازپخش ثبت‌شده، inference تازه یا بازسازی کامل بازار نیست. نامزد journal/input-state را از validator/binder/Ledger عبور می‌دهد؛ artifact قدیمی ناقصPARTIAL وexecutionUNCONFIRMEDمی‌ماند. منبع: تست مصنوعی مستقلpartial/basefee/cancel،بدونHTTP.
+
 - هدف، موتور واقعی برای بازارهای مجاز اسپات است؛ paper و تست زیرساخت پایان کار نیستند. تضمین سود یا نمره نداریم. بریف، سیاست بازار، وضعیت جاری و تسک‌ها مرجع‌اند.
 - مدل دو نقش Entry Analyst/Position Reviewer دارد. host مالک پول/سایز/stop/deadline/مجوز است. read_market_snapshot فقط دادهٔ خواندنی می‌دهد؛ snapshot/evidence/schema-valid مجوز معامله نیست.
 - انتخاب بازار به یک نماد یا shortlist ثابت محدود نیست. مدل فهرست نقدشوندهٔ واجد شرایط را می‌بیند و۱..۵ نماد را بررسی می‌کند. bootstrap یک ابزار آماده‌سازی داده است و توصیهٔ سرمایه‌گذاری نیست.
@@ -28,6 +32,6 @@
 
 سنجش23:11UTC از کپی بایتی ثابت manifest،۱GET و۱outcomeاز۵forecast (۴pending) داد. USOON30min با q50−۰٫۴٪، outcome−۰٫۰۵۳۲۵٪ و point error بیشتر ازصفر؛ جهت درست مزیت مقدار را ثابت نکرد. گزارش ignored در artifacts/forecast-outcomes/20261022T231125Z_142a366e/report.json. سنجش manifest فعال باید روی کپی ثابت باشد تا sourcehash حین درخواست عوض نشود.
 
-`net-return-forward-20261023-2` از source3799e4a در حال آزمون۳ساعته است؛ handle و PID محلی در `.local/review/market-readiness/active-forward-process.json` ثبت‌اند. snapshot RUNNING به‌تنهایی کافی نیست. آخرین checkpoint و نتیجهٔ نهایی از فرایند/manifest واقعی بررسی شوند. پس از پایان، بررسی executable bid/ask در برابر close، خطاهای مدل، outcome و گیت مالی ادامه دارد.
+گزارش تاریخی superseded از وضعیت جاری: `net-return-forward-20261023-2` از source3799e4a در حال آزمون۳ساعته ثبت شده بود؛ handle و PID محلی در `.local/review/market-readiness/active-forward-process.json` ثبت‌اند. snapshot RUNNING به‌تنهایی کافی نیست. آخرین checkpoint و نتیجهٔ نهایی از فرایند/manifest واقعی بررسی شوند. پس از پایان، بررسی executable bid/ask در برابر close، خطاهای مدل، outcome و گیت مالی ادامه دارد.
 
 2026-10-23: مستندات فعال از۳۲به۱۸Markdown تلخیص شدند. گزارش مرحله/Blueprint محلی آرشیو است؛ clone همکاران به آن وابسته نیست. قرارداد داده، canary و scorer در Git باقی‌اند. لینک‌های داخلی و hash آرشیو بررسی شدند؛ گزارش قدیمی fake با سود AI جاری یکی نشود.
