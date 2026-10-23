@@ -8,9 +8,9 @@ COPY src ./src
 COPY scripts ./scripts
 COPY config ./config
 COPY deploy ./deploy
-# Runtime resource paths follow the repository's existing editable-install contract.
-RUN python -m pip install --no-cache-dir --no-deps --editable . \
-    && ln -s /state/data /app/data \
+# Run the allowlisted source directly; isolated editable builds would fetch an unlocked backend.
+ENV PYTHONPATH=/app/src
+RUN ln -s /state/data /app/data \
     && ln -s /state/artifacts /app/artifacts \
     && ln -s /state/local /app/.local
 ARG RELEASE_REVISION=uncommitted

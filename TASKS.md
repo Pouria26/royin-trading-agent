@@ -1,3 +1,9 @@
+## Reproducible Docker bootstrap — 2026-10-23, evening
+
+Release e91c66a did not become active: Germany builder TIMEDOUT, Iran builder FAILED on PyPI download. Readback retained the prior d02d2e6 maintenance release. Local build identified another external dependency: editable installation fetched an unlocked setuptools build backend. Docker now imports the allowlisted source through PYTHONPATH=/app/src after installing the exact requirements.lock; no runtime package requires Royin distribution metadata. Data/artifact/local symlinks and privilege drop remain unchanged.
+
+Candidate Docker build passed with cached locked dependencies; network-disabled CLI check returned VALID_CONFIG_ONLY. First47-test container run had45pass/2errors because the diagnostic omitted its required /state mount directories; retained log is linux-offline-bootstrap-tests.log. A corrected fixture with ephemeral /state mount is running; activation is gated on its result. Core source remains the492-test e91c66a strategy. New source/release revision still requires mission8; reuse funded allocation without reset. No deployment success is inferred from a local build.
+
 ## Ranked bootstrap correction — 2026-10-23, evening
 
 Mission7 BoxAPI deployment/config/source/restart passed. All303 legacy budget rows stayed identical; three diagnostic HTTP reservations on the funded allocation are retained. Real server SDK/tool/schema probe passed in4.375s (2HTTP, synthetic stale scenario), and a recorded full production-input request returned200/read_market_snapshot in2.153s (1HTTP). Neither is a new forecast or financial fill. First production scan rejected AAVE/ADA/ALICE on existing spread gate; zero production-model requests and zero financial orders/fills. Mission7 was then quiesced in maintenance, with owner lock verified free, before source changed.
