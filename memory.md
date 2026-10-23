@@ -2,6 +2,8 @@
 
 ## ۲۰۲۶-۱۰-۲۳ — اتصال provider و صداقت harness
 
+تکمیل روی main/source108e784:۴۳۸هسته۵۳٫۵۵۱ثانیه/۱۱داشبورد۱٫۵۹۹ثانیه وchecks پاس. smokeجاری تک‌چرخه۱۰درخواست/۳پذیرش/۲HTTP/۴۴٫۸۹ثانیه/۱WAIT معتبر،۰fill وreplay پاس؛ forecast تا09:41UTC pending است. smokeنخست به‌علت دقیقهٔ آخر قبل از مدل defer شد؛ شواهد۰تصمیم آن حفظ‌اند. hashموتورf4574b0 شاملconfig/llm-budget-policy است؛ hashtrace/مقایسهed673294 شاملsrc/scripts/lock است. پیش از اعلام drift، scopeهای hash را مقایسه کنید.
+
 منبع: trace واقعی `provider-roles-20261023-3` و validator `validate_role_proposal`. Entry تک‌نمادی قدیمی forecast ورود را نمی‌پذیرد؛ مدل‌هایی که مطابق prompt forecast دادند با خطای host رد شدند. این ایراد اتصال harness بود، نه دلیل ضعف مدل؛ runs1..3 برای رتبه‌بندی Entry superseded هستند. در CLI اصلاح‌شده از batch با یک candidate و همان validator استفاده می‌شود؛ regression dispatch قرمز و سپس سبز، بدون ضعیف‌شدن گیت مالی. همهٔ شکست‌های قبلی حفظ‌اند.
 
 هدایت صریح کاربر، providerهای جدید و معیار بدون هزینه را مجاز کرد. origin/model/کلید باید یک binding باشند و state مصرف خارجی از بودجهٔ اصلی BoxAPI جدا باشد. missing DB مصرف صفر نیست؛ ایجاد یک‌باره فقط برای provider تازه و بدون جایگزینی فایل است. API catalog۲۰۰، smoke کوچک و نام مدل، صلاحیت نقش یا هویت مستقل backend را ثابت نمی‌کنند. Codecraft در۶مدل و حتی درخواست ساده۴۰۲ Billing verification failed داد؛ ماندهٔ واقعی از این خطا استخراج نشود.

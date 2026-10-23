@@ -2,6 +2,9 @@
 
 ## مقایسهٔ مدل‌ها و پایان اجرای منجمد — ۲۳ اکتبر، پس از۱۱:۵۳تهران
 
+- **VERIFIED_MAIN_108e784:** چهار commit نامزد پس از پایان واقعی worker و postprocessor به main fast-forward شدند؛ دو فایل untracked پژوهش کاربر با hash ثابت حفظ شدند. source مقایسه `ed673294…bc3e6` برابر source آزموده‌شده است. روی main نیز۴۳۸هسته در۵۳٫۵۵۱ثانیه و۱۱داشبورد در۱٫۵۹۹ثانیه،۰fail/skip؛Ruff/compileall/چهارself-check وconfig محلی/نمونه پاس‌اند.
+- **CURRENT_RUNTIME_SMOKE_ONLY:** runتک‌چرخهٔ `provider-selection-runtime-smoke-20261023-2` روی108e784 با GPT منتخب،۱۰نماد درخواست و۳داده پذیرفت،۲HTTPمدل/۴۴٫۸۹ثانیه و۲۱captureعمومی داشت؛۱WAIT معتبر،۰fallback/order/fill وSTOPPED_FLAT. replay حسابداری پاس؛ execution کامل همچنانUNCONFIRMED. forecastیک‌ساعته تا09:41UTC/۱۳:۱۱تهران pending است؛ scorer۰GET/۰scored/۱pending داد. smokeاول در دقیقهٔ آخر کندل پیش از مدل defer شد؛۰HTTP/۰capture/۰تصمیم آن حفظ است. این دو smoke ارزیابی سود استراتژی نیستند.
+
 - **TERMINAL_EVIDENCE:** `evidence-forward-20261023-1` در08:22:22UTC با STOPPED_FLAT پایان یافت؛ خروج PIDهای8792/15588 مشاهده شد. snapshot اصلی با hash `1c76e06e…de2374`،۶۴۴capture و replay مستقل حفظ است. ۳۴trace:۱۳MODEL_DECISION،۱۰fallback،۱۱scanner/host؛۰order/fill/round-trip/exposure/PnL/fee. نتیجه نشانهٔ موفقیت استراتژی یا آزمون ورود/خروج نیست.
 - **FORECAST_DIAGNOSTIC:**۱۳forecast اصلی همگی scored،۰pending/۰missing؛ meanAE مدل۰٫۳۷۳۷۰۲pp در برابر صفر۰٫۲۹۷۸۰۲pp،۵بهتر/۸بدتر. replay حسابداری PASS_RECORDED_HOST_REPLAY، execution replay همچنان UNCONFIRMED و baseline مستقل hold/rule در این tape تأیید نشده است. cohort شش‌تایی نخست زیرمجموعهٔ همین۱۳تاست؛ دوباره شمرده نشود.
 - **PROVIDER_IMPLEMENTATION:** پنج origin جایگزین کاربر، مدل/کلید هم‌بسته، state مصرف خارجی جدا و ادامهٔ fail-closed؛ هزینه معیار انتخاب نیست. staging ابزار فقط read سپس final عرضه می‌کند؛ سقف یک read/دوHTTP و validation ریسک تغییر نکرده‌اند. تغییر provider، ledger اصلی BoxAPI و state مالی UNKNOWN را بازسازی نمی‌کند.
