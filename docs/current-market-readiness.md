@@ -6,7 +6,9 @@ pull صریح کاربر شش commit تازه تاabbfe39 را پس از انت�
 
 پذیرش مستقل روی snapshot stage‌شده و بدون.env:۴۱۲هسته در۷۶٫۵۵۸ثانیه و۱۱داشبورد در۲٫۴۱۱ثانیه،۰fail/۰skip. ابتدا تست worker به‌دلیل مسیر ثابت.venv درsnapshot یکERROR داشت؛sys.executable جایگزین و کلsuite مجدداً پاس شد. Ruff0.17.1،compileall،چهارself-check،Node syntax وconfigنمونه/محلی موفق‌اند. بازبینی مرورگرlocalhost نیز تمایز Paper/پایش/پالس کهنه را نشان داد؛ ممیزی کامل responsive/دسترس‌پذیری انجام نشده است. گزارش‌ها در.local/review/remote-integration-20261023 هستند؛ آزمون‌های سفارش مصنوعی‌اند، نه تأیید POST واقعی یا سود.
 
-DBبودجه پیش از ادامهquick_check=ok و۱۶۴رزرو دارد. worker تازهٔREAL_MODEL/Paper هنوز شروع نشده؛ پس ازcommit ازهمینledger وrunجدید استفاده شود. دادهٔ خصوصی حساب دراین نوبت دوباره خوانده نشده و گزارش۵Mremote مشاهدۀ همکار است. راهنمای فعلیpaper در[evaluation-plan](evaluation-plan.md) بر فرمان‌های تاریخی۱۰۰k در[market-screening-review](market-screening-review.md) مقدم است.
+DBبودجه پیش از ادامهquick_check=ok و۱۶۴رزرو داشت. اجرایevidence-forward-20261023-1 ازsourcef8a1748،۰۸:۵۲:۲۲تهران آغاز شد؛دوپنجره۰۸:۵۲:۲۲تا۱۰:۲۲:۲۲ و۱۰:۲۲:۲۲تا۱۱:۵۲:۲۲ پیش ازاستنتاج درmanifest ثبت‌اند. فرایند وپالس مشاهده شدند؛پایان هنوز تأییدنشده است. سه نوبت نخست:۹seed،۸bookسالم بااسپردبیش از۰٫۵٪ ویکخطایhistory؛۰فراخوانی مدل/سفارش/fill،exposure۰. این راAI-WAIT یامزیت سودآور ننامید وگیت راوسط آزمون تغییر ندهید. دادهٔخصوصی حساب دراین نوبت دوباره خوانده نشده وگزارش۵Mremote مشاهدهٔهمکاراست. راهنمای فعلیpaper در[evaluation-plan](evaluation-plan.md) برفرمان‌های تاریخی۱۰۰k در[market-screening-review](market-screening-review.md) مقدم است.
+
+بازپخش واقعی sampleقدیمی ازآرشیوsourcef8a1748 درپوشهٔتازه،بدون.env/DBبودجه وبامنعDNS/connect انجام شد:۱۹۰capturehash،۱۷decision،۰HTTP،PARTIAL_RECORDED_HOST_REPLAY. کمبودjournal/stateقدیمی همچنان علتPARTIALاست؛بستهٔمحلیartifacts/judging/continuation-f8a1748 فقط برایبررسی است ونه شواهدfreshAI یاارسال بیرونی. کدsrc/scripts/config اجرایفعال تغییر نکرده است.
 
 ## انتقال تکمیلی و minimum — ۲۳ اکتبر ۲۰۲۶
 
