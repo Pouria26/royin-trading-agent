@@ -15,9 +15,11 @@ import httpx2
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.capabilities import PrepareOutputTools, PrepareTools
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import ToolReturnPart
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.usage import UsageLimits
 
@@ -37,6 +39,7 @@ from royin.decision import (
 from royin.features import FeatureSnapshot
 from royin.logger import AuditLogger
 from royin.model_budget import BudgetBlocked, ModelBudget
+from royin.model_profiles import model_settings, reasoning_label
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +143,7 @@ class RoleRunEnvelope:
     def _durable_claim(self, *, agent_runs=0, http_attempts=0, cost=Decimal(0)):
         with closing(self.budget.connect()) as db, db:
             if self.budget.require_existing:
-                self.budget.validate_existing(db)
+                self.budget.validate_durable(db)
             db.execute("PRAGMA synchronous=FULL")
             db.execute("""CREATE TABLE IF NOT EXISTS role_run_envelopes (
                 scope TEXT PRIMARY KEY, started REAL NOT NULL, duration INTEGER NOT NULL,
@@ -200,8 +203,8 @@ def create_trading_agent(
     role_context: dict | None = None,
     market_loader=None,
 ) -> Agent[FeatureSnapshot, DecisionProposal]:
-    """Create a Pydantic AI Agent bound to BoxAPI Chat Completions with dependencies tool."""
-    api_key = config.BOXAPI_API_KEY.get_secret_value() if config.BOXAPI_API_KEY else "dummy-key"
+    """Bind the selected fixed-origin Chat Completions provider to a staged read tool."""
+    api_key = config.model_api_key.get_secret_value() if config.model_api_key else "dummy-key"
     openai_client = AsyncOpenAI(
         api_key=api_key,
         base_url=config.LLM_BASE_URL,
@@ -209,26 +212,46 @@ def create_trading_agent(
         max_retries=0,
     )
     provider = OpenAIProvider(openai_client=openai_client)
-    model = OpenAIChatModel(config.LLM_MODEL, provider=provider)
+    profile = None
+    if config.LLM_PROVIDER != "boxapi":
+        profile = OpenAIModelProfile(openai_chat_supports_max_completion_tokens=False,
+            openai_chat_send_back_thinking_parts="tags" if "minimax" in config.LLM_MODEL.lower() else "field",
+            openai_chat_thinking_field="reasoning_content")
+    model = OpenAIChatModel(config.LLM_MODEL, provider=provider,profile=profile)
     batch_role = bool(role_context and role_context.get("candidates"))
     output_model = MarketEntryProposal if batch_role else (RoleDecisionProposal if role_context else DecisionProposal)
+    read_complete = False
+
+    async def prepare_read(ctx, definitions):
+        return [] if read_complete else definitions
+
+    async def prepare_final(ctx, definitions):
+        return definitions if read_complete else []
+
     agent: Agent[FeatureSnapshot, DecisionProposal] = Agent(
         model,
         deps_type=FeatureSnapshot,
         output_type=output_model,
         retries=0,
-        model_settings={"max_tokens": 1024 if role_context else 512, "openai_reasoning_effort": "none"},
+        model_settings=model_settings(config.LLM_PROVIDER,config.LLM_MODEL,role=bool(role_context)),
         instructions=ROLE_INSTRUCTIONS[role_context["role"]] if role_context else SYSTEM_INSTRUCTIONS,
+        capabilities=[PrepareTools(prepare_read),PrepareOutputTools(prepare_final)],
     )
 
     if market_loader is not None:
         @agent.tool(name="read_market_snapshot")
         async def read_selected_markets(ctx: RunContext[FeatureSnapshot], symbols: list[str]) -> str:
-            return json.dumps(await market_loader(symbols))
+            nonlocal read_complete
+            result = json.dumps(await market_loader(symbols))
+            read_complete = True
+            return result
     else:
         @agent.tool(name="read_market_snapshot")
         async def read_bound_snapshot(ctx: RunContext[FeatureSnapshot]) -> str:
-            return json.dumps(role_context or ctx.deps.to_canonical_dict())
+            nonlocal read_complete
+            result = json.dumps(role_context or ctx.deps.to_canonical_dict())
+            read_complete = True
+            return result
 
     return agent
 
@@ -543,7 +566,7 @@ async def decide(
             hooks["request"].append(capture_request)
             hooks["response"] = [capture_response]
         async with httpx2.AsyncClient(
-            timeout=20,
+            timeout=20 if config.LLM_PROVIDER == "boxapi" else 30,
             follow_redirects=False,
             trust_env=False,
             event_hooks=hooks,
@@ -706,7 +729,8 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
                 raise ValueError("Each role call requires a fresh trace container")
             trace.update(context=context, prompt_sha256=hashlib.sha256(
                 ROLE_INSTRUCTIONS["ENTRY_ANALYST"].encode()).hexdigest(),
-                model=kwargs["config"].LLM_MODEL, provider="boxapi", reasoning="none",
+                model=kwargs["config"].LLM_MODEL, provider=kwargs["config"].LLM_PROVIDER,
+                reasoning=reasoning_label(kwargs["config"].LLM_PROVIDER,kwargs["config"].LLM_MODEL),
                 evidence_kind="FAKE_MODEL" if kwargs.get("client") is not None else "REAL_MODEL_ATTEMPT")
             root = Path(__file__).resolve().parents[2]
             trace["code_sha256"] = source_bundle_sha256(root, [
@@ -776,7 +800,8 @@ async def decide_role(snapshot=None, *, position=None, opportunity=None, market_
         if trace:
             raise ValueError("Each role call requires a fresh trace container")
         trace.update(context=context, prompt_sha256=hashlib.sha256(ROLE_INSTRUCTIONS[role].encode()).hexdigest(),
-                     model=kwargs["config"].LLM_MODEL, provider="boxapi", reasoning="none",
+                     model=kwargs["config"].LLM_MODEL, provider=kwargs["config"].LLM_PROVIDER,
+                     reasoning=reasoning_label(kwargs["config"].LLM_PROVIDER,kwargs["config"].LLM_MODEL),
                      evidence_kind="FAKE_MODEL" if kwargs.get("client") is not None else "REAL_MODEL_ATTEMPT")
         root = Path(__file__).resolve().parents[2]
         trace["code_sha256"] = source_bundle_sha256(root, [

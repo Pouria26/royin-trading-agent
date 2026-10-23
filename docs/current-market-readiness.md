@@ -1,5 +1,13 @@
 # وضعیت جاری موتور و شواهد
 
+## تازه‌ترین وضعیت — ۲۳ اکتبر، پس از پایان اجرای سه‌ساعته
+
+اجرایevidence-forward-20261023-1/sourcef8a1748 در08:22:22UTC به STOPPED_FLAT رسید؛ دوPID خارج و receipt نهایی ثبت شد. ۳۴trace شامل۱۳MODEL_DECISION،۱۰fallback و۱۱host؛ صفر سفارش/fill/exposure/fee/PnL. replay حسابداری `PASS_RECORDED_HOST_REPLAY` و اجرای کامل بازار `EXECUTION_REPLAY_UNCONFIRMED` است.۱۳forecast موعدرسیده،۰pending/missing،meanAE۰٫۳۷۳۷۰۲pp در برابر صفر۰٫۲۹۷۸۰۲pp،۵بهتر/۸بدتر؛ برتری اقتصادی ثابت نشد. اصلmanifest/hash1c76e06e و۶۴۴capture حفظ‌اند؛ cohort شش‌تایی زیرمجموعه است.
+
+اتصال پنج provider مجاز کاربر و CLI مقایسه روی نامزد آفلاین اضافه شد. ایراد مسیر legacy Entry در harness اصلاح شد؛ ردهای runs1..3 برای کیفیت ورود معتبر نیستند. در مقایسهٔ صحیح و سپس تأیید دو تکرار، GPT-6-luna و APMix Sonnet4.6 هرکدام۱۲/۱۲ معتبر شدند؛ median۷٫۹۸۴۵ و۲۱٫۱۸ثانیه. انتخاب عملیاتی GPT و default حفظ است؛ هزینه در انتخاب نقشی ندارد. Codecraft۴۰۲، Devora timeout وDahlavailability مشکل داشتند؛ این‌ها رتبهٔ کیفیت تحلیل نیستند. [جزئیات](model-provider-evaluation.md).
+
+۴۳۸هسته/۱۱داشبورد،۰fail/skip؛Ruff،compileall،چهارself-check وconfig پاس. source نامزد حین worker قبلی ثابت و جدا بود. هیچ سفارش واقعی، reset بودجه/intent/reserve/attempt یا رفع مصنوعی UNKNOWN انجام نشد. تغییر مدل و تعداد تست، مجوز مالی و سود اثبات‌شده نمی‌سازد.
+
 ## زمان‌بندی نامزد و نتایج مستقل — ۲۳ اکتبر، اعمال‌نشده به worker
 
 شش خطای KeyError پنجرهٔ اول، با۱۱..۳۹ثانیه زمان باقی‌مانده تا cutoff بعد شروع و همگی پس از آن تمام شدند. علت قطعی هر کلید در trace قدیمی موجود نیست؛ مسیرِ پژوهش مسدود این failure را در regression بازتولید کرد. نامزد قبل از claim، چرخهٔ REAL_MODEL در دقیقهٔ آخر را defer می‌کند؛ پس از bootstrap نیز کل deadline باید پیش از cutoff جا شود. این تغییر gate داده را آسان نمی‌کند. restart cadence را دور نمی‌زند؛ مانیتور موقعیت به این defer وابسته نیست. replay فقط defer بدون مدل/forecast/سفارش را حفظ و دست‌کاری آن را رد می‌کند.

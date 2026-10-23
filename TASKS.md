@@ -1,5 +1,17 @@
 # برنامهٔ جاری پروژه
 
+## مقایسهٔ مدل‌ها و پایان اجرای منجمد — ۲۳ اکتبر، پس از۱۱:۵۳تهران
+
+- **TERMINAL_EVIDENCE:** `evidence-forward-20261023-1` در08:22:22UTC با STOPPED_FLAT پایان یافت؛ خروج PIDهای8792/15588 مشاهده شد. snapshot اصلی با hash `1c76e06e…de2374`،۶۴۴capture و replay مستقل حفظ است. ۳۴trace:۱۳MODEL_DECISION،۱۰fallback،۱۱scanner/host؛۰order/fill/round-trip/exposure/PnL/fee. نتیجه نشانهٔ موفقیت استراتژی یا آزمون ورود/خروج نیست.
+- **FORECAST_DIAGNOSTIC:**۱۳forecast اصلی همگی scored،۰pending/۰missing؛ meanAE مدل۰٫۳۷۳۷۰۲pp در برابر صفر۰٫۲۹۷۸۰۲pp،۵بهتر/۸بدتر. replay حسابداری PASS_RECORDED_HOST_REPLAY، execution replay همچنان UNCONFIRMED و baseline مستقل hold/rule در این tape تأیید نشده است. cohort شش‌تایی نخست زیرمجموعهٔ همین۱۳تاست؛ دوباره شمرده نشود.
+- **PROVIDER_IMPLEMENTATION:** پنج origin جایگزین کاربر، مدل/کلید هم‌بسته، state مصرف خارجی جدا و ادامهٔ fail-closed؛ هزینه معیار انتخاب نیست. staging ابزار فقط read سپس final عرضه می‌کند؛ سقف یک read/دوHTTP و validation ریسک تغییر نکرده‌اند. تغییر provider، ledger اصلی BoxAPI و state مالی UNKNOWN را بازسازی نمی‌کند.
+- **METHOD_CORRECTION:** Entry در runs1..3 از مسیر legacy single-snapshot فراخوانی شده بود؛ رد forecast این بخش ایراد harness است و شاهد ضعف مدل نیست. مسیر batch با دو regression اصلاح شد؛ اصل نتایج حفظ شد. در run4 صحیح، GPT-6-luna و APMix Sonnet4.6 هرکدام۶/۶، River1017 سه، River Flash دو و GLM صفر تصمیم معتبر داشتند.
+- **SELECTED_OPERATIONAL:** در دور تأییدی `provider-finalists-20261023-1`، هر دو نامزد۱۲/۱۲ معتبر، median GPT۷٫۹۸۴۵ وClaude۲۱٫۱۸ثانیه بود. طبق قاعدهٔ ثبت‌شده GPT-6-luna انتخاب و default فعلی حفظ شد؛ هزینه دخیل نیست. این۱۲تکرار از شش ورودی،۱۲نمونهٔ مستقل نیست و سودآوری مدل انتخاب‌شده همچنان UNCONFIRMED است.
+- **PROVIDER_BLOCKED:** هر شش Codecraft در۶case پاسخ۴۰۲ `Billing verification failed` دادند؛ یک درخواست سادهٔ بدون tool نیز همین خطا را داد. این شاهد ماندهٔ واقعی یا ضعف تحلیل مدل نیست. Devora timeout و Dahl خطای availability داشتند؛ smoke کوچک MiniMax برندهٔ نهایی محسوب نمی‌شود.
+- **AC:**۴۳۸هسته در۴۲٫۴۱۲ثانیه و۱۱داشبورد در۱٫۴۵۵ثانیه،۰fail/skip؛ Ruff،compileall،چهارself-check وVALID_CONFIG_ONLY پاس. source نامزد به worker قبلی اعمال نشد؛ منبع همان run محفوظ است. پس از commit و بررسی Git/process ادامه داده شود. مقایسهٔ مالی/prospective و live همچنان بازند؛ ارسال ویدئو طبق هدایت کاربر در scope این نوبت نیست.
+
+جزئیات و مسیرهای شواهد: [model-provider-evaluation](docs/model-provider-evaluation.md). هیچ کلید، state خصوصی یا raw وارد Git نشود.
+
 ## نامزد زمان‌بندی پژوهش و ارزیابی تازه — ۲۳ اکتبر
 
 - **VERIFIED_OFFLINE:** چرخهٔ REAL_MODEL در دقیقهٔ آخر کندل قبل از claim عقب می‌افتد؛ پس از bootstrap هم کل deadline باید قبل از cutoff جا شود. claim و هزینهٔ نقش/HTTP ساخته نمی‌شود؛ restart مجوز تحلیل زودتر از۳۰۰ثانیه نمی‌دهد و پایش موقعیت هرگز عقب نمی‌افتد.

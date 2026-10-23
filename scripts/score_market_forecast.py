@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from royin.decision import ReturnForecast, validate_forecast
 from royin.evaluation import score_return_forecasts, score_zero_baseline, source_bundle_sha256
 from royin.market_data import decode_json, parse_history
+from royin.model_profiles import matches_provider_model
 
 
 def current_forecasts(manifest_path):
@@ -39,7 +40,7 @@ def current_forecasts(manifest_path):
             raise ValueError("Invalid recorded issuance timestamp")
         model = row.get("model_trace") or {}
         if (model.get("host_outcome") != "MODEL_DECISION" or model.get("evidence_kind") != "REAL_MODEL_ATTEMPT"
-                or model.get("provider") != "boxapi" or not model.get("responses")):
+                or not matches_provider_model(model.get("provider"),model.get("model")) or not model.get("responses")):
             raise ValueError("Forecast lacks a successful real-provider trace")
         snapshot = row["snapshot"]
         snapshot_sha = hashlib.sha256(json.dumps(snapshot,sort_keys=True,separators=(",",":")).encode()).hexdigest()

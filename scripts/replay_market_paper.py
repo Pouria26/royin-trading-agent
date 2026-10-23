@@ -21,6 +21,7 @@ from royin.evaluation import source_bundle_sha256
 from royin.features import FeatureSnapshot
 from royin.ledger import Ledger
 from royin.market_data import decimal_number
+from royin.model_profiles import matches_provider_model
 from scripts.score_market_forecast import current_forecasts
 
 PUBLIC_ENDPOINTS = {"/hector/web/v1/markets", "/v1/markets", "/v1/udf/history", "/v1/depth"}
@@ -47,7 +48,8 @@ def signed_decimal(value):
 def reject_credentials(value):
     if isinstance(value,dict):
         if {str(k).lower() for k in value}.intersection({"authorization","x-api-key",
-                "wallex_api_key","boxapi_api_key","sub-account-client-id"}):
+                "wallex_api_key","boxapi_api_key","devora_api_key","dahl_api_key","river_api_key",
+                "apmix_api_key","codecraft_api_key","sub-account-client-id"}):
             raise ValueError("Private credentials are not allowed in replay artifacts")
         for item in value.values():
             reject_credentials(item)
@@ -55,7 +57,8 @@ def reject_credentials(value):
         for item in value:
             reject_credentials(item)
     elif isinstance(value,str):
-        if re.search(r"\b\d{3,8}\|[A-Za-z0-9]{20,}|\bsk-[A-Za-z0-9_-]{20,}|\bbox-ai-[A-Za-z0-9_-]{24,}",value):
+        if re.search(r"\b\d{3,8}\|[A-Za-z0-9]{20,}|\bsk-[A-Za-z0-9_-]{20,}|\bbox-ai-[A-Za-z0-9_-]{24,}"
+                r"|\b(?:dahl_|rv_|apx_live_|cc_|SK-DEVORA-)[A-Za-z0-9_-]{20,}",value):
             raise ValueError("Credential-shaped content is not allowed")
         if value.startswith(("{","[")):
             try:
@@ -198,7 +201,7 @@ def replay_decision(row, states):
                 or row.get("client_id") is not None or (row.get("risk") or {}).get("approved") is True):
             raise ValueError("Deferred research cannot contain model HTTP, forecast or trade")
         return dict(status="PRESERVED_HOST_DEFERRED")
-    if (trace.get("host_outcome") != "MODEL_DECISION" or trace.get("provider") != "boxapi"
+    if (trace.get("host_outcome") != "MODEL_DECISION" or not matches_provider_model(trace.get("provider"),trace.get("model"))
             or trace.get("evidence_kind") != "REAL_MODEL_ATTEMPT"):
         raise ValueError("Explicit original real-provider evidence is required")
     proposal = recorded_proposal(trace)

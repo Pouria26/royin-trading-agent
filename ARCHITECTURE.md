@@ -2,6 +2,8 @@
 
 مرجع وضعیت و گیت‌های باز [current-market-readiness](docs/current-market-readiness.md) است. این سند ساختار پیاده‌سازی را توضیح می‌دهد، نه آمادگی production یا تضمین سود.
 
+مدل‌های جایگزینِ مجاز کاربر از همان factory و validator میزبان استفاده می‌کنند؛ URL/model دلخواه یا fallback خودکار وجود ندارد. ابزار خواندنی و final در دو مرحلهٔ جدا عرضه می‌شوند. state مصرف هر ارائه‌دهنده به همان کلید متصل و از ledger اصلی BoxAPI جداست. جزئیات سازگاری، اصلاح harness و نتایج واقعی در [مقایسهٔ ارائه‌دهندگان](docs/model-provider-evaluation.md) ثبت شده‌اند؛ برندهٔ عملیاتی با بهترین استراتژی سودآور یکی فرض نمی‌شود.
+
 ## مسیر اصلی
 
 `Public Wallex data → validated catalog → model-selected research → causal features → ENTRY_ANALYST → host risk → paper broker → ledger → read-only dashboard`

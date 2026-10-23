@@ -42,8 +42,8 @@ async def main(argv=None):
         parser.error("horizon-max must be 600..3600")
 
     config = load_config()
-    if config.BOXAPI_API_KEY is None:
-        print("BLOCKED: BOXAPI_API_KEY missing in local .env; no request was sent.")
+    if config.model_api_key is None:
+        print("BLOCKED: selected provider key missing in local .env; no request was sent.")
         return 2
     if config.WALLEX_API_KEY is None:
         print("BLOCKED: WALLEX_API_KEY missing; public data would still be allowed but the key is required by local policy.")

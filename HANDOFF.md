@@ -1,5 +1,13 @@
 # پرامپت انتقال پروژهٔ رویین به Agent جدید
 
+## وضعیت مقدم بر یادداشت‌های تاریخی — ۲۳ اکتبر، پس از پایان run سه‌ساعته
+
+اجرای `evidence-forward-20261023-1` در08:22:22UTC به STOPPED_FLAT رسید؛ دو PID آن واقعاً خارج شدند. receipt نهایی `.local/review/remote-integration-20261023/forward-postprocess-report.json` و snapshot hash `1c76e06ed501704d9d421368f2b3990f4b14e5a656743e2a1d5e419348de2374` مرجع‌اند. ۳۴trace،۱۳مدل واقعی/۱۰fallback/۱۱host،۰سفارش/fill/exposure/PnL؛ replay حسابداری پاس ولی اجرای کامل بازار UNCONFIRMED. هر۱۳forecast موعدرسیده سنجیده شد: meanAE مدل۰٫۳۷۳۷۰۲pp،صفر۰٫۲۹۷۸۰۲pp،۵بهتر/۸بدتر. cohort شش‌تایی پایین زیرمجموعه است؛ نتیجهٔ صفرمعامله را موفقیت سرمایه‌گذاری ننامید.
+
+هدایت تازهٔ کاربر، آزمایش Devora/Dahl/River/APMix/Codecraft با معیار کیفیت و بدون رتبه‌بندی هزینه است. اتصال، ledger خارجیِ کلیدبسته و CLI مقایسه اضافه شده‌اند؛ [قرارداد و نتایج](docs/model-provider-evaluation.md) را بخوانید. در runs1..3 مسیر Entryِ harness اشتباهاً legacy بود؛ رد forecastهای آن کیفیت مدل را ثابت نمی‌کند. اصلاح روی batch فعلی و با run4 جدید آزموده شد: GPT-6-luna و APMix Sonnet4.6 هرکدام۶/۶ معتبر؛ دور تأییدی هرکدام۱۲/۱۲، median۷٫۹۸۴۵ و۲۱٫۱۸ثانیه. طبق قاعدهٔ عملیاتی GPT انتخاب و default حفظ شد؛ سودآوری هر دو نامعلوم. Codecraft کاتالوگ۲۰۰ اما inference۴۰۲ Billing verification failed دارد، حتی در درخواست ساده؛ مانده و علت بالادست قطعی نیستند. MiniMax انتخاب نهایی نشده است.
+
+۴۳۸هسته در۴۲٫۴۱۲ثانیه،۱۱داشبورد در۱٫۴۵۵ثانیه،Ruff/compileall/چهارself-check/config پاس‌اند؛ هیچ source نامزد به worker قدیمی اعمال نشد. پیش از ادامه Git و process واقعی را دوباره بررسی کنید؛ run جدید revision/ID جدید می‌خواهد. بودجهٔ BoxAPI، canary۸attempt، intent/reserve و BUY_UNKNOWN محفوظ و live بسته‌اند. وظیفهٔ این نوبت موتور و ارزیابی است؛ از کاربر دربارهٔ ارسال ویدئو دوباره سؤال نکنید.
+
 ## زمان‌بندی پژوهش و نتیجهٔ واقعی بازبین — نامزد ادامه، ۲۳ اکتبر
 
 در ۶ fallback پنجرهٔ اول، مدل با ۱۱..۳۹ ثانیه زمان باقی‌مانده تا کندل بعد شروع شده و همه پس از مرز cutoff برگشته‌اند. trace قدیمی کلید گم‌شده را ثبت نکرده؛ تطبیق با BLOCKED_CUTOFF_ADVANCED قرینه است، نه اثبات علت تک‌تک موارد. نامزد REAL_MODEL پیش از claim چرخهٔ دیرهنگام را به بعد موکول و پس از bootstrap نیز جا شدن کل deadline را پیش از claim نقش/HTTP بررسی می‌کند. cadence حداقل۳۰۰ثانیه و پایش موقعیت مستقل باقی‌اند؛ HOST_DEFERRED با صفر HTTP/forecast/order در replay جدا حفظ می‌شود.

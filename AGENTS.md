@@ -4,6 +4,8 @@
 
 ## پیش از هر تغییر
 
+**هدایت تازهٔ کاربر، ۲۳ اکتبر:** مقایسه و استفاده از مدل‌های Devora، Dahl، River، APMix و Codecraft مجاز است؛ هزینه معیار انتخاب نیست. محدودیت تاریخی BoxAPI-only برای این مسیر superseded است، اما probe قدیمی BoxAPI همچنان اختصاصی است. origin/modelهای مجاز در `src/royin/model_profiles.py` و قرارداد/نتایج در `docs/model-provider-evaluation.md` هستند. state مصرف خارجی جدا، یک بار و با binding کلید ایجاد می‌شود؛ state غایب ادامه را می‌بندد. ledger اصلی BoxAPI و تمام state مالی قدیمی reset/refund نشوند. موفقیت مدل، مجوز live نیست.
+
 1. `git status --short`، فایل‌های موجود و وابستگی‌ها را بخوان؛ تغییر هم‌زمان کاربر را حفظ کن.
 2. docs/challenge-brief.md، TASKS.md و memory.md را بخوان؛ سپس بخش مربوط ARCHITECTURE.md و docs/evaluation-plan.md. Blueprint تاریخی و فقط فرضیه بود؛ اکنون محلی آرشیو شده است.
 3. هر caller، test، fixture، config، export و migration مرتبط را با `rg` پیدا کن. دامنه تغییر، خطر پول/داده و acceptance task را پیش از نوشتن مشخص کن.
@@ -127,6 +129,6 @@ TASKS.md را بعد از هر مرحله با وضعیت، revision، نتیج�
 - probeها و evaluate_ai_role محدودیت مستقل خود را دارند؛ سقف نقش‌ها را به آن‌ها تعمیم ندهید. `evaluate_ai_role.py --help` بدون هزینه و `--run` diagnostic پولیِ محدود است، نه portfolio backtest.
 - مدل فهرست نقدشونده را می‌بیند و۱..۵نماد را با یک ابزار خواندنی انتخاب می‌کند. seed داده توصیهٔ سرمایه‌گذاری نیست. خرابی seed با حداکثر۳تلاش و flags همان cutoff جدا می‌شود؛ همان دادهٔ ردشده دوباره انتخاب نشود. denylist قانونی تغییر نکرده است.
 - source/config/prompt/cutoff/hash و پاسخ واقعی حفظ شوند. collector متعلق به میزبان هنگام cancellation باید join شود. دارایی مثبت بدون قیمت، خطاست. پایان نگهداری forecast-bound برابر cutoff+horizon است، نه زمان ارسال+horizon.
-- اجرای منجمد `net-return-forward-20261023-2` طبق docs/current-market-readiness.md فعال است؛ تا تعیین وضعیت واقعی فرایند src/scripts/config/dependencies را تغییر ندهید، worker دوم نسازید و timeout مشاهده را مرگ فرایند ننامید.
+- وضعیت RUNNING اجرای قدیمی `net-return-forward-20261023-2` در artifact تاریخی باقی است؛ آن را بازنویسی نکنید. اجرای تازهٔ `evidence-forward-20261023-1` در08:22:22UTC با STOPPED_FLAT پایان یافت؛ هر دو PID اصلی خارج شدند و receipt پایان/replay در `.local/review/remote-integration-20261023/forward-postprocess-report.json` ثبت شد. هر اجرای تازه run ID/revision جدید و بررسی واقعی مالکیت لازم دارد؛ timeout مشاهده به‌تنهایی پایان فرایند نیست.
 - scorer فقط outcome پس از موعد را می‌سنجد؛ fake یا response کپی‌شده نتیجهٔ AI واقعی نیست. baseline interval روی outcomes ارزیابی fit نشود. rawهای ignored برای داوری نیاز به بستهٔ مجازِ پاک‌سازی‌شده دارند؛ clone تمیز به‌تنهایی آن‌ها را ندارد.
 - ۳۶۰ تست هسته در source3799e4a پاس شده‌اند؛ coverage کامل، alpha، سود یا readiness از این تعداد نتیجه نمی‌شود. وضعیت و کار بعدی در TASKS.md؛ نکات پایدار در memory.md.

@@ -103,6 +103,8 @@ def main():
         return 0
     try:
         config = load_config()
+        if config.LLM_PROVIDER != "boxapi":
+            raise BudgetBlocked("This legacy probe is BoxAPI-only; use the provider comparison")
         if config.BOXAPI_API_KEY is None:
             print("BLOCKED: set BOXAPI_API_KEY in local .env; no request was sent.")
             return 2

@@ -34,7 +34,7 @@ class RecordedHostReplayTests(unittest.TestCase):
         self.context = dict(role="ENTRY_ANALYST",cutoff=snap.cutoff,candidates=candidates,
             batch_sha256=replay.canonical_hash(candidates),horizon_bounds=[300,36000],remaining_seconds=3600)
         trace = dict(host_outcome="MODEL_DECISION",evidence_kind="REAL_MODEL_ATTEMPT",provider="boxapi",
-            model="synthetic-model",prompt_sha256=replay.sha256(b"synthetic instructions"),
+            model="gpt-6-luna",prompt_sha256=replay.sha256(b"synthetic instructions"),
             context=self.context,decision=decision.model_dump(mode="json"))
         state = dict(accounting_event_count=0,balances={"TMN":dict(free="5000000",locked="0")})
         self.row = dict(decision=decision.model_dump(mode="json"),snapshot=snap.to_canonical_dict(),
@@ -54,8 +54,8 @@ class RecordedHostReplayTests(unittest.TestCase):
             system = dict(role="system",content="synthetic instructions")
             user = dict(role="user",content="Evaluate the supplied synthetic market context.")
             assistant = dict(role="assistant",content=None,tool_calls=[read])
-            trace["requests"] = [json.dumps(dict(model="synthetic-model",messages=[system,user])),
-                json.dumps(dict(model="synthetic-model",messages=[system,user,assistant,tool]))]
+            trace["requests"] = [json.dumps(dict(model=trace["model"],messages=[system,user])),
+                json.dumps(dict(model=trace["model"],messages=[system,user,assistant,tool]))]
             trace["responses"] = [dict(status_code=200,body=json.dumps(dict(choices=[dict(message=dict(tool_calls=[read]))]))),
                 dict(status_code=200,body=json.dumps(dict(choices=[dict(message=dict(tool_calls=[dict(
                     function=dict(name="final_result",arguments=self.proposal.model_dump_json()))]))])))]
@@ -79,6 +79,16 @@ class RecordedHostReplayTests(unittest.TestCase):
         self.assertEqual(self.source.read_bytes(),original)
         self.assertEqual((self.root/"replay-a/source/manifest.json").read_bytes(),original)
         self.assertFalse((self.root/"data").exists())
+
+    def test_replay_cannot_relabel_a_model_as_another_provider(self):
+        self.row["model_trace"]["provider"]="river"
+        with self.assertRaisesRegex(ValueError,"provider"):
+            replay.replay_manifest(self.source,self.save(),self.root/"wrong-provider")
+
+    def test_external_credentials_are_rejected_in_shareable_artifacts(self):
+        for prefix in ("dahl_","rv_","apx_live_","cc_","SK-DEVORA-"):
+            with self.subTest(prefix=prefix),self.assertRaisesRegex(ValueError,"Credential"):
+                replay.reject_credentials("prefix "+prefix+"z"*40)
 
     def test_hash_tool_state_and_prompt_tampering_are_blocked_before_output(self):
         sha = self.save()

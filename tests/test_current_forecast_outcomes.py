@@ -27,7 +27,7 @@ class CurrentForecastOutcomeTests(unittest.TestCase):
         context = dict(cutoff=snap.cutoff,candidates=candidates,horizon_bounds=[300,36000],
             batch_sha256=hashlib.sha256(json.dumps(candidates,sort_keys=True,separators=(",",":")).encode()).hexdigest())
         decision = dict(action="WAIT",symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,forecast=f)
-        model = dict(host_outcome="MODEL_DECISION",evidence_kind="REAL_MODEL_ATTEMPT",provider="boxapi",model="synthetic-model-label",
+        model = dict(host_outcome="MODEL_DECISION",evidence_kind="REAL_MODEL_ATTEMPT",provider="boxapi",model="gpt-6-luna",
             prompt_sha256="b"*64,context=context,decision=copy.deepcopy(decision))
         self.row = dict(decision=decision,snapshot=snap.to_canonical_dict(),snapshot_sha256=snap.snapshot_sha256,model_trace=model)
         self.manifest = dict(mode="CURRENT_PAPER",model_mode="REAL_MODEL",run_id="synthetic-forecast",created_at_utc=datetime.fromtimestamp(8101,UTC).isoformat(),
@@ -47,6 +47,14 @@ class CurrentForecastOutcomeTests(unittest.TestCase):
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]["forecast"].symbol,"USDTTMN")
         self.assertFalse(skipped)
+
+    def test_provider_label_cannot_rebind_a_model_from_another_catalog(self):
+        self.row["model_trace"]["provider"]="river"
+        with self.assertRaisesRegex(ValueError,"provider"):
+            scorer.current_forecasts(self.source())
+        self.row["model_trace"]["model"]="deepseek-ai/DeepSeek-V4.1-Flash"
+        _,rows,_=scorer.current_forecasts(self.source())
+        self.assertEqual(len(rows),1)
 
     def test_trace_issuance_survives_later_long_session_manifest_write(self):
         self.row["issued_at_utc"] = datetime.fromtimestamp(8101,UTC).isoformat()

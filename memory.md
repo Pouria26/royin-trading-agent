@@ -1,5 +1,15 @@
 # حافظهٔ فنی پایدار
 
+## ۲۰۲۶-۱۰-۲۳ — اتصال provider و صداقت harness
+
+منبع: trace واقعی `provider-roles-20261023-3` و validator `validate_role_proposal`. Entry تک‌نمادی قدیمی forecast ورود را نمی‌پذیرد؛ مدل‌هایی که مطابق prompt forecast دادند با خطای host رد شدند. این ایراد اتصال harness بود، نه دلیل ضعف مدل؛ runs1..3 برای رتبه‌بندی Entry superseded هستند. در CLI اصلاح‌شده از batch با یک candidate و همان validator استفاده می‌شود؛ regression dispatch قرمز و سپس سبز، بدون ضعیف‌شدن گیت مالی. همهٔ شکست‌های قبلی حفظ‌اند.
+
+هدایت صریح کاربر، providerهای جدید و معیار بدون هزینه را مجاز کرد. origin/model/کلید باید یک binding باشند و state مصرف خارجی از بودجهٔ اصلی BoxAPI جدا باشد. missing DB مصرف صفر نیست؛ ایجاد یک‌باره فقط برای provider تازه و بدون جایگزینی فایل است. API catalog۲۰۰، smoke کوچک و نام مدل، صلاحیت نقش یا هویت مستقل backend را ثابت نمی‌کنند. Codecraft در۶مدل و حتی درخواست ساده۴۰۲ Billing verification failed داد؛ ماندهٔ واقعی از این خطا استخراج نشود.
+
+دور معتبر run4: GPT وAPMix۶/۶؛ تأیید دو تکرار هرکدام۱۲/۱۲، median۷٫۹۸۴۵/۲۱٫۱۸ثانیه. GPT-6-luna نامزد عملیاتی انتخاب شد؛ تکرار ورودی holdout مستقل نیست و این انتخاب سود را ثابت نمی‌کند. قرارداد و شواهد در docs/model-provider-evaluation.md. پذیرش source:۴۳۸هسته/۱۱داشبورد/چهارself-check،Ruff،compileall وconfig پاس؛۰fail/skip.
+
+اجرای سه‌ساعته f8a1748 واقعاً پایان یافت، برخلاف manifest تاریخی runقدیمی که هنوز RUNNING بود: STOPPED_FLAT08:22:22UTC،PIDها خارج، snapshot1c76e06e،۶۴۴capture،۱۳مدل/۱۰fallback/۱۱host،۰fill/PnL.۱۳forecast meanAE۰٫۳۷۳۷۰۲pp در برابر صفر۰٫۲۹۷۸۰۲pp،۵بهتر/۸بدتر. replay حسابداری پاس و execution/baseline مستقل hold/rule تأییدنشده؛ این داده‌ها اجازهٔ عبور از BUY_UNKNOWN یا reset هشتattempt را نمی‌دهند.
+
 ## جا شدن پژوهش در کندل و هدایت مدل‌ها — 2026-10-23
 
 شروع تحلیل با cutoff هنوز تازه کافی نیست؛ کل deadline پژوهش باید پیش از کندل بعد جا شود. ۶ fallback مشاهده‌شده با۱۱..۳۹ثانیه زمان باقی‌مانده شروع و همه پس از مرز برگشتند. نامزد قبل از claim چرخهٔ دیرهنگام را defer می‌کند و پیش از claim نقش/HTTP نیز زمان را کنترل می‌کند؛ cadence۳۰۰ثانیه و پایش دارایی مقدم‌اند. HOST_DEFERRED در replay فقط WAIT بدون HTTP/forecast/سفارش است. ۴۲۳ هسته/۱۱داشبورد پاس، اجرای f8a1748 همچنان ثابت است.

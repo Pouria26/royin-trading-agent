@@ -19,9 +19,11 @@ from pydantic import (
     model_validator,
 )
 
+from royin.model_profiles import PROVIDER_MODELS, PROVIDER_ORIGINS
+
 
 class RuntimeConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False,hide_input_in_errors=True)
 
     RUN_MODE: Literal["historical", "shadow", "live"] = "shadow"
     ENABLE_LIVE_TRADING: bool = False
@@ -29,10 +31,15 @@ class RuntimeConfig(BaseModel):
     WALLEX_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     SUB_ACCOUNT_CLIENT_ID: SecretStr | None = Field(default=None, repr=False, exclude=True)
     WALLEX_ALLOWED_MARKETS: tuple[str, ...] = ()
-    LLM_PROVIDER: Literal["boxapi"] = "boxapi"
-    LLM_BASE_URL: Literal["https://ai.boxapi.ir/ai/v1"] = "https://ai.boxapi.ir/ai/v1"
-    LLM_MODEL: Literal["gpt-6-luna", "gpt-5.6-luna", "gpt-5.4-mini"] = "gpt-6-luna"
+    LLM_PROVIDER: Literal["boxapi", "devora", "dahl", "river", "apmix", "codecraft"] = "boxapi"
+    LLM_BASE_URL: str = "https://ai.boxapi.ir/ai/v1"
+    LLM_MODEL: str = "gpt-6-luna"
     BOXAPI_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    DEVORA_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    DAHL_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    RIVER_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    APMIX_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    CODECRAFT_API_KEY: SecretStr | None = Field(default=None, repr=False, exclude=True)
     LLM_TOKEN_BUDGET: int | None = Field(default=None, ge=0)
     LLM_COST_BUDGET: Decimal | None = Field(default=None, ge=0)
     LLM_COST_CURRENCY: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
@@ -42,7 +49,8 @@ class RuntimeConfig(BaseModel):
     ARTIFACTS_DIR: Path = Path("artifacts")
 
     @field_validator(
-        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY",
+        "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY", "DEVORA_API_KEY", "DAHL_API_KEY",
+        "RIVER_API_KEY", "APMIX_API_KEY", "CODECRAFT_API_KEY",
         "LLM_TOKEN_BUDGET", "LLM_COST_BUDGET", "LLM_COST_CURRENCY",
         "CHALLENGE_END_AT", "FINALIZE_START_AT", mode="before",
     )
@@ -114,6 +122,9 @@ class RuntimeConfig(BaseModel):
 
     @model_validator(mode="after")
     def closed_gates(self):
+        if (PROVIDER_ORIGINS[self.LLM_PROVIDER] != self.LLM_BASE_URL
+                or self.LLM_MODEL not in PROVIDER_MODELS[self.LLM_PROVIDER]):
+            raise ValueError("Model and exact HTTPS origin must match the selected provider")
         if self.RUN_MODE == "live" or self.ENABLE_LIVE_TRADING:
             raise ValueError(
                 "Live is unavailable until account, market, risk, deadline and T10 gates exist"
@@ -123,9 +134,13 @@ class RuntimeConfig(BaseModel):
         ):
             raise ValueError("Finalization must precede an explicit end time")
         budgets = (self.LLM_TOKEN_BUDGET, self.LLM_COST_BUDGET, self.LLM_COST_CURRENCY)
-        if any(value is not None for value in budgets) and any(value is None for value in budgets):
+        if self.LLM_PROVIDER == "boxapi" and any(value is not None for value in budgets) and any(value is None for value in budgets):
             raise ValueError("Supply token budget, cost budget and currency together")
         return self
+
+    @property
+    def model_api_key(self):
+        return getattr(self,self.LLM_PROVIDER.upper()+"_API_KEY")
 
 
 def load_config(env_file: Path | None = None, *, environ: Mapping[str, str] | None = None):
@@ -144,7 +159,7 @@ def load_config(env_file: Path | None = None, *, environ: Mapping[str, str] | No
     environment = os.environ if environ is None else environ
     for key, value in environment.items():
         if key in RuntimeConfig.model_fields or key.startswith(
-            ("RUN_", "ENABLE_LIVE_", "WALLEX_", "SUB_ACCOUNT_", "LLM_", "BOXAPI_", "GOOGLE_API_")
+            ("RUN_", "ENABLE_LIVE_", "WALLEX_", "SUB_ACCOUNT_", "LLM_", "BOXAPI_", "DEVORA_", "DAHL_", "RIVER_", "APMIX_", "CODECRAFT_", "GOOGLE_API_")
         ):
             values[key] = value.strip()
     return RuntimeConfig.model_validate(values)
