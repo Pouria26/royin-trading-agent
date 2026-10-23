@@ -650,7 +650,7 @@ class Sources:
                     risk=e_data.get("risk"),
                     warnings=bounded_list(e_data.get("warnings")),
                 )
-                if not probe_path.is_file():
+                if not probe_path.is_file() or e_data.get("mode") == "LIVE_BOUNDED":
                     account.update(
                         status="AVAILABLE",
                         source=ident(e_data.get("source")) or "PAPER_ENGINE_SNAPSHOT",
@@ -658,7 +658,7 @@ class Sources:
                         sha256=e_sha,
                         balances=engine_snapshot["balances"],
                         equity_tmn=equity,
-                        reconciliation="PAPER_INTERNAL_LEDGER",
+                        reconciliation="FINANCIAL_RECORDED_LEDGER" if e_data.get("mode") == "LIVE_BOUNDED" else "PAPER_INTERNAL_LEDGER",
                         warnings=engine_snapshot["warnings"],
                     )
                 if e_data.get("heartbeat_at"):

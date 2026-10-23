@@ -1,3 +1,11 @@
+## Current authority and checked phase — 2026-10-23, after 17:18 Tehran
+
+Latest direct operator instruction authorizes real autonomous execution and delegates trading judgment. Fixed 150k-only new-mission policy is superseded by VOLATILITY_CAPITAL_V1: 0.5% account planned risk, ATR stop, 50% asset / 80% mission ceilings, first completed actual round-trip <=150k, one position with rotation. Daily UTC loss 2%, persistent mission drawdown 4%, risk halves after 1% drawdown. No confidence-as-probability sizing. Historical UNKNOWN/reserve/counter8 remain immutable; this authorization creates an independent lane and is not historical exchange finality.
+
+Frozen paired-hour-forward-20261023-1 stopped at operator request at16:50:17 Tehran, STOPPED_FLAT/PARTIAL, source unchanged,115cycles/535GET. Hold -1389.50331768TMN; rule -3321.877789326TMN; GPT/APMix zero fills, respectively10/14 valid model decisions and12/8 fallback. This is not a completed3h test or alpha evidence. Full terminal snapshots and hashes are in .local/review/paired-hour-stopped-snapshot.
+
+Integrated changes: exact host candidate choices in output schema (binding validation retained); fresh post-inference entry quote with original conditional economics; durable dynamic sizing, actual-ledger dashboard monitor, config binding/readiness checks. 479 core tests/13 dashboard tests passed, Ruff/compileall/example-config/JS syntax passed. APMix existing usage allowance extended20M->200M with original115 reservations retained, no refund/reset; BoxAPI original limits unchanged. Real-provider compatibility with new schema, actual new order/fill, and Liara team deployment remain UNCONFIRMED at this checkpoint. See docs/dynamic-capital-policy.md and docs/multiday-runtime.md. Next: commit source, prepare fresh mission with real account reads, then single worker and verified persistent-volume deployment.
+
 ## پایش مستقل هنگام آزمون سه‌ساعته — ۲۳ اکتبر، هنگام اجرای منجمد
 
 داشبورد با فونت محلی وزیرمتن/Inter، چیدمان موبایل و نمایش paired-paper تکمیل شد؛ ۱۲ تست داشبورد، Ruff و syntax جاوااسکریپت پاس شدند. تصویر قبل/بعد، سنجش محدود کنتراست و محدودیت ابزار عمومی کیت در docs/dashboard-refresh-validation.md آمده است. raw مدل صادر نمی‌شود و snapshotهای چهار شاخه checkpoint اتمیک خوانده نمی‌شوند.

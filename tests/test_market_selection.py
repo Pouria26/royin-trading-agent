@@ -125,6 +125,27 @@ class MarketSelectionTests(unittest.IsolatedAsyncioTestCase):
         tool = json.loads(next(m for m in bodies[-1]["messages"] if m["role"] == "tool")["content"])
         self.assertEqual(tool["batch_sha256"], trace["context"]["batch_sha256"])
 
+    async def test_final_schema_enumerates_current_bindings_but_host_rejects_wrong_pair(self):
+        market_batch = batch()
+        proposal = enter_proposal(market_batch["ETHTMN"][0])
+        decision, _, bodies = await self.call(proposal, market_batch)
+        self.assertEqual(decision.action, "ENTER")
+        self.assertEqual([t["function"]["name"] for t in bodies[0]["tools"]], ["read_market_snapshot"])
+        final = next(t["function"]["parameters"] for t in bodies[1]["tools"] if t["function"]["name"] == "final_result")
+        fields = final["properties"]
+        self.assertEqual(set(fields["snapshot_sha256"]["enum"]), {s.snapshot_sha256 for s,_ in market_batch.values()})
+        self.assertEqual(set(fields["symbol"]["enum"]), {"BTCTMN","ETHTMN",None})
+        self.assertEqual(fields["cutoff"]["enum"], [8100])
+        self.assertEqual(fields["role"]["enum"], ["ENTRY_ANALYST"])
+        forecast_schema = final["$defs"]["ReturnForecast"]["properties"]
+        self.assertEqual(set(forecast_schema["symbol"]["enum"]), {"BTCTMN", "ETHTMN"})
+        self.assertEqual(set(forecast_schema["reference_price"]["enum"]), {str(s.last_close) for s,_ in market_batch.values()})
+        # A provider can ignore the enum. It still cannot borrow another symbol's valid hash.
+        proposal["snapshot_sha256"] = market_batch["BTCTMN"][0].snapshot_sha256
+        rejected, trace, _ = await self.call(proposal, market_batch)
+        self.assertEqual(rejected.action, "WAIT")
+        self.assertEqual(trace["host_outcome"], "HOST_FALLBACK")
+
     async def test_out_of_batch_forbidden_symbol_and_hash_fail_closed_to_wait(self):
         market_batch = batch()
         base = enter_proposal(market_batch["BTCTMN"][0])

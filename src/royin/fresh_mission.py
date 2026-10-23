@@ -9,9 +9,10 @@ from contextlib import closing
 from dataclasses import asdict
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from royin.market_data import decode_json
 
@@ -29,10 +30,21 @@ class FreshMissionPermit(BaseModel):
     end_at: int = Field(gt=0)
     max_buys: int = Field(default=1, ge=1, le=32)
     max_attempts: int = Field(default=128, ge=16, le=4096)
+    capital_policy: Literal["FIXED_BOOTSTRAP_V1", "VOLATILITY_CAPITAL_V1"] = "FIXED_BOOTSTRAP_V1"
+    allocation_tmn: Decimal = Field(default=Decimal("150000"), ge=Decimal("150000"), le=Decimal("4000000"))
+
+    @field_validator("allocation_tmn", mode="before")
+    @classmethod
+    def exact_allocation(cls, value):
+        if not isinstance(value, (str, Decimal)):
+            raise ValueError("Allocation requires a decimal string")
+        return Decimal(value)
 
     def canonical(self):
         if not self.start_at < self.entry_end_at < self.end_at <= self.start_at + 345600:
             raise ValueError("Fresh permit requires ordered times within four days")
+        if self.capital_policy == "FIXED_BOOTSTRAP_V1" and self.allocation_tmn != Decimal("150000"):
+            raise ValueError("A larger allocation requires the explicit dynamic capital policy")
         return self.model_dump_json()
 
 
@@ -59,7 +71,8 @@ def authorize_fresh_mission(
             raise ValueError("Historical database is not a valid snapshot")
         # No UPDATE/DELETE: a new human instruction is not an exchange cancellation.
         previous = db.execute("SELECT client_id,status FROM order_intents").fetchall()
-    if observed_cash_tmn < Decimal("250000"):
+    if (observed_cash_tmn < permit.allocation_tmn + Decimal("100000")
+            or permit.allocation_tmn > observed_cash_tmn * Decimal(".80")):
         raise ValueError("Fresh allocation plus historical quarantine is unavailable")
     if hashlib.sha256(path.read_bytes()).hexdigest() != before:
         raise ValueError("Historical state changed during authorization")
@@ -70,7 +83,7 @@ def authorize_fresh_mission(
         ):
             raise ValueError("Existing financial mission cannot be reset")
         ledger.initialize_portfolio(
-            Decimal("150000"),
+            permit.allocation_tmn,
             quote_asset="TMN",
             binding=hashlib.sha256(canonical.encode()).hexdigest(),
         )
@@ -85,7 +98,7 @@ def authorize_fresh_mission(
                     old_state_sha256=before,
                     quarantined_tmn="100000",
                     cash_baseline_tmn=str(observed_cash_tmn),
-                    allocation_tmn="150000",
+                    allocation_tmn=str(permit.allocation_tmn),
                     authorized_at=int(time.time()),
                 ),
                 ensure_ascii=False,
@@ -97,7 +110,7 @@ def authorize_fresh_mission(
 
 
 class FreshMissionTransport(httpx.BaseTransport):
-    """Known LIMIT intents only, max 150k debit, one position, no retry of a POST."""
+    """Known LIMIT intents only, explicit capital policy, one position, no POST retry."""
 
     def __init__(self, ledger, rules, config, *, permit, inner=None):
         self.ledger, self.rules, self.config, self.permit = ledger, rules, config, permit
@@ -117,6 +130,17 @@ class FreshMissionTransport(httpx.BaseTransport):
             json.dumps(asdict(rules), default=str, sort_keys=True).encode()
         ).hexdigest()
         self.inner = inner if inner is not None else httpx.HTTPTransport(retries=0, trust_env=False)
+
+    def account_equity(self):
+        authorization = json.loads(self.ledger.get_meta("fresh_authorization"))
+        return (Decimal(authorization["cash_baseline_tmn"]) - self.permit.allocation_tmn
+                + self.ledger.get_balance("TMN").total)
+
+    def buy_debit_cap(self):
+        if (self.permit.capital_policy == "FIXED_BOOTSTRAP_V1"
+                or int(self.ledger.get_meta("closed_round_trips") or 0) == 0):
+            return Decimal("150000")
+        return min(self.permit.allocation_tmn, self.account_equity() * Decimal(".50"))
 
     def handle_request(self, request):
         if (
@@ -191,7 +215,7 @@ class FreshMissionTransport(httpx.BaseTransport):
                         or state["buys"] >= self.permit.max_buys
                         or state["attempts"] >= self.permit.max_attempts - 16
                         or Decimal(price) * Decimal(quantity) * (1 + self.rules.taker_fee_rate)
-                        > Decimal("150000")
+                        > self.buy_debit_cap()
                         or any(
                             a != "TMN" and b.total
                             for a, b in self.ledger.get_all_balances().items()
@@ -215,6 +239,20 @@ class FreshMissionTransport(httpx.BaseTransport):
                         raise ValueError(
                             "Fresh bound AI, book, economics and account evidence required"
                         )
+                    if self.permit.capital_policy == "VOLATILITY_CAPITAL_V1":
+                        from royin.ledger import validate_decimal
+
+                        plan = evidence.get("capital_plan") or {}
+                        if plan.get("policy") != "VOLATILITY_CAPITAL_V1" or plan.get("approved") is not True:
+                            raise ValueError("Host dynamic capital evidence required")
+                        cap, loss, risk_budget = (Decimal(plan[key]) for key in
+                            ("debit_limit_tmn", "loss_fraction", "risk_budget_tmn"))
+                        for value in (cap, loss, risk_budget):
+                            validate_decimal(value, "capital evidence", strictly_positive=True)
+                        debit = Decimal(price) * Decimal(quantity) * (1 + self.rules.taker_fee_rate)
+                        if (debit > cap or debit * loss > risk_budget
+                                or risk_budget > self.account_equity() * Decimal(".005")):
+                            raise ValueError("Dynamic capital or stop-risk budget exceeded")
                     state["buys"] += 1
                 elif side == "SELL":
                     if state["buys"] == 0 or state["sells"] >= self.permit.max_buys * 3:

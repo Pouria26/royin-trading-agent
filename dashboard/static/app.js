@@ -79,7 +79,7 @@ function renderOverview() {
   $('mode').textContent = feed.mode;
   const paperMode = ['CURRENT_PAPER','PUBLIC_MARKET_PAPER'].includes(feed.mode);
   const workerLabels = {RUNNING_REPORTED:'پالس تازهٔ موتور؛ گزارش اجرا', HEARTBEAT_STALE:'پالس موتور کهنه است', STOPPED_FLAT:'توقف ثبت‌شده؛ بدون موقعیت', STOPPED_OPEN:'توقف ثبت‌شده؛ موقعیت باز', NOT_RUNNING:'اجرا نشده', UNKNOWN:'نامعلوم'};
-  $('mode-description').textContent = paperMode ? 'قیمت زنده، پول مجازی؛ سفارش واقعی غیرفعال' : feed.mode === 'OBSERVE_ONLY' ? 'مشاهده عمومی · بدون سفارش' : feed.mode === 'HISTORICAL_REPLAY' ? 'بازپخش تاریخی؛ بدون سفارش واقعی' : 'حالت موتور تأیید نشده است';
+  $('mode-description').textContent = paperMode ? 'قیمت زنده، پول مجازی؛ سفارش واقعی غیرفعال' : feed.mode === 'LIVE_BOUNDED' ? 'موتور حساب واقعی؛ تصمیم، گیت و fill مستقل ثبت می‌شوند' : feed.mode === 'OBSERVE_ONLY' ? 'مشاهده عمومی · بدون سفارش' : feed.mode === 'HISTORICAL_REPLAY' ? 'بازپخش تاریخی؛ بدون سفارش واقعی' : 'حالت موتور تأیید نشده است';
   $('worker').textContent = 'Worker: ' + (workerLabels[feed.worker] || feed.worker);
   $('feed-status').textContent = (statusLabels[feed.status] || feed.status) + ' / ' + feed.status;
   $('feed-time').textContent = time(feed.observed_at);
@@ -94,7 +94,7 @@ function renderOverview() {
     'timeout / error: نامعلوم', 'توافق با baseline اثبات مزیت مالی نیست.'].join(' · ');
   if ($('account-status')) {
     if (o.account && o.account.status === 'AVAILABLE') {
-      $('account-status').textContent = o.account.reconciliation === 'PAPER_INTERNAL_LEDGER' ? 'دفتر کل کاغذی؛ پول مجازی' : 'مشاهدهٔ ذخیره‌شدهٔ حساب اعتباری';
+      $('account-status').textContent = o.account.reconciliation === 'PAPER_INTERNAL_LEDGER' ? 'دفتر کل کاغذی؛ پول مجازی' : o.account.reconciliation === 'FINANCIAL_RECORDED_LEDGER' ? 'دفتر مالی؛ بر پایهٔ fillهای ثبت‌شده' : 'مشاهدهٔ ذخیره‌شدهٔ حساب اعتباری';
       $('account-equity').textContent = 'ارزش حساب: ' + format(o.account.equity_tmn, 'TMN');
       const tmnFree = o.account.balances && o.account.balances.TMN ? o.account.balances.TMN.free : null;
       const assets = Object.entries(o.account.balances || {}).filter(([asset]) => asset !== 'TMN')
@@ -127,6 +127,7 @@ function renderOverview() {
   }
   if (feed.status === 'STALE') setNotice('داده ذخیره‌شده کهنه است', 'اتصال جاری موتور تأیید نشده؛ زمان آخرین مشاهده را بررسی کنید. حساب صرافی منتظر اتصال موتور است.');
   else if (paperMode) setNotice('اجرای کاغذی؛ معامله با پول واقعی فعال نیست', 'وضعیت پالس: '+(workerLabels[feed.worker] || feed.worker)+' · برای خرید واقعی، مسیر مالی مستقل و تأییدشده لازم است.');
+  else if (feed.mode === 'LIVE_BOUNDED') setNotice('موتور واقعی با کنترل ریسک میزبان', 'صدور تصمیم، پذیرش سفارش و تأیید fill متفاوت‌اند. موجودی دفتر مالی، استریم لحظه‌ای صرافی نیست؛ سفارش مبهم ورود بعدی را می‌بندد.');
   else setNotice('حساب و worker جاری تأیید نشده‌اند', 'شواهد محلی برای بررسی در دسترس‌اند؛ وضعیت سرور داشبورد، سلامت ربات یا آمادگی معامله نیست.');
   state.events = [
     ...(o.account.status === 'AVAILABLE' ? [] : [{severity:'WARNING', title:'حساب UNAVAILABLE', message:'خروجی تأییدشده صرافی باید توسط موتور فراهم شود؛ اتصال خصوصی در داشبورد وجود ندارد.'}]),

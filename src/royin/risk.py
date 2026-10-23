@@ -91,6 +91,32 @@ class RiskResult:
     estimated_fee_quote: Decimal
 
 
+def allocate_entry_capital(*, equity_tmn, free_cash_tmn, price_tmn, atr_tmn, depth_tmn,
+                           fee_rate, tick_size, bootstrap, risk_scale):
+    """Versioned host capital plan. Conditional stop loss is not a guaranteed maximum loss."""
+    for name, value in (("equity", equity_tmn), ("price", price_tmn), ("depth", depth_tmn), ("tick", tick_size)):
+        validate_decimal(value, name, strictly_positive=True)
+    for name, value in (("cash", free_cash_tmn), ("ATR", atr_tmn), ("fee", fee_rate)):
+        validate_decimal(value, name, allow_zero=True)
+    validate_decimal(risk_scale, "risk scale", strictly_positive=True)
+    if type(bootstrap) is not bool or risk_scale > 1 or fee_rate > Decimal(".003"):
+        raise ValueError("Invalid capital policy inputs")
+    stop = max(Decimal(".012"), 2 * atr_tmn / price_tmn)
+    loss_fraction = stop + 2 * fee_rate + Decimal(".001") + tick_size / price_tmn
+    risk_budget = equity_tmn * Decimal(".005") * risk_scale
+    cap = min(free_cash_tmn, equity_tmn * Decimal(".50"), equity_tmn * Decimal(".80"),
+              depth_tmn * Decimal(".05"), risk_budget / loss_fraction)
+    if bootstrap:
+        cap = min(cap, Decimal("150000"))
+    cap = cap.quantize(Decimal(".01"), rounding=ROUND_DOWN)
+    return dict(policy="VOLATILITY_CAPITAL_V1", approved=stop <= Decimal(".06") and cap >= Decimal("100300"),
+                reason="ATR stop exceeds six percent" if stop > Decimal(".06") else
+                "Insufficient post-fee capital or liquidity" if cap < Decimal("100300") else "HOST_RISK_SIZED",
+                debit_limit_tmn=str(cap), stop_fraction=str(stop), loss_fraction=str(loss_fraction),
+                risk_budget_tmn=str(risk_budget), bootstrap=bootstrap,
+                confidence_used_as_probability=False)
+
+
 @dataclass(frozen=True)
 class PositionProtectionPolicy:
     """Explicit paper policy; checkpoints request review, never force profit taking."""

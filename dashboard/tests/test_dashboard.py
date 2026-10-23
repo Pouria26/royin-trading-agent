@@ -369,6 +369,21 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(overview["engine_snapshot"]["status"],"INVALID")
         self.assertEqual(overview["observation"]["worker"],"UNKNOWN")
 
+    def test_financial_snapshot_is_not_labelled_as_paper_or_overridden_by_old_probe(self):
+        probe = self.root / "data/private/probe-report.json"
+        probe.parent.mkdir(parents=True)
+        probe.write_text(json.dumps(dict(tmn_balance=dict(available="5000000", locked="0", total="5000000"),
+            usdt_balance=dict(available="0", locked="0", total="0"))))
+        path = self.root / ".local/dashboard/engine-snapshot.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(dict(mode="LIVE_BOUNDED", source="RECORDED_FINANCIAL_LEDGER",
+            evidence_kind="REAL_CREDIT_ACCOUNT", heartbeat_at=1700000000, observed_at=1700000000,
+            account=dict(equity_tmn="4900000", balances={"TMN":dict(free="4900000",locked="0",total="4900000")}))))
+        result = self.sources.overview()
+        self.assertEqual(result["account"]["equity_tmn"], "4900000")
+        self.assertEqual(result["account"]["reconciliation"], "FINANCIAL_RECORDED_LEDGER")
+        self.assertEqual(result["observation"]["mode"], "LIVE_BOUNDED")
+
     def test_asset_projection_rejects_invalid_missing_and_inconsistent_values(self):
         for balances in ({"ETH":dict(free=".1",locked=".2",total=".4")},
                          {"../.env":dict(free="0",locked="0",total="0")},

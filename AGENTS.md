@@ -1,3 +1,7 @@
+## Latest financial authority — 2026-10-23
+
+The operator now authorizes the new independent VOLATILITY_CAPITAL_V1 mission; see docs/dynamic-capital-policy.md. Historical fixed-new-lane150k-only statements below are superseded for this explicit permit; first actual round-trip stays capped150k. Preserve original UNKNOWN/reserve/counter8 and budgets. One position, risk-based sizing; no calibrated-probability claim.
+
 # دستور اصلی Coding Agent — رویین / Wallex
 
 ## هدایت مقدم کاربر و وضعیت تازه — ۲۳ اکتبر، پس از ۱۴:۴۴ تهران

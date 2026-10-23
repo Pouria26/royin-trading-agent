@@ -1,3 +1,11 @@
+## Current authority and checked phase — 2026-10-23, after 17:18 Tehran
+
+Latest direct operator instruction authorizes real autonomous execution and delegates trading judgment. Fixed 150k-only new-mission policy is superseded by VOLATILITY_CAPITAL_V1: 0.5% account planned risk, ATR stop, 50% asset / 80% mission ceilings, first completed actual round-trip <=150k, one position with rotation. Daily UTC loss 2%, persistent mission drawdown 4%, risk halves after 1% drawdown. No confidence-as-probability sizing. Historical UNKNOWN/reserve/counter8 remain immutable; this authorization creates an independent lane and is not historical exchange finality.
+
+Frozen paired-hour-forward-20261023-1 stopped at operator request at16:50:17 Tehran, STOPPED_FLAT/PARTIAL, source unchanged,115cycles/535GET. Hold -1389.50331768TMN; rule -3321.877789326TMN; GPT/APMix zero fills, respectively10/14 valid model decisions and12/8 fallback. This is not a completed3h test or alpha evidence. Full terminal snapshots and hashes are in .local/review/paired-hour-stopped-snapshot.
+
+Integrated changes: exact host candidate choices in output schema (binding validation retained); fresh post-inference entry quote with original conditional economics; durable dynamic sizing, actual-ledger dashboard monitor, config binding/readiness checks. 479 core tests/13 dashboard tests passed, Ruff/compileall/example-config/JS syntax passed. APMix existing usage allowance extended20M->200M with original115 reservations retained, no refund/reset; BoxAPI original limits unchanged. Real-provider compatibility with new schema, actual new order/fill, and Liara team deployment remain UNCONFIRMED at this checkpoint. See docs/dynamic-capital-policy.md and docs/multiday-runtime.md. Next: commit source, prepare fresh mission with real account reads, then single worker and verified persistent-volume deployment.
+
 ## وضعیت مقدم — پایان مقایسه و نامزد چندروزه، ۲۳ اکتبر
 
 ابتدا Git و process واقعی بررسی شوند؛ یادداشت زمان‌دار کافی نیست. `paired-entry-forward-20261023-2` روی7df0d08 در11:14:45UTC کامل/STOPPED_FLAT شد و دو PID6940/25112 خارج شدند. چهار accounting replay معتبر؛hold+۱۷۵۰٫۴۱تومان،rule−۴٫۸۳،مدل‌ها۰fill.۱۵forecast همگی scored و از baselineصفر در meanAE ضعیف‌تر بودند. terminal snapshot/hashها در `.local/review/paired-final-snapshot`؛ گزارش خام و state خصوصی وارد Git نشوند.

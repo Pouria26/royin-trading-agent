@@ -54,11 +54,13 @@ instruction/hash, account, release, historical SQLite hash, baseline cash, and
 reserve, counter=8, and client ID remain intact. At least 100,000 TMN stays outside
 the new allocation as historical-risk quarantine. No historical POST is retried.
 
-The new allocation/debit cap is 150,000 TMN, one position, no automatic size
-increase. The default permit allows **one BUY**, bounded cumulative GET/DELETE,
+The default allocation/debit cap remains 150,000 TMN, one position. The latest
+operator-authorized dynamic permit is specified in [capital policy](dynamic-capital-policy.md);
+it preserves the first completed actual round-trip cap and then risk-sizes entries.
+The default permit allows **one BUY**, bounded cumulative GET/DELETE,
 and up to three owned SELL attempts after previous orders settle. A larger
 predeclared finite trade count is a separate permit policy, not a restart reset.
-This does not authorize using 70% of the wallet.
+Larger allocations require the explicit versioned dynamic permit, never a flag change.
 
 `FreshMissionTransport` accepts only exact durable LIMIT intents for that mission,
 account, and symbol. It requires recent book/account/economic/real-AI evidence

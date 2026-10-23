@@ -19,7 +19,8 @@ from royin.decision import Decision, ReturnForecast
 from royin.fresh_mission import FreshMissionPermit, FreshMissionTransport, authorize_fresh_mission
 from royin.ledger import Ledger
 from royin.live_broker import WallexLiveBroker
-from royin.risk import MarketRules, RiskResult
+from royin.risk import MarketRules, RiskResult, allocate_entry_capital
+from scripts import run_fresh_service
 from scripts.backup_runtime_state import backup
 from scripts.run_fresh_service import FreshEngine, account_matches
 from tests.test_market_selection import opportunity
@@ -123,6 +124,55 @@ class FreshMissionTests(unittest.TestCase):
         return self.ledger.worker(
             account_fingerprint=self.fingerprint, lock_directory=self.root / "locks"
         )
+
+    def test_live_health_is_not_ready_for_unknown_order_or_exhausted_entry_budget(self):
+        self.authorize()
+        broker, _ = self.make_broker()
+        self.ledger.set_meta("service_state", "RUNNING")
+        self.ledger.set_meta("engine_heartbeat", "1010")
+        health = run_fresh_service.read_fresh_health(self.ledger.db_path, self.permit.mission_id, now=1010)
+        self.assertTrue(health["ready"])
+        cid = "fresh_test_buy_1010"
+        self.evidence(cid)
+        risk = RiskResult(True, "synthetic admission", "ENTER", "ETHTMN", D(1400), D(100), D(98), D(420))
+        with self.worker():
+            broker.submit_order(risk, client_id=cid, timestamp=1010)
+        health = run_fresh_service.read_fresh_health(self.ledger.db_path, self.permit.mission_id, now=1010)
+        self.assertTrue(health["alive"])
+        self.assertFalse(health["ready"])
+        self.assertEqual(health["entry_block_reason"], "ORDER_RECONCILIATION_REQUIRED")
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(hashlib.sha256((self.root / "old.sqlite3").read_bytes()).hexdigest(), self.old_hash)
+
+    def test_model_budget_block_is_propagated_to_financial_health_without_http(self):
+        self.authorize()
+        WallexLiveBroker.initialize_state(self.ledger)
+        signals = MagicMock(model_startup_blocked=False)
+        signals.ledger = Ledger()
+        signals.ledger.set_meta("entry_block_reason", "BUDGET_EXHAUSTED")
+        engine = FreshEngine(self.ledger, self.permit, None, self.config, self.root,
+                            client=None, feed=None, signals=signals)
+        asyncio.run(engine.entry_tick(1010))
+        self.assertEqual(self.ledger.get_meta("entry_block_reason"), "BUDGET_EXHAUSTED")
+        signals._execute_cycle.assert_not_called()
+        self.assertFalse(self.calls)
+
+    def test_prepared_config_change_blocks_before_signal_engine_or_financial_write(self):
+        self.authorize()
+        WallexLiveBroker.initialize_state(self.ledger)
+        self.ledger.set_meta("fresh_config_sha256", hashlib.sha256(self.config.model_dump_json().encode()).hexdigest())
+        destination = self.root / "financial.sqlite3"
+        backup(Path(self.ledger.db_path), destination)
+        before = hashlib.sha256(destination.read_bytes()).hexdigest()
+        changed = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 12345})
+        with patch.object(run_fresh_service, "validate_schedule"), patch.object(
+            run_fresh_service, "service_paths", return_value=(self.root, None, None)
+        ), patch.object(run_fresh_service, "signals_for") as signals:
+            with self.assertRaisesRegex(ValueError, "runtime config"):
+                asyncio.run(run_fresh_service.run(self.root, self.permit, None, changed, port=0))
+            signals.assert_not_called()
+        self.assertEqual(hashlib.sha256(destination.read_bytes()).hexdigest(), before)
+        self.assertFalse(self.calls)
 
     def test_authorization_is_separate_and_does_not_rewrite_or_settle_history(self):
         self.authorize()
@@ -308,6 +358,66 @@ class FreshMissionTests(unittest.TestCase):
             account_matches(self.ledger, {"TMN": balances["TMN"]}, ["historical_unknown"])
         )
 
+    def dynamic_permit(self):
+        self.permit = self.permit.model_copy(update=dict(capital_policy="VOLATILITY_CAPITAL_V1",
+            allocation_tmn=D(4000000), max_buys=32, max_attempts=1024))
+        self.authorize()
+
+    def test_dynamic_transport_allows_variable_sized_order_only_after_bootstrap_proof(self):
+        self.dynamic_permit()
+        self.assertEqual(self.ledger.get_balance("TMN").total, D(4000000))
+        self.ledger.set_meta("closed_round_trips", "1")  # Synthetic prior execution receipt for this unit case.
+        cid = "fresh_test_dynamic_buy"
+        plan = allocate_entry_capital(equity_tmn=D(5000000), free_cash_tmn=D(4000000), price_tmn=D(100),
+            atr_tmn=D(1), depth_tmn=D(100000000), fee_rate=D(".003"), tick_size=D(1), bootstrap=False, risk_scale=D(1))
+        self.evidence(cid, capital_plan=plan)
+        response = dict(success=True, result=dict(clientOrderId=cid, symbol="ETHTMN", side="BUY", type="LIMIT",
+            price="100", origQty="6000", executedQty="0", executedSum="0", status="NEW", active=True, fills=[]))
+        broker, _ = self.make_broker(response=response)
+        risk = RiskResult(True, "synthetic dynamic admission", "ENTER", "ETHTMN", D(6000), D(100), D(98), D(1800))
+        with self.worker():
+            self.assertEqual(broker.submit_order(risk, client_id=cid, timestamp=1010)["status"], "OPEN")
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.ledger.get_balance("TMN").locked, D(601800))
+        self.assertEqual(hashlib.sha256((self.root / "old.sqlite3").read_bytes()).hexdigest(), self.old_hash)
+
+    def test_dynamic_transport_keeps_first_order_small_and_preserves_unknown_reserve(self):
+        self.dynamic_permit()
+        cid = "fresh_test_oversized_first"
+        self.evidence(cid, capital_plan=dict(policy="VOLATILITY_CAPITAL_V1", approved=True,
+            debit_limit_tmn="2500000", loss_fraction=".01", risk_budget_tmn="25000"))
+        broker, _ = self.make_broker()
+        risk = RiskResult(True, "synthetic too early scale", "ENTER", "ETHTMN", D(6000), D(100), D(98), D(1800))
+        with self.worker():
+            self.assertEqual(broker.submit_order(risk, client_id=cid, timestamp=1010)["status"], "UNKNOWN")
+        self.assertFalse(self.calls)
+        self.assertEqual(self.ledger.get_balance("TMN").locked, D(601800))
+        self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["attempts"], 0)
+
+    def test_daily_risk_resume_does_not_reset_orders_or_mission_drawdown(self):
+        self.dynamic_permit()
+        engine = FreshEngine(self.ledger, self.permit, None, self.config, self.root,
+                            client=None, feed=None, signals=None)
+        self.assertEqual(engine.capital_status(1010), D(1))
+        def losing_trip(index, stamp):
+            buy, sell = f"synthetic_buy_{index}", f"synthetic_sell_{index}"
+            self.ledger.record_intent(client_id=buy, symbol="ETHTMN", side="BUY", order_type="LIMIT",
+                price=D(100), quantity=D(10000), quote_fee_reserve=D(3000), quote_asset="TMN", base_asset="ETH", timestamp=stamp)
+            self.ledger.record_fill(fill_id=buy, client_id=buy, price=D(100), quantity=D(10000), fee=D(3000), fee_asset="TMN", timestamp=stamp)
+            self.ledger.record_intent(client_id=sell, symbol="ETHTMN", side="SELL", order_type="LIMIT",
+                price=D(90), quantity=D(10000), quote_fee_reserve=D(0), quote_asset="TMN", base_asset="ETH", timestamp=stamp+1)
+            self.ledger.record_fill(fill_id=sell, client_id=sell, price=D(90), quantity=D(10000), fee=D(2700), fee_asset="TMN", timestamp=stamp+1)
+        losing_trip(1, 1020)
+        self.assertIsNone(engine.capital_status(1030))
+        self.assertEqual(self.ledger.get_meta("capital_block_reason"), "DAILY_LOSS_BUDGET")
+        self.assertEqual(engine.capital_status(87430), D(".5"))
+        self.assertEqual(self.ledger.get_meta("closed_round_trips"), "1")
+        losing_trip(2, 87440)
+        self.assertIsNone(engine.capital_status(87450))
+        self.assertEqual(self.ledger.get_meta("capital_block_reason"), "MISSION_DRAWDOWN_BUDGET")
+        self.assertIsNone(engine.capital_status(173850))
+        self.assertEqual(self.ledger.get_meta("closed_round_trips"), "2")
+
     def test_missing_authorization_old_evidence_and_open_orders_cannot_bootstrap(self):
         for changes in (
             dict(operator_instruction=""),
@@ -331,7 +441,8 @@ class FreshMissionTests(unittest.TestCase):
         self.authorize()
         WallexLiveBroker.initialize_state(self.ledger)
         snap = market_snapshot("ETHTMN")
-        opp = opportunity().model_copy(update=dict(best_ask=D(101), best_bid=D("100.99")))
+        # Analysis quote moved while the model was running; the host must size from the fresh book.
+        opp = opportunity().model_copy(update=dict(best_ask=D(100), best_bid=D("99.99")))
         forecast = ReturnForecast(forecast_id="synthetic-forward", symbol="ETHTMN", cutoff=snap.cutoff,
             reference_price=snap.last_close, reference_kind="LAST_CLOSE", horizon_seconds=300,
             return_q10=D("-.01"), return_q50=D(".03"), return_q90=D(".05"), target_return_fraction=D(".03"),
@@ -363,11 +474,47 @@ class FreshMissionTests(unittest.TestCase):
             asyncio.run(engine.entry_tick(8105))
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.ledger.get_balance("ETH").total, 0)
+        payload = json.loads(self.calls[0].content)
+        self.assertEqual(D(payload["price"]), D(101))
+        self.assertLessEqual(D(payload["price"]) * D(payload["quantity"]) * D("1.003"), D(150000))
         self.assertGreater(self.ledger.get_balance("TMN").locked, D(100000))
         with self.ledger.connection() as db:
             self.assertEqual(db.execute("SELECT count(*) FROM fills").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT status FROM live_broker_orders").fetchone()[0], "OPEN")
         self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["buys"], 1)
+
+    def test_repricing_above_the_original_forecast_target_cannot_send_an_order(self):
+        self.permit = self.permit.model_copy(update=dict(start_at=8000, entry_end_at=9000, end_at=10000))
+        self.authorize()
+        WallexLiveBroker.initialize_state(self.ledger)
+        snap = market_snapshot("ETHTMN")
+        opp = opportunity().model_copy(update=dict(best_ask=D(100), best_bid=D("99.99")))
+        fc = ReturnForecast(forecast_id="synthetic-cost-reject", symbol=snap.symbol, cutoff=snap.cutoff,
+            reference_price=snap.last_close, reference_kind="LAST_CLOSE", horizon_seconds=300,
+            return_q10=D("-.01"), return_q50=D(".03"), return_q90=D(".05"), target_return_fraction=D(".03"),
+            review_after_seconds=60, invalidation="Synthetic invalidation", evidence_ids=("EV_DATA_FRESH",))
+        decision = Decision(decision_id="synthetic-expensive-entry", action="ENTER", symbol=snap.symbol,
+            cutoff=snap.cutoff, snapshot_sha256=snap.snapshot_sha256, evidence_ids=("EV_DATA_FRESH",),
+            reason="Synthetic case", invalidation="Next candle", forecast=fc)
+        signals = MagicMock(model_startup_blocked=False, selection=None, completed_cycles=0)
+        signals.ledger = Ledger()
+        async def select(*_):
+            signals.selection = (decision, (snap, opp), dict(host_outcome="MODEL_DECISION", evidence_kind="REAL_MODEL_ATTEMPT"))
+        signals._execute_cycle = AsyncMock(side_effect=select)
+        feed = SimpleNamespace(get=lambda *_,**kw:({"success":True,"result":{
+            "bid":[{"price":"104.99","quantity":"10000"}],"ask":[{"price":"105","quantity":"10000"}]}},8105))
+        engine = FreshEngine(self.ledger, self.permit, None, self.config, self.root, client=None, feed=feed, signals=signals)
+        from royin.markets import Balance
+        engine.reads.snapshot = lambda:({"TMN":Balance(D(5000000), D(5000000), D(0))}, [])
+        engine.rules = lambda _:self.rules
+        engine.broker = MagicMock(side_effect=AssertionError("Unprofitable target reached transport"))
+        with self.worker(), patch("royin.fresh_mission.time.time", return_value=8105):
+            asyncio.run(engine.entry_tick(8105))
+        engine.broker.assert_not_called()
+        self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["buys"], 0)
+        gates = list(self.root.glob("entry-gate-*.json"))
+        self.assertEqual(len(gates), 1)
+        self.assertIn("costs", json.loads(gates[0].read_text())["reason"])
 
     def test_stop_trigger_survives_insufficient_depth_bounce_and_restart_without_ai(self):
         self.authorize()

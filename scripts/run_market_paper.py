@@ -1360,6 +1360,9 @@ class MarketPaperOrchestrator:
         manifest_tmp.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf8")
         manifest_tmp.replace(manifest_path)
 
+        if getattr(self, "signal_only", False):
+            return  # Financial signals must not overwrite the real broker's monitoring snapshot.
+
         # Write atomic dashboard engine-snapshot
         dash_dir = ROOT / ".local/dashboard"
         dash_dir.mkdir(parents=True, exist_ok=True)
