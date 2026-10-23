@@ -37,7 +37,8 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
     config = RuntimeConfig(BOXAPI_API_KEY="fake", LLM_COST_BUDGET="2.40",
                            LLM_TOKEN_BUDGET=6000000, LLM_COST_CURRENCY="USD")
 
-    async def call(self, *, quantity=D(0), action="WAIT", mutate=None, delay=0, timeout=30):
+    async def call(self, *, quantity=D(0), action="WAIT", mutate=None, delay=0, timeout=30,
+                   tool_arguments=None):
         snap = snapshot(quantity)
         pos = position() if quantity else None
         opportunity = None if pos else EntryOpportunityContext(spread_pct=D(".001"),
@@ -62,7 +63,7 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
             finish = "stop"
             if len(bodies) == 1:
                 message = dict(role="assistant", content=None, tool_calls=[dict(id="read1", type="function",
-                    function=dict(name="read_market_snapshot", arguments="{}"))])
+                    function=dict(name="read_market_snapshot", arguments=json.dumps(tool_arguments or {})))])
                 finish = "tool_calls"
             return httpx2.Response(200, json=dict(id="fake-completion", object="chat.completion",
                 created=0, model="gpt-6-luna", choices=[dict(index=0, finish_reason=finish, message=message)],
@@ -90,6 +91,22 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
         exit_decision, _, _ = await self.call(quantity=D(1), action="EXIT")
         self.assertEqual((hold.action, exit_decision.action), ("WAIT", "EXIT"))
         self.assertEqual(trace["context"]["position"]["cost_basis_tmn"], "98")
+
+    async def test_bound_snapshot_tool_does_not_advertise_market_selection(self):
+        for quantity in (D(0),D(1)):
+            with self.subTest(quantity=quantity):
+                _,trace,bodies = await self.call(quantity=quantity)
+                tool = next(t["function"] for t in bodies[0]["tools"]
+                            if t["function"]["name"] == "read_market_snapshot")
+                self.assertEqual(tool["parameters"].get("properties",{}),{})
+                self.assertEqual(trace["host_outcome"],"MODEL_DECISION")
+
+    async def test_reviewer_rejects_market_selection_without_extra_model_request(self):
+        decision,trace,bodies = await self.call(quantity=D(1),
+            tool_arguments={"symbols":["USDTTMN"]})
+        self.assertEqual(decision.action,"WAIT")
+        self.assertEqual(trace["host_outcome"],"HOST_FALLBACK")
+        self.assertEqual(len(bodies),1)
 
     async def test_cross_role_action_and_wrong_bindings_fail_closed(self):
         for quantity, mutation in (

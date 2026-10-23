@@ -816,10 +816,20 @@ class MarketPaperOrchestrator:
                     # Join the owned collector before releasing its worker/DB or exporting terminal state.
                     await asyncio.gather(job, return_exceptions=True)
                     raise
+                model_trace["research_status"] = researched.get("status")
+                model_trace["research_errors"] = researched.get("errors", [])
+                model_trace["research_rejections"] = researched.get("rejections", [])
                 if researched.get("cutoff") != primary_snap.cutoff:
+                    model_trace["research_block_reason"] = "CUTOFF_MISMATCH"
                     raise ValueError("Model-selected research crossed its closed-candle cutoff")
                 report.clear()
                 report.update(researched)
+                if not report.get("batch"):
+                    model_trace["research_block_reason"] = "NO_VALID_CURRENT_BATCH"
+                    raise ValueError("Model-selected research returned no eligible current data")
+                if not isinstance(report.get("coverage"),dict):
+                    model_trace["research_block_reason"] = "INVALID_COVERAGE"
+                    raise ValueError("Model-selected research lacks valid coverage metadata")
                 for item in researched["batch"]:
                     coverage_history[item.snapshot.symbol]["accepted"] += 1
                 self.ledger.set_meta("engine_research_coverage",json.dumps(coverage_history))
@@ -829,8 +839,6 @@ class MarketPaperOrchestrator:
                 report["coverage"]["model_accepted_symbols"] = [item.snapshot.symbol for item in researched["batch"]]
                 report["coverage"]["model_visible_catalog"] = len(universe.markets)
                 report["coverage"]["model_requested_symbols"] = list(selected)
-                model_trace["research_errors"] = researched.get("errors", [])
-                model_trace["research_rejections"] = researched.get("rejections", [])
                 return {item.snapshot.symbol:(item.snapshot,item.opportunity) for item in report["batch"]}
             try:
                 decision = await decide_role(

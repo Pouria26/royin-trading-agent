@@ -1,5 +1,13 @@
 # وضعیت جاری موتور و شواهد
 
+## نامزد تکمیلی ابزار نقش و پژوهش ردشده — ۲۳ اکتبر، هنوز فعال نشده
+
+schema ابزار اکنون با قابلیت میزبان منطبق است: پژوهشِ دارای universe به symbols نیاز دارد؛ snapshot متصل و بازبین موقعیت ابزار بی‌پارامتر دارند. این تغییر از یک failure واقعی می‌آید: بازبین روی f8a1748 فهرست نماد را طبق schema فرستاد، ولی host آن را با ValueError رد کرد. artifact `position-review-diagnostic-20261023-1` با HOST_FALLBACK، یک رزرو USD0.00435712 و صفر سفارش/fill محفوظ است. ورودی عمومی واقعی و موجودی موقعیت فرضی بودند؛ اجرای خروج یا سود استراتژی سنجیده نشد. آزمون واقعی اصلاح هنوز UNCONFIRMED است.
+
+در نامزد، پژوهش با cutoff متفاوت، batch خالی یا coverage نامعتبر پیش از هزینهٔ درخواست دوم متوقف و status/علت آن ثبت می‌شود. این اصلاح جایگزین گیت freshness نیست. تست schema قبل از تغییر دو failure/یک error داشت؛ پس از تغییر و گارد پژوهش، ۴۱۹ تست هسته در ۳۹٫۷۴۴ ثانیه و ۱۱ داشبورد در ۱٫۶۸۹ ثانیه، بدون fail/skip پاس شدند. Ruff0.17.1، compileall، چهار self-check و config نیز پاس‌اند. مدل، prompt، بودجه، قیمت و منطق پذیرش معامله ثابت‌اند.
+
+آخرین checkpoint پنجرهٔ نخست اجرای f8a1748: ۱۸ trace شامل ۶ MODEL_DECISION، ۶ HOST_FALLBACK و ۶ رویداد غربالگر/میزبان؛ سفارش، fill، exposure و PnL صفرند. errors=[] در سطح run، نبود fallback را اثبات نمی‌کند. این snapshot پایان کل آزمون نیست؛ source تا پایان اجرا ثابت بماند و نتیجه با پنجرهٔ کامل یا فرض سودآوری اشتباه نشود.
+
 ## نامزد آفلاین دلایل رد — برپایهe089bc3، اعمال‌نشده به اجرای فعال
 
 علت‌های رد غربالگر اکنون با code و مقادیر Decimal دارای واحد ثبت می‌شوند: STALE_INPUT، CLOSED_CANDLE_CUTOFF_MISMATCH، DEPTH_UNAVAILABLE، INVALID_BOOK_SHAPE/VALUE/SPREAD، UNSORTED_BOOK، SPREAD_TOO_WIDE، DEPTH_TOO_SHALLOW، INVALID_SERIES_OR_FEATURES و شکست HISTORY_FETCH/PARSE یا DEPTH_FETCH. نبود spot metadata نیز SPOT_RULES_MISSING است. این‌ها توضیح مشاهدات‌اند؛ آستانهٔ gate و ادعای سود از آن‌ها نتیجه نمی‌شود. فیلدهای rejections/scanner_rejections/research_rejections در مسیر گزارش حفظ می‌شوند؛ prompt/context/hash تصمیم معتبر تغییر نکرده‌اند.

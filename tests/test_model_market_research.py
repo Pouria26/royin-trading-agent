@@ -59,6 +59,11 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.symbol,"SOLTMN")
         loader.assert_awaited_once_with(("SOLTMN",))
         self.assertEqual(len(bodies),2)
+        tool = next(t["function"] for t in bodies[0]["tools"]
+                    if t["function"]["name"] == "read_market_snapshot")
+        self.assertEqual(tool["parameters"]["required"],["symbols"])
+        self.assertEqual(set(tool["parameters"]["properties"]),{"symbols"})
+        self.assertEqual(tool["parameters"]["properties"]["symbols"]["type"],"array")
         first = json.dumps(bodies[0]["messages"])
         self.assertIn("ADATMN",first)
         self.assertIn("LTCTMN",first)

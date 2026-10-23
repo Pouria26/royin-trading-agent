@@ -227,6 +227,49 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertEqual(restored.ledger.get_balance("TMN").free,D(5000000))
         self.assertFalse(restored.broker.orders)
 
+    def test_blocked_model_research_keeps_reason_and_stops_before_second_model_request(self):
+        import httpx2
+
+        from royin.agent import decide_role as real_decide_role
+        for status in ("BLOCKED_CUTOFF_ADVANCED","BLOCKED_SPOT_RULES"):
+            with self.subTest(status=status):
+                o=self.make_runner()
+                o.model_mode,o.run_envelope="REAL_MODEL",object()
+                snap=snapshot("ETHTMN")
+                healthy=dict(status="CANDIDATES",batch=[ScanCandidate(snap,D(0),opportunity())],
+                    market_rules={"ETHTMN":runner.build_default_rules("ETHTMN")})
+                blocked=dict(status=status,batch=(),cutoff=8100,errors=[],rejections=[])
+                liquid=(MarketShortlistRow("ETHTMN",D(200000000),D(1),8105,"c"*64),)
+                bodies=[]
+                async def handler(request, bodies=bodies):
+                    bodies.append(json.loads(request.content))
+                    self.assertEqual(len(bodies),1,"Blocked data must not spend a final-answer request")
+                    message=dict(role="assistant",content=None,tool_calls=[dict(id="bounded-research",type="function",
+                        function=dict(name="read_market_snapshot",arguments=json.dumps(dict(symbols=["ETHTMN"]))))])
+                    return httpx2.Response(200,json=dict(id="synthetic",object="chat.completion",created=0,
+                        model="gpt-6-luna",choices=[dict(index=0,message=message,finish_reason="tool_calls")],
+                        usage=dict(prompt_tokens=100,completion_tokens=50,total_tokens=150)))
+                async def infer(primary,handler=handler,**kwargs):
+                    kwargs.update(config=RuntimeConfig(BOXAPI_API_KEY="synthetic-only"),budget=None,run_envelope=None)
+                    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
+                        return await real_decide_role(primary,client=client,**kwargs)
+                with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
+                     patch.object(runner,"catalog_candidates",return_value=liquid), \
+                     patch.object(runner,"scan_current_market",side_effect=[healthy,blocked]), \
+                     patch.object(runner,"decide_role",side_effect=infer),patch("time.time",return_value=8105):
+                    asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+                row=o.decision_traces[-1]
+                self.assertNotIn("KeyError",row["decision"]["reason"])
+                self.assertEqual(row["decision"]["action"],"WAIT")
+                self.assertIsNone(row["decision"]["forecast"])
+                self.assertEqual(row["model_trace"]["research_status"],status)
+                self.assertEqual(row["model_trace"]["host_outcome"],"HOST_FALLBACK")
+                self.assertEqual(len(bodies),1)
+                self.assertFalse(o.broker.orders)
+                self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
+                coverage=json.loads(o.ledger.get_meta("engine_research_coverage"))
+                self.assertEqual(coverage["ETHTMN"],dict(requested=1,accepted=0))
+
     def test_empty_research_universe_skips_deep_scan_and_paid_model(self):
         o = self.make_runner()
         o.model_mode,o.run_envelope = "REAL_MODEL",object()

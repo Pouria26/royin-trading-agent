@@ -1,5 +1,11 @@
 # حافظهٔ فنی پایدار
 
+## ابزار نقش متصل و دادهٔ مسدود — 2026-10-23، نامزد آفلاین
+
+schema باید فقط عمل قابل اجرای همان نقش را نشان دهد. Position Reviewer و snapshot متصل، ابزار بدون symbols دارند؛ پژوهش universe، symbols اجباری و host validation همان ۱..۱۰ نماد را دارد. منبع: یک پاسخ واقعی بازبین روی f8a1748 با symbols مجاز در schema و رد ValueError در host؛ یک رزرو USD0.00435712، موقعیت فرضی و صفر سفارش. تست mock دو نقش و پژوهش ابتدا قرمز و پس از اصلاح سبز شد؛ provider نامزد هنوز تأیید نشده است.
+
+scan مسدود ممکن است coverage نداشته باشد. status/errors/rejections پیش از دسترسی به batch/coverage حفظ شوند و cutoff/batch/coverage نامعتبر پیش از HTTP دوم متوقف شوند. KeyError تکراری در اجرای جاری دیده شد؛ رسیدن capture آخر به مرز کندل با مسیر BLOCKED_CUTOFF_ADVANCED سازگار است، اما trace تاریخی علت تمام موارد را ثبت نکرده و این نسبت‌دادن قطعی نیست. regression دو blocked با یک HTTP مصنوعی و صفر سفارش پاس شد؛ ۴۱۹ هسته/۱۱ داشبورد پاس‌اند. source، prompt و مالی اجرای منجمد تغییر نکنند.
+
 ## تشخیص رد و پاسخ depth نامعتبر — 2026-10-23، نامزد آفلاین
 
 NO_CANDIDATE علت اقتصادی یا کیفیت واحدی ندارد. علت ثابت با واحد مشخص، بدون متن خام exception در report.rejections ثبت و در bootstrap/research/manifest/probe حفظ شود. شکست HISTORY_FETCH/PARSE یا DEPTH_FETCH علت اصلی است؛ timestamp غایبِ ثانویه جای آن را نگیرد. اگر public JSON ساختار depth/result یا bid/ask را نقض کند، همان نماد رد شود و بازارهای سالم همچنان بررسی شوند. تست shape قبلاً AttributeError نشان داد؛ اصلاح با آستانه‌های قیمت، عمق، fee، بودجه و UNKNOWN ثابت، در نامزد ۴۱۶ هسته/۱۱ داشبورد پاس شد. audit با ۲۳ capture همان تصمیم‌های سابق و ۸ رد spread/یک parse را داد. اجرای اصلی f8a1748 منجمد است و نامزد هنوز فعال نیست.

@@ -221,13 +221,14 @@ def create_trading_agent(
         instructions=ROLE_INSTRUCTIONS[role_context["role"]] if role_context else SYSTEM_INSTRUCTIONS,
     )
 
-    @agent.tool
-    async def read_market_snapshot(ctx: RunContext[FeatureSnapshot], symbols: list[str] | None = None) -> str:
-        if market_loader is not None:
+    if market_loader is not None:
+        @agent.tool(name="read_market_snapshot")
+        async def read_selected_markets(ctx: RunContext[FeatureSnapshot], symbols: list[str]) -> str:
             return json.dumps(await market_loader(symbols))
-        if symbols is not None:
-            raise ValueError("Explicit symbols require a bound research universe")
-        return json.dumps(role_context or ctx.deps.to_canonical_dict())
+    else:
+        @agent.tool(name="read_market_snapshot")
+        async def read_bound_snapshot(ctx: RunContext[FeatureSnapshot]) -> str:
+            return json.dumps(role_context or ctx.deps.to_canonical_dict())
 
     return agent
 
