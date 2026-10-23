@@ -6,6 +6,7 @@ from pathlib import Path
 from royin.market_data import (
     CandleSeries,
     aggregate_closed,
+    conservative_book_price,
     decimal_number,
     decode_json,
     parse_history,
@@ -214,3 +215,33 @@ class MarketAccountContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExecutableBookTests(unittest.TestCase):
+    def book(self):
+        return {"success":True,"result":{
+            "bid":[{"price":"100","quantity":".1"},{"price":"99","quantity":".2"}],
+            "ask":[{"price":"101","quantity":".1"},{"price":"102","quantity":".2"}]}}
+
+    def test_multilevel_fill_uses_worst_consumed_price_not_best_or_average(self):
+        book = self.book()
+        self.assertEqual(conservative_book_price(book,"BUY",Decimal(".3")),Decimal(102))
+        self.assertEqual(conservative_book_price(book,"SELL",Decimal(".3")),Decimal(99))
+        self.assertEqual(conservative_book_price(book,"BUY",Decimal(".1")),Decimal(101))
+        self.assertIsNone(conservative_book_price(book,"SELL",Decimal(".31")))
+        self.assertIsNone(conservative_book_price(book,"BUY",Decimal(".3"),limit_price=Decimal(101)))
+        self.assertIsNone(conservative_book_price(book,"SELL",Decimal(".3"),limit_price=Decimal(100)))
+
+    def test_invalid_unordered_crossed_and_inexact_books_are_not_executable(self):
+        for mutation in (lambda b:b["result"]["ask"].reverse(),
+                         lambda b:b["result"]["bid"][0].update(price="101"),
+                         lambda b:b["result"]["ask"][1].update(quantity=0.2),
+                         lambda b:b["result"]["ask"][1].update(quantity="NaN"),
+                         lambda b:b["result"].pop("ask")):
+            book = self.book()
+            mutation(book)
+            with self.subTest(book=book),self.assertRaises(ValueError):
+                conservative_book_price(book,"BUY",Decimal(".1"))
+        for quantity in (0,True,.1):
+            with self.subTest(quantity=quantity),self.assertRaises(ValueError):
+                conservative_book_price(self.book(),"SELL",quantity)

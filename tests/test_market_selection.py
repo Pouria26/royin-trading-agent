@@ -101,6 +101,18 @@ class MarketSelectionTests(unittest.IsolatedAsyncioTestCase):
             )
         return decision, trace, bodies
 
+    async def test_entry_tool_exposes_executable_quotes_and_receipt_time(self):
+        market_batch = batch()
+        snap,opp = market_batch["ETHTMN"]
+        opp = opp.model_copy(update={"best_bid":D(100),"best_ask":D(102)})
+        market_batch["ETHTMN"] = snap,opp
+        proposal = enter_proposal(snap)
+        proposal["opportunity_sha256"] = opp.sha256
+        _,trace,_ = await self.call(proposal,market_batch)
+        row = next(row for row in trace["context"]["candidates"] if row["symbol"] == "ETHTMN")
+        self.assertEqual((row["best_bid"],row["best_ask"],row["last_close"]),("100","102","101"))
+        self.assertEqual(row["quote_observed_at"],8103)
+
     async def test_model_can_pick_second_symbol_contrary_to_host_order(self):
         market_batch = batch()
         host_order = list(market_batch)

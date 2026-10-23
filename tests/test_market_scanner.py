@@ -58,6 +58,20 @@ class ScannerTests(unittest.TestCase):
             with self.subTest(selected=selected),self.assertRaises(ValueError):
                 shortlist_markets(payload,**args,selected_symbols=selected)
 
+    def test_ten_model_selected_markets_reach_the_same_validated_batch(self):
+        payload = catalog()
+        for base in ("DOGE","SOL","ADA","LTC","XLM","XRP","BNB","TRX"):
+            row = dict(payload["result"]["markets"][0])
+            row.update(symbol=base+"TMN",base_asset=base,quote_volume_24h="100000001")
+            payload["result"]["markets"].append(row)
+        selected = ["BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN","XRPTMN","BNBTMN","TRXTMN"]
+        args = dict(account_symbols=set(selected),cutoff=8105,received_at=8100,account_as_of=8100,tmn_only=True)
+        rows = shortlist_markets(payload,**args,limit=10,selected_symbols=selected)
+        self.assertEqual([row.symbol for row in rows],selected)
+        self.assertEqual(len(self.batch(rows,limit=10)),10)
+        with self.assertRaises(ValueError):
+            shortlist_markets(payload,**args,limit=11,selected_symbols=selected)
+
     def test_current_pipeline_bounds_gets_and_unknown_access_precedes_io(self):
         feed = MagicMock()
         def get(endpoint, params, **kwargs):

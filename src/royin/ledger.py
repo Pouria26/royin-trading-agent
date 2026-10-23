@@ -558,6 +558,9 @@ class Ledger:
                 "quantity": quantity,
                 "timestamp": timestamp,
                 "order_type": order_type,
+                "quote_fee_reserve": quote_fee_reserve,
+                "quote_asset": quote_asset,
+                "base_asset": base_asset,
             },
         )
         return OrderIntent(
@@ -631,6 +634,7 @@ class Ledger:
                 "UPDATE order_intents SET status = ? WHERE client_id = ?",
                 (new_status, client_id),
             )
+            self._stage_event("CANCEL", "LEDGER", {"client_id":client_id})
             return True
 
     @ledger_atomic
@@ -886,6 +890,10 @@ class Ledger:
                     realized_pnl = net_quote_received
                     new_remaining_qty, new_remaining_cost = Decimal(0), Decimal(0)
 
+                if old_qty > 0 and new_remaining_qty == 0:
+                    completed = int(self.get_meta("closed_round_trips") or "0")
+                    self.set_meta("closed_round_trips", str(completed+1))
+
                 db.execute(
                     "INSERT INTO realized_pnl (client_id, symbol, pnl, timestamp) VALUES (?, ?, ?, ?)",
                     (client_id, symbol, str(realized_pnl), timestamp),
@@ -901,6 +909,13 @@ class Ledger:
                         str(new_remaining_cost),
                     ),
                 )
+
+            # Observed inventory value at fills is durable with the fill itself. The
+            # current orchestrator permits one base position, not a multi-asset book.
+            base_now = db.execute("SELECT free,locked FROM balances WHERE asset=?", (base_asset,)).fetchone()
+            observed_value = (Decimal(base_now[0])+Decimal(base_now[1])) * price
+            peak_key = "peak_inventory_value_" + quote_asset
+            self.set_meta(peak_key, str(max(Decimal(self.get_meta(peak_key) or "0"), observed_value)))
 
             if curr_filled + quantity == intent_qty:
                 db.execute(

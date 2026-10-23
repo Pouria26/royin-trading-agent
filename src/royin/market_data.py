@@ -1,4 +1,4 @@
-"""Exact Wallex OHLCV decoding and causal, complete-bar aggregation."""
+"""Exact Wallex market decoding, conservative book execution and causal aggregation."""
 
 import json
 from dataclasses import dataclass
@@ -18,6 +18,48 @@ def decimal_number(value, *, positive=False):
     if len(number.as_tuple().digits) > 128 or abs(number.as_tuple().exponent) > 128:
         raise ValueError("Decimal exceeds the host's supported precision/range")
     return number
+
+
+def conservative_book_price(payload, side, quantity, *, limit_price=None):
+    """Worst consumed level for a full paper fill, or None when depth is insufficient.
+
+    This is a conservative snapshot assumption, not a VWAP, queue or exchange fill.
+    """
+    quantity = decimal_number(quantity, positive=True)
+    if side not in ("BUY", "SELL") or not isinstance(payload, dict) or payload.get("success") is not True:
+        raise ValueError("Invalid executable book request")
+    if limit_price is not None:
+        limit_price = decimal_number(limit_price, positive=True)
+    book = payload.get("result")
+    if not isinstance(book, dict):
+        raise ValueError("Missing book")
+    parsed = {}
+    for name in ("bid", "ask"):
+        rows = book.get(name)
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 1000:
+            raise ValueError("Invalid book side")
+        levels = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError("Invalid book level")
+            levels.append((decimal_number(row.get("price"), positive=True),
+                           decimal_number(row.get("quantity"), positive=True)))
+        if any((a[0] <= b[0] if name == "bid" else a[0] >= b[0]) for a,b in pairwise(levels)):
+            raise ValueError("Book levels must be strictly price ordered")
+        parsed[name] = levels
+    if parsed["bid"][0][0] >= parsed["ask"][0][0]:
+        raise ValueError("Crossed book")
+    with localcontext() as context:
+        context.prec = 512
+        context.traps[Inexact] = True
+        remaining = quantity
+        for price, available in parsed["ask" if side == "BUY" else "bid"]:
+            if limit_price is not None and (price > limit_price if side == "BUY" else price < limit_price):
+                return None
+            remaining -= min(remaining, available)
+            if remaining == 0:
+                return price
+    return None
 
 
 def decode_json(raw):

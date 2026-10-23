@@ -48,7 +48,7 @@ async def main(argv=None):
     if config.WALLEX_API_KEY is None:
         print("BLOCKED: WALLEX_API_KEY missing; public data would still be allowed but the key is required by local policy.")
         return 2
-    budget = ModelBudget(config)
+    budget = ModelBudget(config, require_existing=True)
     envelope = RoleRunEnvelope(budget)
     run_id = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "_" + hashlib.sha256(
         str(time.time()).encode()).hexdigest()[:8]

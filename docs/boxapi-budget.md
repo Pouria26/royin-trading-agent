@@ -1,5 +1,7 @@
 # مدل و بودجهٔ اجرایی BoxAPI
 
+**ادامه روی میزبان تازه:** همه entrypointهای پولی DB اصلی و دارای سابقه را با `require_existing=True` می‌خواهند. مسیر پیش‌فرض به ریشهٔ package متصل است، نه cwd؛ نبود/خرابی/خالی‌بودن DB، BLOCKED است و reserve/RoleRunEnvelope آن را بازسازی نمی‌کنند. بازیابی سازگار DB و WAL و تحویل مالکیت لازم است؛ داشتن کلید به‌تنهایی مجوز ledger صفرمصرف نیست. bootstrap با path صریح در تست‌های مصنوعی، مجوز reset بودجهٔ این پروژه محسوب نمی‌شود.
+
 مرجع عددی `config/llm-budget-policy.json` و سقف صریح `.env` است. مدل فعلی `gpt-6-luna`، Chat Completions و `reasoning_effort=none`؛ fallback خودکار به Google یا OpenAI مستقیم نداریم. تغییر مدل به smoke و ارزیابی تازه نیاز دارد، نه فرض سود بیشتر.
 
 | محدودیت | سیاست فعلی |

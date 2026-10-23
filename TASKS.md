@@ -1,5 +1,19 @@
 # برنامهٔ جاری پروژه
 
+## وضعیت پس از دریافت بسته — ۲۳ اکتبر ۲۰۲۶
+
+- **INTEGRATED:** نامزد08f403c/a76a420 روی main با حفظ مستندات تازه وارد شد. گارد بودجهٔ موجود، گیت هزینه، cadence بادوام، سنجهٔ inventory و replay اکنون در source main هستند؛ worker پولی تازه آغاز نشده است.
+- **پذیرش ادغام:**۳۹۳تست رهگیری‌شدهٔهسته،۱۰داشبورد،۴self-check،Ruff0.17.1،compileall وVALID_CONFIG_ONLY پاس؛۰fail/۰skip در دامنهٔtracked. discoveryکامل به‌علت تستدریافتیِفاقدsource سبز نیست وrelease VERIFIED نامیده نمی‌شود.
+- **VERIFIED محدود:**۱۹۰raw وhashmanifest دریافتی ثابت شد؛ backup سازگار DBبودجه/کاغذی و رسید محلی تهیه شد.۱۳forecast/۱۲GET/۰pending/۰missing سنجیده شدند. mean error مدل۰٫۵۲۹۱pp دربرابرصفر۰٫۳۳۱۳pp؛median۰٫۳۴۸۳دربرابر۰٫۳۹۷۲pp؛۳بهتر/۱۰بدتر. سودAI اثبات نشد.
+- **INCOMPLETE_ORIGINAL_RUN:** manifestقدیمیRUNNING وDBدارای۸۲چرخه/۱۷تصمیم است؛ STOPPED_FLAT/اجرای کامل۳ساعت دریافت نشده.۱۳تصمیم واقعی و۴fallback،۰order/fill. این snapshot قابل سنجش است، ولی پایان معتبر ساخته نمی‌شود.
+- **PARTIAL_REPLAY:**۱۷تصمیم ضبط‌شده و۱۹۰capture بازبینی شدند؛ journal/own-input-state اصلی غایب است. خروجی واقعیPARTIAL_RECORDED_HOST_REPLAY، نه replay کامل بازار یا مشاهدهٔ مدل تازه.
+- **BLOCKED_RELEASE_INPUT:** commitگزارش‌شدهe2d2237درGitنیست؛ تست untracked غربالگر به تابع غایب importمی‌زند. فایل‌های کاربر دست‌نخورده وbackupشده‌اند. suiteرهگیری‌شدهٔقبل‌ادغام۳۶۰پاس شد؛ discoveryکامل به‌علت این ورودی ناقص هنوز سبز نیست.
+- **BLOCKED_NEW_PAID_RUN:** DBبودجه۱۶۴رزرو سالم دارد، اما scopeتازهflow-forward-20261023-1در03:33UTC/۲role/۴HTTP ثبت است وmanifestآن نرسیده. وضعیت/مالکیت این اجرای تازه باید روشن شود؛.env/کلید محلی هم غایب است. سقف‌ها تغییر نکنند و cloneدیگر DBجایگزین نسازد.
+- **BLOCKED_LIVE:** statecanaryمنتقل نشده وBUY_UNKNOWN/۸attempt همچنان unresolvedاست. walletواقعی،finalityحساب و مجوز گسترشtransport از شواهدpaper نتیجه نمی‌شوند.
+- **قدم بعدی:** دریافت source/stateمکمل و وضعیتflow؛ سپس revisionپاک/آزموده، forwardمنجمد دوپنجره۹۰دقیقه با fee/اجرای یکسان و baselineهای مستقل؛ ویدئوی واقعی و بازبینی انسانی هنوز باقی‌اند.
+
+گزارش‌های مرحلهٔ پیش از دریافت داده در ادامه، تاریخی‌اند.
+
 ## ادامهٔ آفلاین تکمیل‌شده — ۲۳ اکتبر، ۰۶:۳۷ تهران
 
 - **VERIFIED آفلاین / ادغام‌نشده:** نامزد `08f403c` بر پایهٔ `a76a420`، در worktree متصل `offline-evidence` commit شده است. main فقط مستندات انتقال را به‌روز می‌کند؛ source منجمد قبلی ثابت است.

@@ -71,7 +71,7 @@ def limit_mission_budget(budget):
 async def run_ai_evaluation(dataset_path: Path = DEFAULT_DATASET) -> dict:
     candles = load_candles(dataset_path)
     config = load_config()
-    budget = ModelBudget(config)
+    budget = ModelBudget(config, require_existing=True)
     limit_mission_budget(budget)
 
     # Descriptive labels are not independent correctness or profitability oracles.

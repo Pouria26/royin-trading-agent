@@ -21,7 +21,7 @@ def run_smoke_test(max_snapshots: int = 7) -> dict:
     if not 1 <= max_snapshots <= 12:
         raise ValueError("Bounded smoke requires 1..12 snapshots")
     config = load_config()
-    budget = ModelBudget(config)
+    budget = ModelBudget(config, require_existing=True)
 
     # Load validated USDTTMN dataset
     dataset_path = Path(

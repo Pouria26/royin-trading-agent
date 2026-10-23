@@ -1,5 +1,19 @@
 # وضعیت جاری موتور و شواهد
 
+## نتیجهٔ بررسی مستقل بستهٔ دریافتی — ۲۳ اکتبر ۲۰۲۶
+
+نامزد08f403c/a76a420 با اتکا به تحویل صریح مالکیت و نبود workerرویاینcheckout ادغام شد. هیچ سفارش یا مدل پولی تازه برای این بررسی اجرا نشد. DBبودجهquick_check=ok/۱۶۴رزرو است؛ مجموعرزروUSD0.35328 و مصرف۲۳اکتبرUSD0.19171328،نهinvoice. originalmanifestوrawهاhashشده وbackupSQLiteسازگار در.local/review/received-20261023محفوظ‌اند؛ فایل‌های خام واردGitنشدند.
+
+**پایان ران ادعاشده تأیید نشد:** manifestدر23:59:18UTCهنوزRUNNING،DBبا۸۲چرخه وheartbeat00:00:19UTC؛۱۷تصمیم(۱۳واقعی/۴fallback)،۰سفارش/fill و۵Mمجازی. peak_exposure=1.5Mگزارش قدیمی خطای telemetryاست؛ موجودی پایه و سفارش صفر بوده‌اند. نسخهٔ ادغام‌شده این خطا را اصلاح می‌کند، ولی artifactقدیمی تغییر نمی‌کند.
+
+سنجش۱۳forecastبا۱۲GET: همه موعدرسیده،۰missing/۰pending؛میانگین خطای مطلق مدل۰٫۵۲۹۱pp،صفر۰٫۳۳۱۳pp؛میانه مدل۰٫۳۴۸۳pp،صفر۰٫۳۹۷۲pp. فقط۳از۱۳مدل بهتر بود؛۱۰نمونه رویUSOON و افق‌هاهم‌پوشان‌اند. پوشش۱۳از۱۳باپهنای میانگین۳٫۶ppکالیبراسیون را ثابت نمی‌کند. این معیار قیمتterminalاست،نهPNLمعامله.
+
+دلیل نبود ورود را به «فقطسهbootstrap» نسبت ندهید: مدل۹نمادمتفاوت درخواست و۶نمادمتفاوت باcontextمعتبر دریافت کرده؛TRX۱۷باردرخواست/۱۱بارپذیرش وATOM۳باردرخواست/صفرپذیرش داشت. خطایValueErrorصرفاًنوعخطاست؛ علتدقیقmetadata/gapبدونبازپخش تعیین نشود.
+
+بازپخش اصل دریافتی:۱۹۰rawمعتبر،۱۳bindingو۴fallback؛journal/host_input_stateقدیمی موجودنیست،پسPARTIALوEXECUTION_REPLAY_UNCONFIRMED باقی‌اند. محلگزارشهایignored:artifacts/forecast-outcomes/20261023T034407Z_e5bfbe6d/report.jsonوartifacts/host-replay/received-17-decisions/report.json.
+
+commit e2d2237وsourceغربالگر همراه تستجدید درGitدریافت نشدند؛ discoveryآن باimporterrorشکستمی‌خورد. .env/stateمالیcanaryنیست؛ DBبودجهscopeجدیدflow-forwardدر03:33UTCداردکهmanifestآننرسیده. درخواستپولی/workerتازه وlive تا روشن‌شدن این موارد بسته‌اند. گزارشهای پایین snapshotتاریخی‌اند و برای وضعیت جاری به این بخش وTASKS اتکا شود.
+
 ## بررسی میزبان تازه — ۲۳ اکتبر، ۰۶:۳۷ تهران
 
 **وضعیت اجرا/شواهد اصلی UNCONFIRMED است؛ ادعای RUNNING در ادامه تاریخی است.** این clone روی main است و source bundle `679ded0d…1fb8e` تغییر نکرده؛ فرایند متناظر، artifacts، `.env` و DBهای اصلی اینجا وجود ندارند. موجودی امروز خوانده نشده است. پایان یا مالکیت worker میزبان قبلی از نبود process محلی نتیجه نمی‌شود.

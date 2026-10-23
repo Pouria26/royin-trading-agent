@@ -10,7 +10,8 @@ from pathlib import Path
 
 from royin.market_data import decimal_number
 
-POLICY_PATH = Path("config/llm-budget-policy.json")
+ROOT = Path(__file__).resolve().parents[2]
+POLICY_PATH = ROOT / "config/llm-budget-policy.json"
 
 
 class BudgetBlocked(ValueError):
@@ -18,10 +19,14 @@ class BudgetBlocked(ValueError):
 
 
 class ModelBudget:
-    def __init__(self, config, path=Path("data/llm-budget.sqlite3"), *, audit=None):
+    def __init__(self, config, path=None, *, audit=None, require_existing=False):
         self.audit = audit
         self.config = config
-        self.path = path
+        self.path = Path(path) if path is not None else ROOT / "data/llm-budget.sqlite3"
+        self.require_existing = require_existing
+        if require_existing:
+            with closing(self.connect()) as db:
+                self.validate_existing(db)
         raw = POLICY_PATH.read_bytes()
         self.policy = json.loads(raw)
         self.policy_hash = hashlib.sha256(raw).hexdigest()
@@ -42,6 +47,32 @@ class ModelBudget:
         self.input_rate = decimal_number(rate["input"], positive=True)
         self.output_rate = decimal_number(rate["output"], positive=True)
 
+    def connect(self):
+        """Continuation never creates a replacement ledger, including after deletion races."""
+        if self.require_existing:
+            try:
+                return sqlite3.connect(self.path.resolve().as_uri() + "?mode=rw", uri=True, timeout=2)
+            except sqlite3.Error as exc:
+                raise BudgetBlocked("BLOCKED_MISSING_DURABLE_STATE: restore the original model budget") from exc
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(self.path, timeout=2)
+
+    @staticmethod
+    def validate_existing(db):
+        try:
+            if db.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                raise BudgetBlocked("BLOCKED_INVALID_DURABLE_STATE: model budget integrity")
+            rows = db.execute("SELECT day,nano_usd,tokens,model,policy_hash FROM model_reservations").fetchall()
+            if not rows or any(
+                not isinstance(day, str) or type(cost) is not int or cost < 0
+                or type(tokens) is not int or tokens <= 0 or not model
+                or not isinstance(sha, str) or len(sha) != 64
+                for day, cost, tokens, model, sha in rows
+            ):
+                raise BudgetBlocked("BLOCKED_INVALID_DURABLE_STATE: continuation requires prior reservations")
+        except sqlite3.Error as exc:
+            raise BudgetBlocked("BLOCKED_INVALID_DURABLE_STATE: model reservation schema") from exc
+
     def reserve(self, *, now=None):
         p = self.policy
         tokens = p["max_input_tokens"] + p["max_output_tokens"]
@@ -52,13 +83,15 @@ class ModelBudget:
         now = now or datetime.now(UTC)
         # The competition's Tehran dates use +03:30; no host timezone or optional tz database.
         day = now.astimezone(timezone(timedelta(hours=3, minutes=30))).date().isoformat()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(self.path, timeout=2)) as db, db:
+        with closing(self.connect()) as db, db:
             db.execute("PRAGMA synchronous=FULL")
-            db.execute("""CREATE TABLE IF NOT EXISTS model_reservations (
-                id INTEGER PRIMARY KEY, day TEXT NOT NULL, nano_usd INTEGER NOT NULL,
-                tokens INTEGER NOT NULL, model TEXT NOT NULL, policy_hash TEXT NOT NULL)""")
             db.execute("BEGIN IMMEDIATE")
+            if self.require_existing:
+                self.validate_existing(db)
+            else:
+                db.execute("""CREATE TABLE IF NOT EXISTS model_reservations (
+                    id INTEGER PRIMARY KEY, day TEXT NOT NULL, nano_usd INTEGER NOT NULL,
+                    tokens INTEGER NOT NULL, model TEXT NOT NULL, policy_hash TEXT NOT NULL)""")
             total, total_tokens, count = db.execute(
                 "SELECT COALESCE(SUM(nano_usd),0),COALESCE(SUM(tokens),0),COUNT(*) "
                 "FROM model_reservations"

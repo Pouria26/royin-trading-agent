@@ -104,6 +104,10 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(dec.action, "WAIT")
                 self.assertIn("rejected", dec.reason)
 
+    async def test_position_review_cannot_inherit_extended_research_deadline(self):
+        with self.assertRaises(ValueError):
+            await self.call(quantity=D(1),timeout=31)
+
     async def test_timeout_is_wait_and_does_not_run_rule_as_ai(self):
         dec, trace, _ = await self.call(delay=.1, timeout=.01)
         self.assertEqual(dec.action, "WAIT")

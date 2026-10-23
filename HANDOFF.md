@@ -1,5 +1,15 @@
 # پرامپت انتقال پروژهٔ رویین به Agent جدید
 
+## بازیابی شواهد و ادغام — ۲۳ اکتبر ۲۰۲۶
+
+کاربر بستهٔ انتقال و تحویل صریح مالکیت را ارائه کرد؛ روی checkout فعلی worker متناظر یافت نشد. نامزد `08f403c` بر مبنای `a76a420` با حفظ مستندات main ادغام شد؛ کد اجرای تاریخی و artifacts اصلی بازنویسی نشدند. آغاز worker پولی تازه مستقل از ادغام است و تا تعیین وضعیت `flow-forward-20261023-1`/مالک ledger و تنظیم کلید محلی متوقف می‌ماند.
+
+رسید واقعی انتقال: سه manifest جاری، نه۴۷؛ snapshot اجرای `net-return-forward-20261023-2` هنوزRUNNING است. DB آن۸۲چرخه و heartbeat برابر00:00:19UTC دارد؛ terminal سه‌ساعته/STOPPED_FLAT تأیید نشد.۱۷تصمیم شامل۱۳MODEL_DECISION و۴HOST_FALLBACK،صفرسفارش/fill،۵M سرمایهٔ مجازی؛ این هم‌ارزی با cash است، نه سود.۱۹۰raw عمومی بدون hash نامعتبر بازیابی شد. DB بودجه quick_check=ok،۱۶۴رزرو و مجموعUSD0.35328 دارد؛ رزرو invoice نیست. backup سازگار به‌صورت ignored تهیه شد. state مالی canary و.env هنوز در این clone موجود نیستند؛ reset/ساخت جایگزین ممنوع.
+
+۱۳forecast موعدرسیده با۱۲GET عمومی سنجیده شد:۰pending/۰missing؛ mean absolute error مدل۰٫۵۲۹۱pp دربرابر baselineصفر۰٫۳۳۱۳pp،medianمدل۰٫۳۴۸۳pp دربرابر۰٫۳۹۷۲pp. مدل۳مورد بهتر/۱۰مورد بدتر بود؛۱۰forecast رویUSOON و نمونه‌ها هم‌بسته‌اند. replay واقعی همین artifacts،۱۳binding و۴fallback را حفظ کرد؛ journal/input-state قدیمی غایب است و نتیجهPARTIAL_RECORDED_HOST_REPLAY ماند. [قرارداد بازپخش](docs/recorded-host-replay.md) و [وضعیت جاری](docs/current-market-readiness.md).
+
+ادعای commit `e2d2237` با fetch تأیید نشد؛ تست untracked `test_quant_screener.py` تابع موجودنشدهٔquant_candidate_score را import می‌کند. فایل‌های دریافتی حفظ و hash/backup شدند؛ منبع تازه را از متن پژوهش حدس نزن و این تست را برای سبزکردن حذف نکن. گزارش‌های پایین تاریخی‌اند؛ نبود فایل/وضعیت source در آن‌ها با این بخش superseded شده است.
+
 ## وضعیت تأییدشدهٔ انتقال — ۲۳ اکتبر، ۰۶:۳۷ تهران
 
 checkout اصلی روی `main` است. در این میزبان فرایند متناظر، `.env`، artifacts اصلی، `data/llm-budget.sqlite3` و state مالی یافت نشد؛ پایان/تحویل مالکیت میزبان قبلی **UNCONFIRMED** است. برچسب‌های RUNNING و ماندهٔ حساب در ادامهٔ سند، گزارش تاریخی‌اند. source bundle اصلی دوباره با hash ثبت‌شدهٔ `679ded0d…1fb8e` برابر بود و تغییر نکرده است.
