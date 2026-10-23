@@ -275,7 +275,7 @@ class MarketPaperOrchestrator:
 
         deadline = self.run_started_at + self.duration_seconds
         if self.mode == "CURRENT_PAPER" and self.max_cycles > 0:
-            deadline = min(deadline, self.run_started_at + self.max_cycles * self.interval_seconds)
+            deadline = min(deadline, self.run_started_at + (self.max_cycles - 1) * self.interval_seconds)
         if self.config.CHALLENGE_END_AT:
             deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
         self.protection_policy = build_default_protection_policy(

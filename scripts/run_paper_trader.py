@@ -79,47 +79,39 @@ def catalog_candidates(payload, *, account_symbols, cutoff, received_at,
     return tuple(sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol)))
 
 
-STABLECOIN_SYMBOLS = frozenset({"USDTTMN", "USDCTMN", "USOONTMN", "DAITMN", "TUSDTMN"})
+STABLECOIN_SYMBOLS = frozenset({"USDTTMN", "USDCTMN", "DAITMN", "TUSDTMN"})
 
 
 def quant_candidate_score(row, catalog_rows, btc_return=None, cash_return=None):
-    """Multi-factor scoring for market shortlist: RS vs BTC, 24h high proximity, trend and volume."""
+    """Uncalibrated ordering heuristic, not a return estimate or an entry gate."""
     crow = catalog_rows.get(row.symbol, {})
     chg = catalog_return(crow)
-    ret_dec = chg if chg is not None else Decimal("-0.10")
 
     # Penalize fiat stablecoins for directional spot momentum trading
     is_stable = row.symbol in STABLECOIN_SYMBOLS
     stable_penalty = Decimal("-100") if is_stable else Decimal("0")
 
-    # Relative strength vs BTC (or cash adjusted)
-    btc_ref = btc_return if btc_return is not None else Decimal("0")
-    rs = ret_dec - btc_ref
+    # Missing returns contribute no strength; they are not fabricated negative returns.
+    rs = chg - btc_return if chg is not None and btc_return is not None else Decimal(0)
     rs_clamped = min(Decimal("0.20"), max(Decimal("-0.10"), rs))
 
     # 24h High Proximity (prefer assets consolidating at highs rather than bottom-scraping)
     price_val = crow.get("price")
     high_val = crow.get("highest_24h_price")
     low_val = crow.get("lowest_24h_price")
-    proximity = Decimal("0.5")
+    proximity = Decimal(0)
     if price_val is not None and high_val is not None and low_val is not None:
         try:
-            cur_p = Decimal(str(price_val))
-            high_p = Decimal(str(high_val))
-            low_p = Decimal(str(low_val))
+            cur_p = decimal_number(price_val, positive=True)
+            high_p = decimal_number(high_val, positive=True)
+            low_p = decimal_number(low_val, positive=True)
             if high_p > low_p and low_p <= cur_p <= high_p:
                 proximity = (cur_p - low_p) / (high_p - low_p)
         except (ArithmeticError, ValueError, TypeError):
-            proximity = Decimal("0.5")
+            proximity = Decimal(0)
 
     # 7D trend alignment
-    chg_7d = Decimal("0")
-    val_7d = crow.get("change_7D")
-    if val_7d is not None:
-        try:
-            chg_7d = Decimal(str(val_7d)) / Decimal("100")
-        except (ArithmeticError, ValueError, TypeError):
-            chg_7d = Decimal("0")
+    chg_7d = catalog_return({"change_24h": crow.get("change_7D")}) or Decimal(0)
     trend_clamped = min(Decimal("0.10"), max(Decimal("-0.05"), chg_7d * Decimal("0.5")))
 
     # Volume factor (log2 bits of turnover)

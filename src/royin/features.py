@@ -215,6 +215,21 @@ def extract_features(
     evidences = {}
     evidences["EV_DATA_FRESH"] = f"Candle closed at {last_candle.open_time + step}"
 
+    # Close location weighted by base volume is a pressure proxy, not observed aggressor flow.
+    with localcontext() as ctx:
+        ctx.prec = 36
+        ctx.traps[Inexact] = False
+        window = valid_candles[-20:]
+        volume = sum((c.volume for c in window), Decimal(0))
+        pressure = (sum((((2*c.close-c.high-c.low)/(c.high-c.low) if c.high > c.low else Decimal(0))
+            * c.volume for c in window), Decimal(0))/volume) if volume else None
+    direction = "UNAVAILABLE" if pressure is None else (
+        "POSITIVE" if pressure > 0 else "NEGATIVE" if pressure < 0 else "NEUTRAL")
+    evidences["EV_VOLUME_PRESSURE_"+direction] = (
+        f"20 closed-bar close-location volume proxy={pressure}; range [-1,1]; "
+        "not measured buyer/seller aggressor flow or net capital inflow"
+    )
+
     if last_close > sma_slow and sma_fast > sma_slow:
         evidences["EV_TREND_BULLISH"] = (
             f"Price {last_close} and fast SMA {sma_fast:.2f} are above slow SMA {sma_slow:.2f}"

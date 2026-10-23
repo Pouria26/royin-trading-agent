@@ -36,6 +36,22 @@ def mock_catalog():
 
 
 class QuantScreenerTests(unittest.TestCase):
+    def test_tokenized_oil_is_not_penalized_as_a_stablecoin(self):
+        from dataclasses import replace
+        rows = {r["symbol"]:r for r in mock_catalog()["result"]["markets"]}
+        rows["USOONTMN"] = dict(rows["ATOMTMN"],symbol="USOONTMN")
+        row = MarketShortlistRow("ATOMTMN",D("500000000"),D(1),8100,"c"*64)
+        self.assertEqual(quant_candidate_score(row,rows,D("-.02")),
+            quant_candidate_score(replace(row,symbol="USOONTMN"),rows,D("-.02")))
+
+    def test_malformed_optional_catalog_values_are_not_positive_evidence(self):
+        row = MarketShortlistRow("ATOMTMN",D("500000000"),D(1),8100,"c"*64)
+        empty_score = quant_candidate_score(row,{"ATOMTMN":{}},D(0))
+        for bad in ("NaN","Infinity",float("inf"),True,"1e1000"):
+            with self.subTest(bad=bad):
+                rows = {"ATOMTMN":dict(price=bad,highest_24h_price="100",lowest_24h_price="1",change_7D=bad)}
+                self.assertEqual(quant_candidate_score(row,rows,D(0)),empty_score)
+
     def test_stablecoin_is_penalized_in_quant_ranking(self):
         payload = mock_catalog()
         rows = {r["symbol"]: r for r in payload["result"]["markets"]}

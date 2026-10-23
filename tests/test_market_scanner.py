@@ -123,6 +123,18 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(batch[0].snapshot.available_tmn_cash, D(1234))
         self.assertEqual([c.snapshot.symbol for c in batch], ["BTCTMN", "BTCUSDT", "ETHTMN"])
 
+    def test_model_receives_imbalance_and_causal_pressure_as_different_observations(self):
+        from royin.agent import _entry_rows
+        batch = self.batch()
+        candidate = batch[0]
+        opp = candidate.opportunity
+        self.assertEqual(opp.orderbook_imbalance,
+            (opp.bid_depth_tmn-opp.ask_depth_tmn)/(opp.bid_depth_tmn+opp.ask_depth_tmn))
+        row = _entry_rows({candidate.snapshot.symbol:(candidate.snapshot,opp)})[0]
+        self.assertEqual(row["orderbook_imbalance"],str(opp.orderbook_imbalance))
+        self.assertTrue(row["volume_pressure_proxy"])
+        self.assertIn("NOT_FLOW",row["orderbook_imbalance_basis"])
+
     def test_unknown_access_stale_and_future_metadata_close_gate(self):
         for kwargs in (dict(account_as_of=None), dict(received_at=8000), dict(received_at=8106)):
             self.assertEqual(self.shortlist(**kwargs), ())

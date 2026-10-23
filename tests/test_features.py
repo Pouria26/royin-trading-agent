@@ -11,6 +11,19 @@ from royin.market_data import Candle, CandleSeries
 
 
 class FeatureExtractionTests(unittest.TestCase):
+    def test_volume_pressure_is_closed_bar_proxy_with_hand_computed_sign(self):
+        from dataclasses import replace
+        cutoff = self.start + 50*self.step
+        snap = extract_features(self.series, "USDTTMN", cutoff=cutoff)
+        self.assertIn("proxy=0.2;", snap.evidences["EV_VOLUME_PRESSURE_POSITIVE"])
+        negative = replace(self.series, candles=tuple(replace(c, close=c.low) for c in self.series.candles))
+        down = extract_features(negative, "USDTTMN", cutoff=cutoff)
+        self.assertIn("proxy=-1;", down.evidences["EV_VOLUME_PRESSURE_NEGATIVE"])
+        empty = replace(self.series, candles=tuple(replace(c, volume=Decimal(0)) for c in self.series.candles))
+        self.assertIn("EV_VOLUME_PRESSURE_UNAVAILABLE", extract_features(empty,"USDTTMN",cutoff=cutoff).evidences)
+        flat = replace(self.series,candles=tuple(replace(c,high=c.open,low=c.open,close=c.open) for c in self.series.candles))
+        self.assertIn("proxy=0;", extract_features(flat,"USDTTMN",cutoff=cutoff).evidences["EV_VOLUME_PRESSURE_NEUTRAL"])
+
     def test_stale_invalid_money_and_incomplete_closed_bins_fail(self):
         from dataclasses import replace
         cutoff = self.series.candles[-1].open_time + self.step

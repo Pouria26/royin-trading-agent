@@ -99,6 +99,11 @@ class EntryOpportunityContext(BaseModel):
     best_ask: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @property
+    def orderbook_imbalance(self):
+        """Static notional imbalance inside the scanner's spread band, not trade flow."""
+        return (self.bid_depth_tmn - self.ask_depth_tmn) / (self.bid_depth_tmn + self.ask_depth_tmn)
+
+    @property
     def sha256(self):
         return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
 
