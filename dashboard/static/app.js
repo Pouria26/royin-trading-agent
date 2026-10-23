@@ -64,6 +64,11 @@ function renderOffline() {
 function renderOverview() {
   const o = state.overview;
   if (!o) return;
+  renderLiveActivity(o);
+  if ($('live-risk-status')) {
+    const risk = o.engine_snapshot?.risk?.status;
+    $('live-risk-status').textContent = risk === 'HOST_GATES_ACTIVE' ? 'گیت‌های میزبان فعال؛ گزارش موتور' : (risk || 'تأیید نشده');
+  }
   const test = o.paired_test;
   $('paired-test').hidden = !test?.run_id;
   if (test?.run_id) {
@@ -138,6 +143,33 @@ function renderOverview() {
   ];
   renderEvents();
   if (state.connected === false) renderOffline();
+}
+function renderLiveActivity(overview) {
+  const panel = $('live-monitor');
+  if (!panel) return;
+  const activity = overview.live_activity;
+  panel.hidden = !activity;
+  if (!activity) return;
+  $('live-monitor-time').textContent = 'دریافت گزارش در سرور: ' + time(overview.monitor_received_at ? new Date(overview.monitor_received_at*1000).toISOString() : null);
+  const decisions = activity.decisions || [];
+  $('live-model-decisions').replaceChildren(...decisions.slice().reverse().map(record => {
+    const row = node('article',null,'event');
+    const body = node('div');
+    body.append(node('strong',(record.symbol || 'نماد نامعلوم')+' · '+(record.host_outcome || 'نتیجه میزبان نامعلوم')),
+      node('p',record.reason || 'دلیل قابل‌نمایش موجود نیست'),
+      node('small',time(new Date(record.cutoff*1000).toISOString())+' · '+(record.decision_id || 'شناسه نامعلوم')));
+    row.append(node('b',record.action || 'UNKNOWN'),body);return row;
+  }));
+  if (!decisions.length) $('live-model-decisions').append(node('p','تصمیم قابل‌نمایش موجود نیست؛ نبود گزارش به معنی تصمیم WAIT نیست.','empty'));
+  const events = activity.events || [];
+  $('live-financial-events').replaceChildren(...events.slice().reverse().map(record => {
+    const row = node('article',null,'event');const body=node('div');
+    body.append(node('strong',[record.symbol,record.side,record.status].filter(Boolean).join(' · ') || 'رویداد ثبت‌شده'),
+      node('p',record.reason || ('قیمت: '+format(record.price)+' · مقدار: '+format(record.quantity)+' · کارمزد: '+format(record.fee,record.fee_asset || ''))),
+      node('small',[record.client_id,record.fill_id,record.recorded_at].filter(Boolean).join(' · ')));
+    row.append(node('b',record.event_type),body);return row;
+  }));
+  if (!events.length) $('live-financial-events').append(node('p','رویداد مالی قابل‌نمایش موجود نیست. این فهرست محدود، شمار کل سفارش‌های صرافی نیست.','empty'));
 }
 function renderEvents() {
   const records = state.events.filter(e => $('severity').value === 'ALL' || e.severity === $('severity').value);

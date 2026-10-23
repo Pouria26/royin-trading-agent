@@ -19,7 +19,7 @@ ROUTES = {"/": ("index.html", "text/html; charset=utf-8"),
           "/fonts/InterVariable.woff2": ("fonts/InterVariable.woff2", "font/woff2")}
 
 
-def handler_for(sources):
+def handler_for(sources, *, allowed_hosts=None, allowed_origins=None, authorize=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "RoyInMonitor/1"
         sys_version = ""
@@ -48,13 +48,17 @@ def handler_for(sources):
 
         def do_GET(self):
             port = self.server.server_port
-            if self.headers.get("Host") not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
+            hosts = allowed_hosts or {f"127.0.0.1:{port}", f"localhost:{port}"}
+            origins = allowed_origins or {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}
+            if self.headers.get("Host") not in hosts:
                 return self.send(403, envelope("INVALID", error="HOST_DENIED"))
             origin = self.headers.get("Origin")
-            if origin and origin not in {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}:
+            if origin and origin not in origins:
                 return self.send(403, envelope("INVALID", error="ORIGIN_DENIED"))
             if self.headers.get("Sec-Fetch-Site") == "cross-site":
                 return self.send(403, envelope("INVALID", error="CROSS_SITE_DENIED"))
+            if authorize is not None and not authorize(self):
+                return
             try:
                 if len(self.path) > 2048:
                     raise ValueError("request bound")
