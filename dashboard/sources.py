@@ -576,11 +576,23 @@ class Sources:
                         warnings=engine_snapshot["warnings"],
                     )
                 if e_data.get("heartbeat_at"):
+                    beat = timestamp(e_data["heartbeat_at"])
+                    age = (datetime.now(UTC) - datetime.fromisoformat(beat)).total_seconds()
+                    if age < 0:
+                        raise ValueError("Engine heartbeat is in the future")
+                    reported = ident(e_data.get("worker_state"))
+                    worker = ("RUNNING_REPORTED" if age <= 120 else "HEARTBEAT_STALE") if reported == "RUNNING" else (
+                        reported if reported in ("STOPPED_FLAT", "STOPPED_OPEN", "NOT_RUNNING") else "UNKNOWN")
                     observation.update(
                         mode=ident(e_data.get("mode")) or "PUBLIC_MARKET_PAPER",
-                        heartbeat=timestamp(e_data.get("heartbeat_at")),
+                        heartbeat=beat,
                         observed_at=timestamp(e_data.get("observed_at")),
-                        status="AVAILABLE",
+                        status="AVAILABLE" if age <= 120 else "STALE",
+                        worker=worker, recorded_status=reported, run_id=engine_snapshot["run_id"],
+                        source="LOCAL_ENGINE_HEARTBEAT", sha256=e_sha,
+                        evidence_kind=engine_snapshot["evidence_kind"],
+                        freshness_seconds=int(age), display_stale_after_seconds=120,
+                        events=[], errors=[], warnings=["HEARTBEAT_REPORT_NOT_PROCESS_ATTESTATION"],
                     )
             except (OSError, ValueError, TypeError, AttributeError):
                 engine_snapshot.update(status="INVALID", warnings=["ENGINE_SNAPSHOT_INVALID"])
