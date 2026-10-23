@@ -1,3 +1,7 @@
+## Active source freeze — 2026-10-23 evening
+
+Liara financial mission9 runs source026a1bea29820fc4b43e67f6cc1cea13e99b54ea from a read-only persistent release directory on the existing tested image. All68 file hashes and actual import roots/source/config binding passed; health/readiness200, UID10001. Preserve full environment including PYTHONSAFEPATH=1 and explicit release PYTHONPATH. Do not hot-edit source or create another worker. Restart the existing prepared mission with the same original disk/state/permit/funded allocation. Latest BoxAPI-only authority below governs; earlier provider/deployment notes are historical. See docs/liara-runtime-validation.md. Live order/fill/profit must be read separately, not inferred from these checks.
+
 ## Latest model authority — 2026-10-23, evening
 
 Operator selects BoxAPI only; stop alternative-provider experiments. A distinct new key has reported USD2.9709 credit and explicit95% spending authorization: maximum USD2.822355. Append a credential-bound funded allocation to ORIGINAL data/llm-budget.sqlite3; retain all303 historical reservations, original key limits and external usage. Missing ledger/allocation blocks before HTTP; changing keys is not a reset. Funded multi-day contract uses900s entry analysis and30s host risk polling. Existing scope limits remain durable. See docs/funded-boxapi-runtime.md. Actual deployment/model verification must be read from current receipts, not inferred from this note.

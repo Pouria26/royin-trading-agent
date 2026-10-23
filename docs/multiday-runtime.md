@@ -1,3 +1,7 @@
+## Current deployed authority — 2026-10-23 evening
+
+The earlier deferred/personal-account attempt below is historical. The team app is now active on Liara with persistent disk, source026a1be and financial mission9. Latest funded BoxAPI contract uses900second entry cadence,30second protection polling, maximumUSD2.822355. Explicit supported legacy cadence300 remains unchanged for old contracts. The actual release reuses the tested dependency image with a read-only committed source folder on the disk; all68 hashes/import roots passed. Keep PYTHONSAFEPATH/PYTHONPATH, full environment and original state on restart. See [actual runtime validation](liara-runtime-validation.md). No Docker rebuild or old-state reset is required for recovery, and no successful live fill/profit is implied by readiness.
+
 # Multi-day runtime and release contract — 2026-10-23
 
 ## Authority and evidence
