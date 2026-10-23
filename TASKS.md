@@ -1,3 +1,12 @@
+## فاز چندروزه و نتیجهٔ مقایسه — ۲۳ اکتبر، پس از۱۴:۴۴تهران
+
+- **IMPLEMENTED / VERIFIED_OFFLINE:** قرارداد چندروزه با تفکیک تحویل/معامله/اعتبار، state و cadence پایدار، مالک واحد، protection بدون مدل، health جدا، بستهٔ انتشار allowlist و backup سازگار SQLite. Docker غیرریشه و HOME روی دیسک پایدار؛ خطای بسته‌بندی import/resource و HOME لینوکس با شواهد اصلاح شدند.
+- **FRESH_FINANCIAL_LANE_IMPLEMENTED_NOT_ACTIVATED:** مطابق دستور تازهٔ کاربر، اجازهٔ آغاز مستقل با حفظ UNKNOWN قدیمی ثبت می‌شود؛ شرط finality تاریخی برای شروع جدید حذف شده است. سقف۱۵۰هزار، یک موقعیت، پیش‌فرض یک BUY، شمارنده قبل از HTTP، بدون POST retry، تطبیق موجودی و گیت واقعی مدل/هزینه/عمق. اصل canary و بودجه reset نشدند. تست stop/depth outage/bounce/restart و دریافت fill بعد از ارسال پاس‌اند؛ اجرای واقعی این lane هنوز انجام نشده است.
+- **TERMINAL_SHARED_PAPER:** run2 روی7df0d08 در11:14:45UTC کامل/STOPPED_FLAT،۰error،۲۳۵GET و sourceunchanged پایان یافت؛ هر دو PID خارج شدند. hold:+۱۷۵۰٫۴۱تومان/۱trip؛rule:−۴٫۸۳تومان/۲trip؛GPT/Claude:۰fill. GPT۸WAIT معتبر/۳fallback؛Claude۶WAIT/۱ENTER معتبر/۴fallback. ENTER به علت ask تازه۱٫۳۵۴ بالاتر از limit۱٫۳۵۲۴ رد شد؛ limit برای ساخت معامله ضعیف نشد. چهار حسابداری VERIFIED؛ حذف بهترین معامله hold→۰ وrule→−۱۷۵۵٫۲۴تومان.
+- **FORECAST_ONLY:**۱۵forecast موعدرسیده،۱۵scored/۰pending/۰missing/۱۰GET؛ meanAE۰٫۷۶۰۳۳pp دربرابر صفر۰٫۵۴۴۱۴pp،۵بهتر/۱۰بدتر. نمونه‌ها مستقل نیستند و نتیجه سودآوری نیست.
+- **CHECKS_MAIN:**۴۶۸هسته در۶۶٫۷۷۸ثانیه،۱۱داشبورد در۱٫۷۶۷ثانیه پاس؛ Ruff/compileall/config نمونه/self-check پاس. تست واقعی مدلِ prompt تازه و استقرار تیم هنوز جدا هستند.
+- **NEXT:** commit نامزد تمیز → آزمون prospective سه‌ساعته/دوپنجره۹۰دقیقه با افق ثابت۱ساعته و همان baseline/fee/gates → تحلیل خروجی، سپس استقرار نسخهٔ منتخب امشب. user deployment timing مقدم است؛ برنامه‌ای روی لیارا deploy نشده. سود و readiness مالی هنوز UNCONFIRMED.
+
 ## اصلاح وقفهٔ shared-book — ۲۳ اکتبر
 
 run اول349e136 پس از۱۰۴ثانیه و۱۳GET، باTypeError تبدیل Decimal، صفرسفارش و STOPPED_FLAT/PARTIAL پایان یافت؛ هر دو مدل یک WAIT معتبر دادند. خطای کپی/hash book در runner رفع و شش book واقعی آفلاین بررسی شد؛ regression نوع Decimal در unit/integration افزوده شد.۳۱تست مرتبط و full suite تازه،۴۴۷تست در۵۷٫۱۸۶ثانیه پاس؛ Ruff/compileall/diff پاس. failure مستقل harness مرگ worker ویندوز با اجرای مستقیم مفسر پایه رفع شد؛ قفل واقعی دست‌نخورده است. قبل از run2، نتیجهٔ suite و commit را بررسی کنید. هیچ reset/سفارش مالی انجام نشد.

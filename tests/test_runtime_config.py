@@ -36,7 +36,11 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertIsNone(config.WALLEX_API_KEY)
         example = load_config(ROOT / ".env.example", environ={})
         self.assertEqual(example.RUN_MODE, "shadow")
-        self.assertEqual(example.CHALLENGE_END_AT, datetime(2026, 10, 23, 20, 20, tzinfo=UTC))
+        self.assertIsNone(example.CHALLENGE_END_AT)
+        self.assertEqual(example.SUBMISSION_DEADLINE_AT, datetime(2026, 10, 23, 20, 20, tzinfo=UTC))
+        self.assertEqual(example.financial_end_at, datetime(2026, 10, 26, 19, 20, tzinfo=UTC))
+        self.assertEqual(example.FINALIZE_START_AT, datetime(2026, 10, 26, 18, 20, tzinfo=UTC))
+        self.assertIsNone(example.CREDIT_EXPIRES_AT)
 
     def test_invalid_mode_flag_provider_and_origins_fail_closed(self):
         for text in (

@@ -172,6 +172,29 @@ class ModelBudget:
         # No refund: timeout, failure or process death may still be billed by the provider.
         return cost
 
+    def extend_external_token_limit(self, new_limit, *, reason):
+        """Explicit audited extension; reservations and BoxAPI limits are never reset."""
+        import re
+
+        if (self.is_priced_usd or not self.require_existing or type(new_limit) is not int
+                or not 1 <= new_limit <= 1000000000 or not isinstance(reason,str)
+                or not re.fullmatch(r"[a-z0-9-]{1,64}",reason)):
+            raise BudgetBlocked("Only explicit external-provider token extensions are allowed")
+        with closing(self.connect()) as db, db:
+            db.execute("PRAGMA synchronous=FULL")
+            db.execute("BEGIN IMMEDIATE")
+            self.validate_durable(db)
+            previous = int(db.execute("SELECT value FROM provider_usage_binding WHERE key='token_limit'").fetchone()[0])
+            if new_limit <= previous:
+                raise BudgetBlocked("Token bound must increase without changing consumption")
+            db.execute("CREATE TABLE IF NOT EXISTS provider_limit_extensions (id INTEGER PRIMARY KEY,"
+                "old_limit INTEGER NOT NULL,new_limit INTEGER NOT NULL,reason TEXT NOT NULL,"
+                "authorized_at TEXT NOT NULL)")
+            db.execute("INSERT INTO provider_limit_extensions(old_limit,new_limit,reason,authorized_at) VALUES (?,?,?,?)",
+                (previous,new_limit,reason,datetime.now(UTC).isoformat()))
+            db.execute("UPDATE provider_usage_binding SET value=? WHERE key='token_limit'",(str(new_limit),))
+        return dict(old_limit=previous,new_limit=new_limit,reservations_reset=False)
+
     async def before_request(self, request):
         if request.method != "POST" or str(request.url) != self.config.LLM_BASE_URL + "/chat/completions":
             raise BudgetBlocked("Only the selected provider's exact Chat Completions endpoint is allowed")

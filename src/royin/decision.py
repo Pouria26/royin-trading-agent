@@ -274,7 +274,8 @@ class RoleDecisionProposal(DecisionProposal):
     cutoff: int = Field(strict=True, ge=0)
     snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     position_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    opportunity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    opportunity_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$",
+        description="ENTER must copy the selected candidate's exact opportunity_sha256; null is only allowed for WAIT or position review.")
     symbol: str | None = None
     horizon_seconds: int | None = Field(default=None, strict=True, ge=60, le=259200)
     review_after_seconds: int | None = Field(default=None, strict=True, ge=0)
@@ -307,16 +308,16 @@ def validate_role_proposal(
     market_batch maps symbol -> (FeatureSnapshot, EntryOpportunityContext). When supplied,
     the entry role selects a symbol from that bounded batch; the host still owns risk.
     """
-    if not isinstance(proposal, RoleDecisionProposal) or (
-        proposal.role != role or proposal.cutoff != snapshot.cutoff
-        or proposal.snapshot_sha256 != snapshot.snapshot_sha256
-        or proposal.position_sha256 != (position.sha256 if position else None)
-        or (
-            not (market_batch is not None and proposal.action == "WAIT")
-            and proposal.opportunity_sha256 != (opportunity.sha256 if opportunity else None)
-        )
-    ):
-        raise ValueError("Role/cutoff/snapshot/position mismatch")
+    if not isinstance(proposal, RoleDecisionProposal):
+        raise ValueError("Invalid role proposal type")
+    bindings = {"role": (proposal.role, role), "cutoff": (proposal.cutoff, snapshot.cutoff),
+        "snapshot_sha256": (proposal.snapshot_sha256, snapshot.snapshot_sha256),
+        "position_sha256": (proposal.position_sha256, position.sha256 if position else None)}
+    if not (market_batch is not None and proposal.action == "WAIT"):
+        bindings["opportunity_sha256"] = (proposal.opportunity_sha256, opportunity.sha256 if opportunity else None)
+    for name, (actual, expected) in bindings.items():
+        if actual != expected:
+            raise ValueError("Role binding mismatch: " + name)
     allowed = {"WAIT", "ENTER"} if role == "ENTRY_ANALYST" else {"WAIT", "EXIT"}
     if proposal.action not in allowed or (
         proposal.target_profit_pct is not None or proposal.stop_loss_pct is not None

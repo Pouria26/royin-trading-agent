@@ -44,6 +44,9 @@ class RuntimeConfig(BaseModel):
     LLM_COST_BUDGET: Decimal | None = Field(default=None, ge=0)
     LLM_COST_CURRENCY: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     CHALLENGE_END_AT: AwareDatetime | None = None
+    SUBMISSION_DEADLINE_AT: AwareDatetime | None = None
+    TRADING_END_AT: AwareDatetime | None = None
+    CREDIT_EXPIRES_AT: AwareDatetime | None = None
     FINALIZE_START_AT: AwareDatetime | None = None
     STATE_DB_PATH: Path = Path("data/state.sqlite3")
     ARTIFACTS_DIR: Path = Path("artifacts")
@@ -52,7 +55,7 @@ class RuntimeConfig(BaseModel):
         "WALLEX_API_KEY", "SUB_ACCOUNT_CLIENT_ID", "BOXAPI_API_KEY", "DEVORA_API_KEY", "DAHL_API_KEY",
         "RIVER_API_KEY", "APMIX_API_KEY", "CODECRAFT_API_KEY",
         "LLM_TOKEN_BUDGET", "LLM_COST_BUDGET", "LLM_COST_CURRENCY",
-        "CHALLENGE_END_AT", "FINALIZE_START_AT", mode="before",
+        "CHALLENGE_END_AT", "FINALIZE_START_AT", "SUBMISSION_DEADLINE_AT", "TRADING_END_AT", "CREDIT_EXPIRES_AT", mode="before",
     )
     @classmethod
     def empty_optional(cls, value):
@@ -85,7 +88,7 @@ class RuntimeConfig(BaseModel):
             raise ValueError("Cost budget must be a decimal string")
         return value
 
-    @field_validator("CHALLENGE_END_AT", "FINALIZE_START_AT", mode="before")
+    @field_validator("CHALLENGE_END_AT", "FINALIZE_START_AT", "SUBMISSION_DEADLINE_AT", "TRADING_END_AT", "CREDIT_EXPIRES_AT", mode="before")
     @classmethod
     def explicit_timestamp(cls, value):
         if value is None or value == "":
@@ -94,7 +97,7 @@ class RuntimeConfig(BaseModel):
             raise ValueError("Use an ISO timestamp with UTC offset")
         return datetime.fromisoformat(value)
 
-    @field_validator("CHALLENGE_END_AT", "FINALIZE_START_AT")
+    @field_validator("CHALLENGE_END_AT", "FINALIZE_START_AT", "SUBMISSION_DEADLINE_AT", "TRADING_END_AT", "CREDIT_EXPIRES_AT")
     @classmethod
     def utc_timestamp(cls, value):
         return value.astimezone(UTC) if value is not None else None
@@ -129,14 +132,21 @@ class RuntimeConfig(BaseModel):
             raise ValueError(
                 "Live is unavailable until account, market, risk, deadline and T10 gates exist"
             )
+        if self.CHALLENGE_END_AT and self.TRADING_END_AT and self.CHALLENGE_END_AT != self.TRADING_END_AT:
+            raise ValueError("Conflicting legacy and explicit financial deadlines")
         if self.FINALIZE_START_AT is not None and (
-            self.CHALLENGE_END_AT is None or self.FINALIZE_START_AT >= self.CHALLENGE_END_AT
+            self.financial_end_at is None or self.financial_end_at <= self.FINALIZE_START_AT
         ):
             raise ValueError("Finalization must precede an explicit end time")
         budgets = (self.LLM_TOKEN_BUDGET, self.LLM_COST_BUDGET, self.LLM_COST_CURRENCY)
         if self.LLM_PROVIDER == "boxapi" and any(value is not None for value in budgets) and any(value is None for value in budgets):
             raise ValueError("Supply token budget, cost budget and currency together")
         return self
+
+    @property
+    def financial_end_at(self):
+        end = self.TRADING_END_AT or self.CHALLENGE_END_AT
+        return min(end, self.CREDIT_EXPIRES_AT) if end and self.CREDIT_EXPIRES_AT else end
 
     @property
     def model_api_key(self):

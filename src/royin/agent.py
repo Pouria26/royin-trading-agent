@@ -74,6 +74,9 @@ ROLE_INSTRUCTIONS = {
         "of candidates at one cutoff, each with exact features, cost and evidence. Choose at most one symbol "
         "for a long entry, or return WAIT (NO_TRADE). The host ordering is not a recommendation. "
         "For ENTER: set symbol to an exact batch symbol; set horizon_seconds within the stated policy; set "
+        "role ENTRY_ANALYST and echo the context cutoff and the selected row's snapshot_sha256 and "
+        "opportunity_sha256 exactly. opportunity_sha256 MUST NOT be null for ENTER; it is a data binding, "
+        "not an optional risk parameter. position_sha256 must be null while flat. "
         "review_after_seconds no greater than the horizon; include a forecast with q10/q50/q90 terminal "
         "return fractions over that horizon, a positive target_return_fraction, reference_price equal to the "
         "chosen snapshot last_close, reference_kind LAST_CLOSE, and cited evidence from that snapshot only. "
@@ -91,7 +94,8 @@ ROLE_INSTRUCTIONS = {
         "Use the observed market_context and relative strength. In a bearish broad market, reject ordinary "
         "long setups; consider an exception only with positive asset return, positive relative strength "
         "and independently supported bullish evidence. A 24-hour mover is not a forecast. "
-        "List the strongest supporting evidence and the strongest counterevidence in your concise reason. "
+        "List the strongest supporting evidence and the strongest counterevidence in your concise reason, "
+        "using at most 800 characters. "
         "Decline rather than inflate a forecast to meet the objective. "
         "For ENTER, forecast.target_return_fraction must be strictly greater than 0.02; otherwise WAIT. "
         "Leave the legacy target_profit_pct and stop_loss_pct fields null; they are not forecasts. "
@@ -122,10 +126,18 @@ ROLE_INSTRUCTIONS = {
 class RoleRunEnvelope:
     """One pilot envelope shared by both roles; durable global budget stays authoritative."""
 
-    def __init__(self, budget, *, duration_seconds=600, scope_id=None):
+    def __init__(self, budget, *, duration_seconds=600, scope_id=None, service_contract=None):
+        from royin.service_contract import ServiceContract
+
         if type(budget) is not ModelBudget:
             raise ValueError("Shared production ModelBudget required")
-        if type(duration_seconds) is not int or not 1 <= duration_seconds <= 36000:
+        if service_contract is not None and (
+            type(service_contract) is not ServiceContract or scope_id != service_contract.service_id
+            or duration_seconds != service_contract.duration_seconds
+        ):
+            raise ValueError("Service role scope must bind the immutable mission")
+        maximum_duration = 345600 if service_contract else 36000
+        if type(duration_seconds) is not int or not 1 <= duration_seconds <= maximum_duration:
             raise ValueError("Role envelope duration must be 1..36000 seconds")
         if scope_id is not None and (not isinstance(scope_id, str) or not 1 <= len(scope_id) <= 128):
             raise ValueError("Invalid durable role scope")
@@ -136,6 +148,9 @@ class RoleRunEnvelope:
         self.reservation_ceiling_usd = Decimal(0)
         self.cost_limit_usd = Decimal(".50")
         self.agent_limit = 48
+        self.contract_sha256 = service_contract.sha256 if service_contract else None
+        if service_contract and not budget.is_priced_usd:
+            self.agent_limit = service_contract.max_role_decisions
         if self.scope_id is not None:
             age = self._durable_claim()
             self.started -= age
@@ -153,13 +168,17 @@ class RoleRunEnvelope:
                 db.execute("ALTER TABLE role_run_envelopes ADD COLUMN cost_limit TEXT NOT NULL DEFAULT '0.04'")
             if "agent_limit" not in {row[1] for row in db.execute("PRAGMA table_info(role_run_envelopes)")}:
                 db.execute("ALTER TABLE role_run_envelopes ADD COLUMN agent_limit INTEGER NOT NULL DEFAULT 12")
+            if "contract_sha256" not in {row[1] for row in db.execute("PRAGMA table_info(role_run_envelopes)")}:
+                db.execute("ALTER TABLE role_run_envelopes ADD COLUMN contract_sha256 TEXT")
             now = time.time()
             db.execute("INSERT OR IGNORE INTO role_run_envelopes "
-                       "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit) VALUES (?,?,?,0,0,'0',?,?)",
-                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd), self.agent_limit))
-            started, duration, runs, attempts, reserved, cost_limit, agent_limit = db.execute(
-                "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit FROM role_run_envelopes WHERE scope=?",
+                       "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit,contract_sha256) VALUES (?,?,?,0,0,'0',?,?,?)",
+                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd), self.agent_limit, self.contract_sha256))
+            started, duration, runs, attempts, reserved, cost_limit, agent_limit, contract_sha256 = db.execute(
+                "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit,contract_sha256 FROM role_run_envelopes WHERE scope=?",
                 (self.scope_id,)).fetchone()
+            if contract_sha256 != self.contract_sha256:
+                raise BudgetBlocked("Existing role scope has a different mission binding")
             self.cost_limit_usd = Decimal(cost_limit)
             self.agent_limit = agent_limit
             reserved = Decimal(reserved) + cost
@@ -512,6 +531,11 @@ async def decide(
             )
         except (ValidationError, ValueError, UnexpectedModelBehavior) as exc:
             fallback = True
+            if model_trace is not None:
+                safe_binding_errors = {"Role binding mismatch: " + key for key in (
+                    "role", "cutoff", "snapshot_sha256", "position_sha256", "opportunity_sha256")}
+                model_trace["host_validation_code"] = (
+                    str(exc) if str(exc) in safe_binding_errors else type(exc).__name__)
             logger.warning("Invalid model output or rejected evidence (%s)", type(exc).__name__)
             if audit:
                 audit.record_event(

@@ -266,8 +266,14 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
 class ScannerPublicFeed:
     """Public GET only, one attempt owner, bounded responses and age-limited cache."""
 
-    def __init__(self, capture_dir, *, max_requests=16, before_request=None):
-        if type(max_requests) is not int or not 1 <= max_requests <= 4096:
+    def __init__(self, capture_dir, *, max_requests=16, before_request=None, service_contract=None):
+        from royin.service_contract import ServiceContract
+
+        if service_contract is not None and (
+            type(service_contract) is not ServiceContract or max_requests != service_contract.max_public_gets
+        ):
+            raise ValueError("Collector budget must bind the immutable mission")
+        if type(max_requests) is not int or not 1 <= max_requests <= (50000 if service_contract else 4096):
             raise ValueError("GET cap must be 1..4096")
         self.capture_dir = Path(capture_dir)
         self.max_requests, self.requests = max_requests, 0

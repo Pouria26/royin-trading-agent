@@ -129,7 +129,7 @@ def build_default_protection_policy(
         initial_stop_pct=stop_pct,
         trailing_drawdown_pct=trailing_pct,
         checkpoint_profit_pct=checkpoint_pct,
-        review_interval_seconds=1800,
+        review_interval_seconds=min(1800, hard_holding_seconds),
         hard_holding_seconds=hard_holding_seconds,
         deadline_utc=deadline_utc,
         exit_buffer_seconds=300,
@@ -197,16 +197,33 @@ class MarketPaperOrchestrator:
         capture_dir: Path | None = None,
         db_path: Path | None = None,
         config: RuntimeConfig | None = None,
+        service_contract=None,
     ):
+        from royin.service_contract import ServiceContract
+
+        if service_contract is not None and (
+            type(service_contract) is not ServiceContract or (
+                run_id != service_contract.service_id or mode != "CURRENT_PAPER"
+                or duration_seconds != service_contract.duration_seconds
+                or interval_seconds != service_contract.poll_seconds
+                or public_get_cap != service_contract.max_public_gets
+                or cycles != service_contract.cycles
+                or order_tmn != service_contract.max_debit_tmn
+                or minimum_notional_tmn != service_contract.minimum_notional_tmn
+                or horizon_max_seconds != service_contract.horizon_max_seconds
+            )
+        ):
+            raise ValueError("Engine settings must match the immutable service contract")
+        self.service_contract = service_contract
         if mode not in ("CURRENT_PAPER","HISTORICAL_REPLAY") or model_mode not in ("REAL_MODEL","FAKE_MODEL","RECORDED"):
             raise ValueError("Unknown execution/evidence mode")
-        if (type(duration_seconds) is not int or not 1 <= duration_seconds <= 36000
+        if (type(duration_seconds) is not int or not 1 <= duration_seconds <= (345600 if service_contract else 36000)
                 or type(cycles) is not int or cycles < (1 if mode == "CURRENT_PAPER" else 0)
                 or type(interval_seconds) is not int or not 1 <= interval_seconds <= 3600):
             raise ValueError("Invalid bounded execution limits")
         if mode == "CURRENT_PAPER" and (type(horizon_max_seconds) is not int or not 300 <= horizon_max_seconds <= 36000):
             raise ValueError("Current holding policy must stay between five minutes and ten hours")
-        if type(public_get_cap) is not int or not 16 <= public_get_cap <= 4096:
+        if type(public_get_cap) is not int or not 16 <= public_get_cap <= (50000 if service_contract else 4096):
             raise ValueError("Public GET cap must be 16..4096")
         if mode == "CURRENT_PAPER" and interval_seconds > 60:
             raise ValueError("Current position protection must poll at least every60 seconds")
@@ -235,6 +252,12 @@ class MarketPaperOrchestrator:
         self.initial_capital = initial_capital
         self.dataset_path = dataset_path
         self.config = config or load_config()
+        if service_contract and (
+            self.config.financial_end_at != service_contract.effective_end_at
+            or service_contract.finalize_start_at != self.config.FINALIZE_START_AT
+            or service_contract.submission_deadline_at != self.config.SUBMISSION_DEADLINE_AT
+        ):
+            raise ValueError("Service and runtime timestamps disagree")
         source_root = Path(__file__).resolve().parents[1]
         self.code_sha256 = source_bundle_sha256(source_root, [
             *source_root.glob("src/royin/*.py"), *source_root.glob("scripts/*.py"), source_root/"requirements.lock",
@@ -242,8 +265,14 @@ class MarketPaperOrchestrator:
         self.dataset_sha256 = None
         self.public_feed = None
         # This is a continuation of an existing paid experiment, never a zero-spend bootstrap.
-        self.budget = (ModelBudget(self.config, require_existing=True)
-                       if self.model_mode == "REAL_MODEL" else None)
+        self.model_startup_blocked = False
+        try:
+            self.budget = (ModelBudget(self.config, require_existing=True)
+                           if self.model_mode == "REAL_MODEL" else None)
+        except BudgetBlocked:
+            if service_contract is None:
+                raise
+            self.budget, self.model_startup_blocked = None, True
 
         self.capture_dir = capture_dir or (ROOT / "artifacts/market-paper" / self.run_id)
         self.capture_dir.mkdir(parents=True, exist_ok=True)
@@ -260,7 +289,7 @@ class MarketPaperOrchestrator:
         self.ledger.set_meta("engine_source_sha256",self.code_sha256)
         profile = json.dumps([mode,model_mode,duration_seconds,horizon_max_seconds,str(order_tmn),
             str(initial_capital),str(stop_pct),str(trail_pct),str(activation_fraction),str(retention_ratio),
-            str(minimum_notional_tmn)],sort_keys=True)
+            str(minimum_notional_tmn),service_contract.sha256 if service_contract else None],sort_keys=True)
         old_profile = self.ledger.get_meta("engine_profile")
         if old_profile is not None and old_profile != profile:
             self.audit.close()
@@ -272,14 +301,23 @@ class MarketPaperOrchestrator:
             raise ValueError("Run polling/budget settings changed; use a new run")
         self.ledger.set_meta("engine_polling_profile", polling_profile)
         created = self.ledger.get_meta("engine_started_at")
-        self.run_started_at = int(created) if created is not None else int(time.time())
+        self.run_started_at = int(created) if created is not None else (
+            int(service_contract.started_at.timestamp()) if service_contract else int(time.time()))
+        if service_contract and self.run_started_at != int(service_contract.started_at.timestamp()):
+            raise ValueError("Durable mission start changed")
         if created is None:
             self.ledger.set_meta("engine_started_at",str(self.run_started_at))
 
         self.run_envelope = None
-        if self.model_mode == "REAL_MODEL":
-            self.run_envelope = RoleRunEnvelope(self.budget,
-                duration_seconds=self.duration_seconds, scope_id=self.run_id)
+        if self.model_mode == "REAL_MODEL" and self.budget is not None:
+            try:
+                self.run_envelope = RoleRunEnvelope(self.budget,
+                    duration_seconds=self.duration_seconds, scope_id=self.run_id,
+                    service_contract=service_contract)
+            except BudgetBlocked:
+                if service_contract is None:
+                    raise
+                self.model_startup_blocked = True
 
         self.rules = rules_with_notional_floor(build_default_rules("USDTTMN"), minimum_notional_tmn)
         self.broker = PaperBroker(self.ledger, self.rules)
@@ -287,8 +325,8 @@ class MarketPaperOrchestrator:
         deadline = self.run_started_at + self.duration_seconds
         if self.mode == "CURRENT_PAPER" and self.max_cycles > 0:
             deadline = min(deadline, self.run_started_at + (self.max_cycles - 1) * self.interval_seconds)
-        if self.config.CHALLENGE_END_AT:
-            deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
+        if self.config.financial_end_at:
+            deadline = min(deadline, int(self.config.financial_end_at.timestamp()))
         self.protection_policy = build_default_protection_policy(
             deadline_utc=deadline,
             hard_holding_seconds=self.horizon_max_seconds,
@@ -300,6 +338,10 @@ class MarketPaperOrchestrator:
             max_loss_tmn=self.max_loss_tmn,
         )
         self.base_protection_policy = self.protection_policy
+        if service_contract:
+            self.base_protection_policy = replace(self.protection_policy,
+                exit_buffer_seconds=deadline-int(service_contract.finalize_start_at.timestamp()))
+            self.protection_policy = self.base_protection_policy
         planned_windows = []
         if self.mode == "CURRENT_PAPER" and self.duration_seconds == 10800 and deadline-self.run_started_at == 10800:
             planned_windows = [dict(window_id=i+1,start=self.run_started_at+i*5400,
@@ -598,7 +640,7 @@ class MarketPaperOrchestrator:
 
         self.start_time = time.monotonic() - max(0,int(time.time())-self.run_started_at)
         feed = ScannerPublicFeed(self.capture_dir / "raw", max_requests=self.public_get_cap,
-            before_request=self._reserve_public_request)
+            before_request=self._reserve_public_request, service_contract=self.service_contract)
         feed.captures = list(self.restored_captures)
         feed.requests = int(self.ledger.get_meta("engine_public_attempts") or len(feed.captures))
         self.ledger.set_meta("engine_public_attempts", str(feed.requests))
@@ -613,6 +655,8 @@ class MarketPaperOrchestrator:
         while not self.shutdown_requested and self.completed_cycles < self.max_cycles:
             elapsed = time.monotonic() - self.start_time
             if elapsed >= self.duration_seconds:
+                break
+            if self.service_contract and int(time.time()) >= int(self.service_contract.finalize_start_at.timestamp()):
                 break
             # Leave room for a position review and a fresh terminal liquidation quote.
             if feed.requests >= self.public_get_cap - 8:
@@ -691,6 +735,9 @@ class MarketPaperOrchestrator:
             self.shutdown_requested = True
         else:
             # Flat: scanning & entry analysis
+            if self.service_contract and self.model_startup_blocked:
+                self.ledger.set_meta("entry_block_reason", "MODEL_STATE_BLOCKED_PROTECTION_ONLY")
+                return
             if feed.requests > self.public_get_cap - 16:
                 return
             cutoff = now // 300 * 300
@@ -1258,6 +1305,8 @@ class MarketPaperOrchestrator:
             "evidence_kind": evidence_kind,
             "mode": self.mode,
             "model_mode": self.model_mode,
+            "service_contract": self.service_contract.model_dump(mode="json") if self.service_contract else None,
+            "model_startup_blocked": self.model_startup_blocked,
             "minimum_order_notional_tmn": str(self.minimum_notional_tmn),
             "bindings": {
                 "code_sha256": self.code_sha256,

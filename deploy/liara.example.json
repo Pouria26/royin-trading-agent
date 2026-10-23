@@ -1,0 +1,7 @@
+{
+  "app": "royin-trading-agent",
+  "platform": "docker",
+  "port": 3000,
+  "build": { "dockerfile": "deploy/Dockerfile" },
+  "disks": [{ "name": "royin-state", "mountTo": "/state" }]
+}

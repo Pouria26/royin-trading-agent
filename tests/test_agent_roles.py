@@ -87,6 +87,12 @@ class RoleTests(unittest.IsolatedAsyncioTestCase):
         tool = next(m for m in bodies[-1]["messages"] if m["role"] == "tool")
         self.assertEqual(json.loads(tool["content"])["snapshot_sha256"], enter.snapshot_sha256)
 
+    async def test_null_enter_opportunity_is_rejected_and_classified_without_leaking_values(self):
+        decision, trace, _ = await self.call(action="ENTER", mutate={"opportunity_sha256": None})
+        self.assertEqual(decision.action, "WAIT")
+        self.assertEqual(trace["host_outcome"], "HOST_FALLBACK")
+        self.assertEqual(trace["host_validation_code"], "Role binding mismatch: opportunity_sha256")
+
     async def test_reviewer_can_hold_above_checkpoint_or_exit_below_it(self):
         hold, trace, _ = await self.call(quantity=D(1), action="WAIT")
         exit_decision, _, _ = await self.call(quantity=D(1), action="EXIT")

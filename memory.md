@@ -1,3 +1,11 @@
+## ۲۰۲۶-۱۰-۲۳ — مهلت چندروزه، مجوز تازه و بازیابی
+
+منبع: اطلاعیه۱۳ و تأیید مستقیم کاربر؛ تحویل جمعه۲۳:۵۰ از پایان مالی دوشنبه جداست و تمدید اعتبار تا دوشنبه تأیید کاربر را دارد. ساعت دوشنبه مجهول است؛۲۲:۵۰/خروج۲۱:۵۰ تصمیم محافظه‌کارانهٔ تیم است. دستور تازهٔ کاربر شرط finality قدیمی برای شروع lane جدید را supersede کرد؛ سابقهٔ UNKNOWN/intent/reserve/counter۸ باید دست‌نخورده و finality=UNCONFIRMED بماند. FreshMissionPermit اجازه و hash سابقه را جدا و بدون بازنویسی ثبت می‌کند؛ سقف۱۵۰هزار و یک موقعیت، نه۷۰٪ کیف پول.
+
+تست Linux SIGKILL/restart با شبکهٔ بسته: موجودی مصنوعی ETH۱۰۰۰/TMN۴۸۹۹۷۰۰، stop۹۷، cadence و۱intent/۱fill/۱رزرو بدون تکرار حفظ شدند؛ owner دوم مسدود شد. HOME پیش‌فرض/root برای USER10001 قابل‌نوشتن نبود؛ HOME=/state/home و مسیر کش روی دیسک لازم است. fixture/live/server/profit یکسان نیستند. بستهٔ source فقط allowlist ثبت‌شده و state با SQLite backup API منتقل شود. missing budget در restart ورود را می‌بندد؛ protection ادامه دارد.
+
+run2 منجمد7df0d08 کامل و sourceunchanged بسته شد:hold+۱۷۵۰٫۴۱/۱trip،rule−۴٫۸۳/۲trip،مدل‌ها۰fill؛ APیکENTER معتبر داشت ولی ask۱٫۳۵۴ خارج ازlimit۱٫۳۵۲۴ بود. نتیجهٔ نخستین معاملهٔ سودده را به نتیجهٔ نهایی یا سودAI تعمیم ندهید.۱۵forecast میانگین خطای۰٫۷۶۰۳۳pp، صفر۰٫۵۴۴۱۴pp داشتند. اصلاح prompt صرفاً binding غیرnullENTER و طول reason را روشن می‌کند؛ validator ضعیف نشده است.
+
 ## ۲۰۲۶-۱۰-۲۳ — Decimal در دادهٔ واقعی و PID مالک lock
 
 decoder عمومی ممکن است عدد JSON را به Decimal تبدیل کند؛ deepcopy برای اشتراک مستقل book نوع/دقت را حفظ می‌کند، JSON round-trip بدون encoder خطاست. runner مقایسه روی349e136 با همین TypeError پس از۱۰۴ثانیه،۱۳GET و صفرسفارش متوقف شد؛ این خروجی اقتصادی معتبر نیست. شش book واقعی آفلاین سازگار و regression نوع عددی در unit/integration پاس شد. sys.executable در venv ویندوز launcher با PID متفاوت بود؛ تست crash باید مفسر پایه را با source path صریح اجرا کند تا child.kill واقعاً صاحب lock را متوقف کند. تغییر فقط harness است، نه افزودن retry یا تضعیف قفل production.

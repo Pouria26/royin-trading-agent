@@ -1,0 +1,13 @@
+**
+!pyproject.toml
+!requirements.lock
+!src/
+!src/royin/
+!src/royin/*.py
+!scripts/
+!scripts/*.py
+!config/
+!config/*.json
+!deploy/
+!deploy/Dockerfile
+!deploy/entrypoint.py

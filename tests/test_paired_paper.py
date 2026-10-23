@@ -5,6 +5,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from decimal import Decimal as D
 from pathlib import Path
 from types import SimpleNamespace
@@ -180,6 +181,15 @@ class SharedPaperExecutionTests(unittest.TestCase):
         self.assertEqual(paired.baseline_decision("rule", batch).action, "WAIT")
         self.assertEqual(paired.baseline_decision("hold", batch).action, "ENTER")
         self.assertEqual(paired.baseline_decision("hold", batch, entered=True).action, "WAIT")
+
+    def test_predeclared_longer_horizon_is_used_by_rule_without_changing_cost_gate(self):
+        # .25% bar ATR: sqrt(6)*.25% < .7% costs; sqrt(12)*.25% > .7%.
+        snap = replace(snapshot("ETHTMN"), last_close=D(100), atr_14=D(".25"),
+            interval_seconds=300, evidences={"EV_DATA_FRESH": True, "EV_TREND_BULLISH": True,
+                                            "EV_BB_EXPANDING": True})
+        batch = {snap.symbol:(snap, opportunity())}
+        self.assertEqual(paired.baseline_decision("rule", batch, horizon_seconds=1800).action, "WAIT")
+        self.assertEqual(paired.baseline_decision("rule", batch, horizon_seconds=3600).action, "ENTER")
 
     def test_without_explicit_run_no_key_db_or_network_is_touched(self):
         with patch.object(paired, "run", side_effect=AssertionError("Execution forbidden")):

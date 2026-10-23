@@ -83,13 +83,13 @@ def account_batch(batch, cash):
     return result
 
 
-def baseline_decision(kind, batch, *, entered=False):
+def baseline_decision(kind, batch, *, entered=False, horizon_seconds=HORIZON):
     rows = list(batch.values())
     chosen = None
     if kind == "hold" and not entered:
         chosen = rows[0]
     elif kind == "rule":
-        chosen = next((row for row in rows if fee_aware_entry(row[0], hold_seconds=HORIZON)), None)
+        chosen = next((row for row in rows if fee_aware_entry(row[0], hold_seconds=horizon_seconds)), None)
     elif kind not in ("hold", "rule"):
         raise ValueError("Unknown predeclared baseline")
     snap = (chosen or rows[0])[0]
@@ -222,7 +222,8 @@ async def entry_round(arms, feed, report, output, round_id, *, should_stop=None)
     for name, arm in eligible.items():
         if name in ("rule", "hold"):
             decisions[name] = baseline_decision(
-                name, inputs[name], entered=arm.ledger.get_meta("baseline_entered") == "true"
+                name, inputs[name], entered=arm.ledger.get_meta("baseline_entered") == "true",
+                horizon_seconds=arm.horizon_max_seconds,
             )
             traces[name] = {}
         else:
@@ -235,7 +236,7 @@ async def entry_round(arms, feed, report, output, round_id, *, should_stop=None)
                     run_envelope=arm.run_envelope,
                     model_trace=traces[name],
                     allowed_symbols=tuple(batch),
-                    horizon_bounds=(HORIZON, HORIZON),
+                    horizon_bounds=(arm.horizon_max_seconds, arm.horizon_max_seconds),
                     remaining_seconds=arm.protection_policy.deadline_utc
                     - arm.protection_policy.exit_buffer_seconds
                     - int(time.time()),
@@ -375,6 +376,9 @@ def finalize_arms(arms, feed, output, errors):
 
 
 async def run(args):
+    horizon = getattr(args, "horizon_seconds", HORIZON)
+    if horizon not in (1800, 3600, 7200) or args.duration_seconds < horizon+600:
+        raise ValueError("Predeclared horizon must fit the bounded experiment")
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,56}", args.run_id):
         raise ValueError("Bounded unique run ID required")
     output = args.output_dir / args.run_id
@@ -408,7 +412,7 @@ async def run(args):
     started = int(time.time())
     contest_end = int(datetime.fromisoformat("2026-10-23T23:50:00+03:30").timestamp())
     deadline = min(started + args.duration_seconds, contest_end)
-    if deadline - started < HORIZON + 600:
+    if deadline - started < horizon + 600:
         raise ValueError("Insufficient contest time for this fixed experiment")
     protocol = dict(
         evidence_kind="PROSPECTIVE_SHARED_INPUT_PAPER_ENTRY_ABLATION",
@@ -417,7 +421,7 @@ async def run(args):
         source_sha256=source,
         started_at=started,
         deadline=deadline,
-        horizon_seconds=HORIZON,
+        horizon_seconds=horizon,
         arms=["cash", "hold", "rule", "boxapi", "apmix"],
         max_debit_tmn=str(DEBIT),
         windows=[
@@ -474,7 +478,7 @@ async def run(args):
                     cycles=args.duration_seconds // 60 + 1,
                     interval_seconds=60,
                     public_get_cap=args.public_get_cap,
-                    horizon_max_seconds=HORIZON,
+                    horizon_max_seconds=horizon,
                     order_tmn=DEBIT,
                     minimum_notional_tmn=FLOOR,
                     capture_dir=output / name,
@@ -497,7 +501,7 @@ async def run(args):
                     raise ValueError("Source changed during frozen comparison")
                 await protect(arms, feed)
                 now = int(time.time())
-                if now >= next_entry and now % 300 < 200 and deadline - now > HORIZON + 300:
+                if now >= next_entry and now % 300 < 200 and deadline - now > horizon + 300:
                     next_entry = now + 300
                     report = collect_batch(feed)
                     if not report.get("batch") or int(time.time()) % 300 < 240:
@@ -571,7 +575,8 @@ def main(argv=None):
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--keys-file", type=Path, required=True)
-    parser.add_argument("--duration-seconds", type=int, choices=(3600, 5400), default=5400)
+    parser.add_argument("--duration-seconds", type=int, choices=(3600, 5400, 10800), default=5400)
+    parser.add_argument("--horizon-seconds", type=int, choices=(1800, 3600, 7200), default=1800)
     parser.add_argument("--public-get-cap", type=int, choices=range(400, 1601), default=1200)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "artifacts/paired-paper")
     args = parser.parse_args(argv)

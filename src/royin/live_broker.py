@@ -66,6 +66,11 @@ class WallexLiveBroker:
         )
         self.run_mode = config.RUN_MODE if run_mode is None else run_mode
         self.timeout_seconds = timeout_seconds
+        self.initialize_state(ledger)
+
+    @staticmethod
+    def initialize_state(ledger):
+        """Create the broker journal without constructing an order transport."""
         with ledger.transaction() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS live_broker_orders (
                 client_id TEXT PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL,
@@ -78,9 +83,10 @@ class WallexLiveBroker:
             raise LiveTradingSafetyGateError("Live trading is disabled")
         client = self._injected_client
         from royin.canary import CreditCanaryTransport
+        from royin.fresh_mission import FreshMissionTransport
         transport = client._transport if client is not None else None
         allowed = type(transport) is httpx.MockTransport or (
-            type(transport) is CreditCanaryTransport and transport.ledger is self.ledger
+            type(transport) in (CreditCanaryTransport, FreshMissionTransport) and transport.ledger is self.ledger
             and transport.rules == self.rules and transport.config is self.config
         )
         if client is None or not allowed or client._mounts:
@@ -158,10 +164,11 @@ class WallexLiveBroker:
             ):
                 return observation
             from royin.canary import CreditCanaryTransport
+            from royin.fresh_mission import FreshMissionTransport
 
             received_at = timestamp
             observation["failure_reason"] = "INVALID_HOST_RECEIPT_TIME"
-            if type(self._injected_client._transport) is CreditCanaryTransport:
+            if type(self._injected_client._transport) in (CreditCanaryTransport, FreshMissionTransport):
                 # Real fills can occur after send; only the host transport supplies receipt time.
                 received_at = response.extensions.get("royin_received_at")
                 if type(received_at) is not int or received_at < timestamp:
