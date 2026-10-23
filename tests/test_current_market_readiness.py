@@ -253,6 +253,24 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertEqual(restored.ledger.get_balance("TMN").free,D(5000000))
         self.assertFalse(restored.broker.orders)
 
+    def test_seed_coverage_prioritizes_quant_rank_instead_of_alphabetical_order(self):
+        o = self.make_runner()
+        o.model_mode, o.run_envelope = "REAL_MODEL", object()
+        # Turnover gives this nonalphabetical ranking when the quant scores tie.
+        symbols = ("SOLTMN", "ETHTMN", "BTCTMN", "ADATMN")
+        liquid = tuple(MarketShortlistRow(s,D(200000000-i),D(1),8105,"c"*64)
+            for i,s in enumerate(symbols))
+        with patch.object(runner,"public_symbols",return_value=(catalog(),8105,set(symbols))), \
+             patch.object(runner,"catalog_candidates",return_value=liquid), \
+             patch.object(runner,"quant_candidate_score",return_value=D(0)), \
+             patch.object(runner,"scan_current_market",return_value=dict(status="NO_CANDIDATE",batch=())) as scan, \
+             patch.object(runner,"decide_role") as infer,patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual([c.kwargs["selected_symbols"][0] for c in scan.call_args_list],list(symbols[:3]))
+        counts=json.loads(o.ledger.get_meta("engine_bootstrap_attempt_counts"))
+        self.assertEqual(counts,{"SOLTMN":1,"ETHTMN":1,"BTCTMN":1})
+        infer.assert_not_awaited()
+
     def test_blocked_model_research_keeps_reason_and_stops_before_second_model_request(self):
         import httpx2
 

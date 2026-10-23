@@ -1,3 +1,9 @@
+## Ranked bootstrap correction — 2026-10-23, evening
+
+Mission7 BoxAPI deployment/config/source/restart passed. All303 legacy budget rows stayed identical; three diagnostic HTTP reservations on the funded allocation are retained. Real server SDK/tool/schema probe passed in4.375s (2HTTP, synthetic stale scenario), and a recorded full production-input request returned200/read_market_snapshot in2.153s (1HTTP). Neither is a new forecast or financial fill. First production scan rejected AAVE/ADA/ALICE on existing spread gate; zero production-model requests and zero financial orders/fills. Mission7 was then quiesced in maintenance, with owner lock verified free, before source changed.
+
+Root cause of delayed model research: bootstrap sorted the already quant-ranked universe alphabetically. Fresh public read observed BNB among the leaders with0.154% spread, while first alphabetical seeds all exceeded0.5%. Fix retains existing quant rank within durable per-symbol attempt counts, maximum three attempts and unchanged data/spread/risk gates. Regression fails under the former alphabetical order; existing fourth-market restart coverage still passes.492 core tests in66.010s,37 targeted tests, Ruff/compileall passed; previous13 dashboard tests remain applicable (no dashboard source change). Next: new release and Linux-bound mission8, reuse the SAME funded allocation without initialization/refund, verify actual real-model path. No Git push.
+
 ## Funded BoxAPI continuation — 2026-10-23, evening
 
 Operator selects BoxAPI only and authorizes95% of newly reported USD2.9709 credit: USD2.822355 maximum, gpt-6-luna. Separate credential-bound allocation is appended to ORIGINAL BoxAPI ledger;303 prior reservations and old2.40/.80 limits remain. New service uses15minute durable entry cadence,30second host risk polling, max323 roles/647HTTP,22M tokens and1.10USD Tehran-day cap. No spend is refunded or manufactured. See docs/funded-boxapi-runtime.md.
