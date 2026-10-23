@@ -79,7 +79,11 @@ ROLE_INSTRUCTIONS = {
         "Compare best_ask/best_bid and quote age with last_close; a price move since the closed candle "
         "and round-trip costs may already consume the target. A terminal forecast is not an executable payoff. "
         "Returns are fractions: 0.025 means 2.5%. Negative forecasts are valid; do not clamp them. "
-        "Weigh momentum, volatility, regime, spread and round-trip fee. Do not invent a symbol, evidence, horizon or hash. "
+        "Weigh momentum, volatility, regime, spread and round-trip fee. Static orderbook imbalance "
+        "can disappear through cancellation or spoofing; it is not executed order flow. "
+        "The closed-candle volume_pressure_proxy is a close-location/volume proxy, not measured aggressor flow; "
+        "weigh it with trend and counterevidence, never as proof of future profit. "
+        "Do not invent a symbol, evidence, horizon or hash. "
         "The desired opportunity is above 2% gross within 5 minutes to 10 hours, never a guaranteed return. "
         "Use the observed market_context and relative strength. In a bearish broad market, reject ordinary "
         "long setups; consider an exception only with positive asset return, positive relative strength "
@@ -99,7 +103,11 @@ ROLE_INSTRUCTIONS = {
         "Return WAIT (HOLD) or EXIT using only cited evidence IDs. Consider cost basis, estimated net "
         "liquidation, holding age, momentum, volatility and the supplied host policy. A profit checkpoint "
         "is a review trigger, never a compulsory exit or cap on profit. Exhaustion can justify EXIT "
-        "before the checkpoint. Host stops/deadline take priority and cannot be changed. Never ENTER, "
+        "before the checkpoint. Weigh reversal evidence and the closed-candle volume-pressure proxy "
+        "against continuing trend, executable costs and forecast invalidation. Overbought RSI alone "
+        "does not prove reversal. Age alone is not an arbitrary 30/45-minute exit rule; an intact "
+        "trend may continue within the original funded horizon. Stops cannot guarantee a fill or profit. "
+        "Host stops/deadline take priority and cannot be changed. Never ENTER, "
         "size, price or change stops/targets; leave optional risk fields null. Echo role, cutoff, "
         "snapshot_sha256, null opportunity_sha256 and position_sha256 exactly. If you attach a forecast, "
         "set parent_forecast_id to the original forecast and never extend its horizon. Give a concise reason and invalidation. "
@@ -567,6 +575,9 @@ def _entry_rows(market_batch):
          "evidences":sorted(snap.evidences), "spread_pct":str(opp.spread_pct),
          "round_trip_fee_pct":str(opp.round_trip_fee_pct), "bid_depth_tmn":str(opp.bid_depth_tmn),
          "ask_depth_tmn":str(opp.ask_depth_tmn),
+         "orderbook_imbalance":str(opp.orderbook_imbalance),
+         "orderbook_imbalance_basis":"STATIC_NOTIONAL_WITHIN_SPREAD_BAND_NOT_FLOW",
+         "volume_pressure_proxy":{k:v for k,v in snap.evidences.items() if k.startswith("EV_VOLUME_PRESSURE_")},
          "best_bid":str(opp.best_bid) if opp.best_bid is not None else None,
          "best_ask":str(opp.best_ask) if opp.best_ask is not None else None,
          "quote_observed_at":opp.depth_received_at, "context_observed_at":opp.observed_at,

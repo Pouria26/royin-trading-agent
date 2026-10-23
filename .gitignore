@@ -20,3 +20,4 @@ artifacts/
 
 /MASTER_PROMPT.md
 /.local/
+/commits_ahead_of_origin.bundle

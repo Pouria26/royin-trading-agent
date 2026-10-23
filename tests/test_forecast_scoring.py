@@ -119,7 +119,8 @@ class ForecastScoreTests(unittest.TestCase):
         self.assertEqual((scored["pending"], scored["missing_outcome"]), (1, 1))
         self.assertIsNone(scored["mean_abs_error"])
         self.assertIsNone(scored["zero_point_comparison"])
-        tied = score_return_forecasts([forecast()], {"fc_1": D(".012")})
+        # Forecast .012 versus outcome .006 has the same .006 error as zero.
+        tied = score_return_forecasts([forecast()], {"fc_1": D(".006")})
         self.assertEqual(tied["zero_point_comparison"]["tied"], 1)
         self.assertEqual(tied["zero_point_comparison"]["scored_pairs"], 1)
 

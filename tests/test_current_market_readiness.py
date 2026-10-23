@@ -179,6 +179,43 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         infer.assert_not_awaited()
         self.assertEqual(len(o.decision_traces[-1]["bootstrap_attempts"]),3)
 
+    def test_failed_seed_batch_rotates_after_restart_and_reaches_the_fourth_market(self):
+        o = self.make_runner()
+        o.model_mode,o.run_envelope = "REAL_MODEL",object()
+        symbols = ("BTCTMN","ETHTMN","SOLTMN","USDTTMN")
+        liquid = tuple(MarketShortlistRow(s,D(200000000-i),D(1),8105,"c"*64)
+            for i,s in enumerate(symbols))
+        payload = catalog()
+        payload["result"]["markets"].append(dict(payload["result"]["markets"][1],symbol="SOLTMN",base_asset="SOL"))
+        with patch.object(runner,"public_symbols",return_value=(payload,8105,set(symbols))), \
+             patch.object(runner,"catalog_candidates",return_value=liquid), \
+             patch.object(runner,"scan_current_market",return_value=dict(status="NO_CANDIDATE",batch=())) as scan, \
+             patch.object(runner,"decide_role") as infer,patch("time.time",return_value=8105):
+            asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual([call.kwargs["selected_symbols"] for call in scan.call_args_list],
+            [["BTCTMN"],["ETHTMN"],["SOLTMN"]])
+        infer.assert_not_awaited()
+        o.close()
+        restored = runner.MarketPaperOrchestrator(run_id=o.run_id,capture_dir=o.capture_dir,config=RuntimeConfig())
+        self.addCleanup(restored.close)
+        restored.model_mode,restored.run_envelope = "REAL_MODEL",object()
+        snap = snapshot("USDTTMN")
+        decision = runner.RoleDecisionProposal(role="ENTRY_ANALYST",action="WAIT",symbol=snap.symbol,
+            cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+            reason="synthetic healthy fourth seed",invalidation="next cycle")
+        healthy = dict(status="CANDIDATES",batch=[ScanCandidate(snap,D(0),opportunity())],
+            market_rules={s:runner.build_default_rules(s) for s in symbols})
+        with patch.object(runner,"public_symbols",return_value=(payload,8105,set(symbols))), \
+             patch.object(runner,"catalog_candidates",return_value=liquid), \
+             patch.object(runner,"scan_current_market",return_value=healthy) as scan, \
+             patch.object(runner,"decide_role",return_value=decision) as infer,patch("time.time",return_value=8105):
+            asyncio.run(restored._handle_entry_cycle(MagicMock(),8105))
+        self.assertEqual(scan.call_args.kwargs["selected_symbols"],["USDTTMN"])
+        infer.assert_awaited_once()
+        self.assertEqual(len(infer.call_args.kwargs["market_universe"].markets),4)
+        self.assertEqual(restored.ledger.get_balance("TMN").free,D(5000000))
+        self.assertFalse(restored.broker.orders)
+
     def test_empty_research_universe_skips_deep_scan_and_paid_model(self):
         o = self.make_runner()
         o.model_mode,o.run_envelope = "REAL_MODEL",object()
@@ -310,7 +347,7 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertNotIn("USDT",dashboard["account"]["balances"])
 
     def test_real_entry_binds_selected_symbol_horizon_and_restarts_same_policy(self):
-        o = self.make_runner()
+        o = self.make_runner(order_tmn=D(150000), minimum_notional_tmn=D(100000))
         snap = snapshot("ETHTMN")
         opp = opportunity().model_copy(update={"best_ask":D(101),"best_bid":D(100)})
         proposal = enter_proposal(snap, horizon=7200)
@@ -333,15 +370,18 @@ class CurrentMarketReadinessTests(unittest.TestCase):
              patch.object(runner,"decide_role",return_value=decision), patch("time.time",return_value=8105):
             asyncio.run(o._handle_entry_cycle(feed,8105))
         self.assertEqual(o.rules.symbol,"ETHTMN")
+        self.assertEqual(o.rules.min_notional,D(100000))
         self.assertEqual(o.protection_policy.hard_holding_seconds,7195)
         self.assertEqual(8105+o.protection_policy.hard_holding_seconds,decision.forecast.cutoff+decision.forecast.horizon_seconds)
         self.assertEqual(o.protection_policy.review_interval_seconds,600)
         saved_hash = o.protection_policy.sha256
         self.assertTrue(o.decision_traces[-1]["client_id"])
         o.close()
-        restarted = runner.MarketPaperOrchestrator(run_id=o.run_id,config=RuntimeConfig(),capture_dir=o.capture_dir)
+        restarted = runner.MarketPaperOrchestrator(run_id=o.run_id,config=RuntimeConfig(),capture_dir=o.capture_dir,
+            order_tmn=D(150000),minimum_notional_tmn=D(100000))
         try:
             self.assertEqual(restarted.rules.symbol,"ETHTMN")
+            self.assertEqual(restarted.rules.min_notional,D(100000))
             self.assertEqual(restarted.protection_policy.sha256,saved_hash)
         finally:
             restarted.close()

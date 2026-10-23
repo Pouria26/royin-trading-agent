@@ -57,18 +57,21 @@ from royin.risk import (
     RiskResult,
     assess_target_net,
     evaluate_risk,
+    rules_with_notional_floor,
 )
 
 try:
     from scripts.run_paper_trader import (
         ScannerPublicFeed,
         catalog_candidates,
+        quant_candidate_score,
         scan_current_market,
     )
 except ImportError:
     from run_paper_trader import (
         ScannerPublicFeed,
         catalog_candidates,
+        quant_candidate_score,
         scan_current_market,
     )
 
@@ -87,6 +90,10 @@ DEFAULT_STOP_PCT = Decimal("0.03")
 DEFAULT_TRAIL_PCT = Decimal("0.02")
 DEFAULT_CHECKPOINT_PCT = Decimal("0.03")
 DEFAULT_MAX_LOSS_TMN = Decimal("75000")
+
+
+class OrderCapacityBlocked(ValueError):
+    """The paper cash ceiling cannot cover even the stated minimum plus fee."""
 
 
 def build_default_rules(symbol="USDTTMN", tick_size=Decimal("1"), step_size=None):
@@ -180,6 +187,7 @@ class MarketPaperOrchestrator:
         retention_ratio: Decimal = Decimal("0.5"),
         activation_fraction: Decimal = Decimal("0.025"),
         order_tmn: Decimal = DEFAULT_MAX_ORDER_TMN,
+        minimum_notional_tmn: Decimal = Decimal("0"),
         stop_pct: Decimal = DEFAULT_STOP_PCT,
         trail_pct: Decimal = DEFAULT_TRAIL_PCT,
         checkpoint_pct: Decimal = DEFAULT_CHECKPOINT_PCT,
@@ -204,6 +212,10 @@ class MarketPaperOrchestrator:
             raise ValueError("Current position protection must poll at least every60 seconds")
         if model_mode == "RECORDED" or (mode == "HISTORICAL_REPLAY" and model_mode != "FAKE_MODEL"):
             raise ValueError("This replay requires an explicit rule; recorded/model portfolio dispatch is not implemented")
+        validate_decimal(order_tmn, "paper debit ceiling", strictly_positive=True)
+        validate_decimal(minimum_notional_tmn, "paper minimum notional", allow_zero=True)
+        if model_mode == "REAL_MODEL" and order_tmn < minimum_notional_tmn * (1+DEFAULT_TAKER_FEE_RATE):
+            raise OrderCapacityBlocked("BLOCKED_ORDER_CAPACITY: minimum notional plus quote fee exceeds paper debit ceiling")
         self.run_id = run_id
         self.mode = mode
         self.model_mode = model_mode
@@ -215,6 +227,7 @@ class MarketPaperOrchestrator:
         self.retention_ratio = retention_ratio
         self.activation_fraction = activation_fraction
         self.order_tmn = order_tmn
+        self.minimum_notional_tmn = minimum_notional_tmn
         self.stop_pct = stop_pct
         self.trail_pct = trail_pct
         self.checkpoint_pct = checkpoint_pct
@@ -246,7 +259,8 @@ class MarketPaperOrchestrator:
             raise ValueError("Run revision changed; preserve the previous run and use an explicit new run")
         self.ledger.set_meta("engine_source_sha256",self.code_sha256)
         profile = json.dumps([mode,model_mode,duration_seconds,horizon_max_seconds,str(order_tmn),
-            str(initial_capital),str(stop_pct),str(trail_pct),str(activation_fraction),str(retention_ratio)],sort_keys=True)
+            str(initial_capital),str(stop_pct),str(trail_pct),str(activation_fraction),str(retention_ratio),
+            str(minimum_notional_tmn)],sort_keys=True)
         old_profile = self.ledger.get_meta("engine_profile")
         if old_profile is not None and old_profile != profile:
             self.audit.close()
@@ -267,12 +281,12 @@ class MarketPaperOrchestrator:
             self.run_envelope = RoleRunEnvelope(self.budget,
                 duration_seconds=self.duration_seconds, scope_id=self.run_id)
 
-        self.rules = build_default_rules("USDTTMN")
+        self.rules = rules_with_notional_floor(build_default_rules("USDTTMN"), minimum_notional_tmn)
         self.broker = PaperBroker(self.ledger, self.rules)
 
         deadline = self.run_started_at + self.duration_seconds
-        if self.mode == "CURRENT_PAPER":
-            deadline = min(deadline, self.run_started_at + (self.max_cycles-1)*self.interval_seconds)
+        if self.mode == "CURRENT_PAPER" and self.max_cycles > 0:
+            deadline = min(deadline, self.run_started_at + (self.max_cycles - 1) * self.interval_seconds)
         if self.config.CHALLENGE_END_AT:
             deadline = min(deadline, int(self.config.CHALLENGE_END_AT.timestamp()))
         self.protection_policy = build_default_protection_policy(
@@ -709,13 +723,26 @@ class MarketPaperOrchestrator:
         )
         liquid = ()
         if self.model_mode == "REAL_MODEL":
-            liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
+            raw_liquid = catalog_candidates(payload, account_symbols=symbols, cutoff=int(time.time()),
                 received_at=received,account_as_of=received,tmn_only=True)
+            catalog_rows = {r["symbol"]: r for r in payload["result"]["markets"]}
+            btc_ret = catalog_return(catalog_rows.get("BTCTMN", {}))
+            cash_ret = catalog_return(catalog_rows.get("USDTTMN", {}))
+            liquid = tuple(sorted(raw_liquid, key=lambda row: (
+                -quant_candidate_score(row, catalog_rows, btc_ret, cash_ret),
+                -row.turnover_tmn,
+                row.symbol,
+            )))
         bootstrap_attempts = []
         if self.model_mode == "REAL_MODEL":
             report = {"status":"NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE", "batch":()}
-            # Bootstrap data is not a trade pick; one broken market must not close the full universe.
-            for row in liquid[:3]:
+            # Rotate the bounded seed search; three rejected leaders must not starve other markets.
+            bootstrap_rows = sorted(liquid, key=lambda row: row.symbol)
+            after_symbol = self.ledger.get_meta("engine_bootstrap_after_symbol") or ""
+            start = next((i for i, row in enumerate(bootstrap_rows) if row.symbol > after_symbol), 0)
+            for offset in range(min(3, len(bootstrap_rows))):
+                row = bootstrap_rows[(start + offset) % len(bootstrap_rows)]
+                self.ledger.set_meta("engine_bootstrap_after_symbol", row.symbol)
                 report = scan_current_market(feed, **scan_options,batch_limit=1,selected_symbols=[row.symbol])
                 bootstrap_attempts.append({"symbol":row.symbol,"status":report.get("status"),
                     "accepted":bool(report.get("batch")),"errors":report.get("errors",[])})
@@ -881,6 +908,7 @@ class MarketPaperOrchestrator:
             target_rules = report.get("market_rules",{}).get(decision.symbol)
             if target_rules is None:
                 raise ValueError("Selected market lacks observed spot trading rules")
+            target_rules = rules_with_notional_floor(target_rules, self.minimum_notional_tmn)
             execution_price = _chosen_opp.best_ask
             if execution_price is None or not 0 <= submit_time-_chosen_opp.depth_received_at <= 60:
                 raise ValueError("Entry requires a fresh observed ask price")
@@ -936,7 +964,8 @@ class MarketPaperOrchestrator:
                 # Rebind execution rules/broker to the model-selected market.
                 self.rules = target_rules
                 self.broker = PaperBroker(self.ledger, target_rules)
-                self.ledger.set_meta("approved_decision_"+decision.decision_id,
+                decision_id = decision.decision_id
+                self.ledger.set_meta("approved_decision_" + decision_id,
                     json.dumps({"decision":decision.model_dump(mode="json"),"model_trace":model_trace,
                         "snapshot":chosen_snap.to_canonical_dict(),"opportunity":_chosen_opp.model_dump(mode="json")}))
                 self.ledger.set_meta("bound_market_rules", json.dumps(asdict(target_rules),default=str))
@@ -1206,6 +1235,7 @@ class MarketPaperOrchestrator:
             "evidence_kind": evidence_kind,
             "mode": self.mode,
             "model_mode": self.model_mode,
+            "minimum_order_notional_tmn": str(self.minimum_notional_tmn),
             "bindings": {
                 "code_sha256": self.code_sha256,
                 "config_sha256": hashlib.sha256(self.config.model_dump_json().encode()).hexdigest(),
@@ -1406,6 +1436,8 @@ def main(argv=None):
     parser.add_argument("--db-path", type=str, default=None, help="SQLite database path")
     parser.add_argument("--dataset-path", type=str, default=None, help="Dataset path for HISTORICAL_REPLAY")
     parser.add_argument("--order-tmn", type=Decimal, default=DEFAULT_MAX_ORDER_TMN, help="Paper order notional in TMN")
+    parser.add_argument("--min-order-tmn", type=Decimal, default=Decimal("100000"),
+                        help="Conservative gross TMN order floor; observed exchange rules can only raise it")
     parser.add_argument("--stop-pct", type=Decimal, default=DEFAULT_STOP_PCT, help="Initial hard stop fraction")
     parser.add_argument("--trail-pct", type=Decimal, default=DEFAULT_TRAIL_PCT, help="Trailing drawdown fraction")
     parser.add_argument("--checkpoint-pct", type=Decimal, default=DEFAULT_CHECKPOINT_PCT, help="Profit checkpoint fraction")
@@ -1438,6 +1470,7 @@ def main(argv=None):
             retention_ratio=args.retention_ratio,
             activation_fraction=args.activation_fraction,
             order_tmn=args.order_tmn,
+            minimum_notional_tmn=args.min_order_tmn,
             stop_pct=args.stop_pct,
             trail_pct=args.trail_pct,
             checkpoint_pct=args.checkpoint_pct,
@@ -1446,7 +1479,7 @@ def main(argv=None):
             capture_dir=capture_dir,
             db_path=db_path,
         )
-    except BudgetBlocked as exc:
+    except (BudgetBlocked, OrderCapacityBlocked) as exc:
         print(json.dumps(dict(status="BLOCKED", reason=str(exc), model_http=0, orders_sent=0)))
         return 2
 

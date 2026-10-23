@@ -79,6 +79,54 @@ def catalog_candidates(payload, *, account_symbols, cutoff, received_at,
     return tuple(sorted(candidates, key=lambda row: (-row.turnover_tmn, row.symbol)))
 
 
+STABLECOIN_SYMBOLS = frozenset({"USDTTMN", "USDCTMN", "DAITMN", "TUSDTMN"})
+
+
+def quant_candidate_score(row, catalog_rows, btc_return=None, cash_return=None):
+    """Uncalibrated ordering heuristic, not a return estimate or an entry gate."""
+    crow = catalog_rows.get(row.symbol, {})
+    chg = catalog_return(crow)
+
+    # Penalize fiat stablecoins for directional spot momentum trading
+    is_stable = row.symbol in STABLECOIN_SYMBOLS
+    stable_penalty = Decimal("-100") if is_stable else Decimal("0")
+
+    # Missing returns contribute no strength; they are not fabricated negative returns.
+    rs = chg - btc_return if chg is not None and btc_return is not None else Decimal(0)
+    rs_clamped = min(Decimal("0.20"), max(Decimal("-0.10"), rs))
+
+    # 24h High Proximity (prefer assets consolidating at highs rather than bottom-scraping)
+    price_val = crow.get("price")
+    high_val = crow.get("highest_24h_price")
+    low_val = crow.get("lowest_24h_price")
+    proximity = Decimal(0)
+    if price_val is not None and high_val is not None and low_val is not None:
+        try:
+            cur_p = decimal_number(price_val, positive=True)
+            high_p = decimal_number(high_val, positive=True)
+            low_p = decimal_number(low_val, positive=True)
+            if high_p > low_p and low_p <= cur_p <= high_p:
+                proximity = (cur_p - low_p) / (high_p - low_p)
+        except (ArithmeticError, ValueError, TypeError):
+            proximity = Decimal(0)
+
+    # 7D trend alignment
+    chg_7d = catalog_return({"change_24h": crow.get("change_7D")}) or Decimal(0)
+    trend_clamped = min(Decimal("0.10"), max(Decimal("-0.05"), chg_7d * Decimal("0.5")))
+
+    # Volume factor (log2 bits of turnover)
+    turnover = row.turnover_tmn
+    vol_bits = Decimal(int(turnover.to_integral_value()).bit_length()) if turnover > 0 else Decimal(0)
+
+    return (
+        stable_penalty
+        + (rs_clamped * Decimal("40"))
+        + (proximity * Decimal("15"))
+        + (trend_clamped * Decimal("10"))
+        + (vol_bits * Decimal("0.25"))
+    )
+
+
 def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
                       account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000"),
                       diversify=False, tmn_only=False, selected_symbols=None):
@@ -99,14 +147,16 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
         return tuple(indexed[symbol] for symbol in selected_symbols)
     if not diversify:
         return tuple(liquid[:limit])
-    # Preserve liquidity coverage, then compare relative movers instead of only the largest assets.
-    selected = list(liquid[:min(2, limit)])
+    # Multi-factor quant ranking: Relative Strength vs BTC, 24h high proximity, trend and volume.
     rows = {row["symbol"]: row for row in payload["result"]["markets"]}
-    movers = sorted(liquid, key=lambda row: (
-        -(catalog_return(rows[row.symbol]) if catalog_return(rows[row.symbol]) is not None else Decimal(-1)),
-        -row.turnover_tmn, row.symbol))
-    selected.extend(row for row in movers if row not in selected)
-    return tuple(selected[:limit])
+    btc_ret = catalog_return(rows.get("BTCTMN", {}))
+    cash_ret = catalog_return(rows.get("USDTTMN", {}))
+    ranked = sorted(liquid, key=lambda row: (
+        -quant_candidate_score(row, rows, btc_ret, cash_ret),
+        -row.turnover_tmn,
+        row.symbol,
+    ))
+    return tuple(ranked[:limit])
 
 
 @dataclass(frozen=True)
@@ -176,7 +226,8 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
             if min(bid_depth, ask_depth) < min_depth_tmn:
                 continue
             # Ordering evidence only; the entry model decides whether it is attractive.
-            score = snapshot.atr_14 / snapshot.last_close - round_trip_fee_pct - spread
+            obi = (bid_depth - ask_depth) / (bid_depth + ask_depth) if (bid_depth + ask_depth) > 0 else Decimal(0)
+            score = snapshot.atr_14 / snapshot.last_close - round_trip_fee_pct - spread + (obi * Decimal("0.005"))
             opportunity = EntryOpportunityContext(spread_pct=spread, round_trip_fee_pct=round_trip_fee_pct,
                 bid_depth_tmn=bid_depth, ask_depth_tmn=ask_depth, catalog_sha256=row.catalog_sha256,
                 catalog_received_at=row.received_at, candle_received_at=candle_received_at[row.symbol],

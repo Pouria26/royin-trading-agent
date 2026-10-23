@@ -11,6 +11,7 @@ from decimal import Decimal as D
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from royin import risk as risk_module
 from royin.agent import RoleRunEnvelope, decide
 from royin.config import RuntimeConfig
 from royin.decision import ReturnForecast
@@ -108,6 +109,45 @@ class TargetNetTests(unittest.TestCase):
         self.assertTrue(result["approved"])
         self.assertEqual(result["exit_price_bound"],"104.84")
         self.assertEqual({D(s["net_at_target_tmn"]) for s in result["scenarios"]},{D("48.40")})
+
+
+class PaperCapacityTests(unittest.TestCase):
+    def test_infeasible_real_model_ceiling_stops_before_budget_or_run_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)/"no-run"
+            with patch.object(runner,"ModelBudget") as budget, self.assertRaisesRegex(
+                    ValueError,"BLOCKED_ORDER_CAPACITY"):
+                runner.MarketPaperOrchestrator(run_id="infeasible",model_mode="REAL_MODEL",
+                    config=RuntimeConfig(),capture_dir=output,order_tmn=D(100000),
+                    minimum_notional_tmn=D(100000))
+            budget.assert_not_called()
+            self.assertFalse(output.exists())
+
+    def test_floor_only_raises_tmn_rules_and_never_converts_units(self):
+        rules = runner.build_default_rules("USDTTMN")
+        raised = risk_module.rules_with_notional_floor(rules,D(100000))
+        self.assertEqual(raised.min_notional,max(rules.min_notional,D(100000)))
+        self.assertEqual(risk_module.rules_with_notional_floor(raised,D(50000)),raised)
+        from dataclasses import replace
+        with self.assertRaises(ValueError):
+            risk_module.rules_with_notional_floor(replace(rules,quote_asset="USDT"),D(100000))
+
+    def test_paper_floor_is_bound_to_restart_profile_and_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            kwargs=dict(run_id="floor",capture_dir=Path(tmp),config=RuntimeConfig(),
+                order_tmn=D(150000),minimum_notional_tmn=D(100000))
+            obj=runner.MarketPaperOrchestrator(**kwargs)
+            try:
+                obj._checkpoint_and_export(obj.run_started_at)
+                manifest=json.loads((Path(tmp)/"manifest.json").read_text())
+                self.assertEqual(manifest["minimum_order_notional_tmn"],"100000")
+                self.assertGreaterEqual(obj.rules.min_notional,D(100000))
+            finally:
+                obj.close()
+            restored=runner.MarketPaperOrchestrator(**kwargs)
+            restored.close()
+            with self.assertRaisesRegex(ValueError,"settings changed"):
+                runner.MarketPaperOrchestrator(**{**kwargs,"minimum_notional_tmn":D(50000)})
 
 
 class InventoryAndCadenceTests(unittest.TestCase):

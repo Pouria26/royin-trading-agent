@@ -1,5 +1,13 @@
 # وضعیت جاری موتور و شواهد
 
+## انتقال تکمیلی و minimum — ۲۳ اکتبر ۲۰۲۶
+
+فایل وقفهٔflow-forward-1 وbundleتا6c0d919 دریافت و بررسی شد؛ مشکل source غایب رفع شد. DBcanary سالم،BUY_UNKNOWN وcounter۸ دست‌نخورده به مسیر مشترک پیش‌فرض بازیابی شد؛ این کار reconciliationحساب نیست. قیمتintent قبلی واحدTMN دارد،نهریال؛ مانده داخلی آن تخصیص۱۰۰kاست،نه موجودی wallet۵M.
+
+دوforecastثبت‌شدهٔflow-forward-1 نیز ازکپیhash‌شده با۲GET عمومی سنجیده شدند؛ نتیجه مربوط بهsource3b8c817 است و با۱۳نمونهsource3799e4a تجمیع نمی‌شود. گزارش محلی `artifacts/forecast-outcomes/20261023T041652Z_2cfb3576/report.json` است.
+
+حداقل نقل‌شده از گروه۱۰۰k وmetadataعمومی تازه۵۰kدر۵۴بازار بود. سیاستpaperباواگذاری کاربر:۱۵۰kdebit،کف۱۰۰k،یک موقعیت،همانbudgets. پیش‌فرضCLIبا۱۰۰kdebitو۱۰۰kfloor قبل ازHTTPمسدود می‌شود؛ فرمان مصوب درevaluation-planصریحاً۱۵۰k دارد. [منبع و تفکیک الزام/تصمیم](group-clarifications.md). تعارض حقوقی/حساب خصوصی برایlive باز است و شرطUNKNOWN تغییری نکرده است.
+
 ## نتیجهٔ بررسی مستقل بستهٔ دریافتی — ۲۳ اکتبر ۲۰۲۶
 
 نامزد08f403c/a76a420 با اتکا به تحویل صریح مالکیت و نبود workerرویاینcheckout ادغام شد. هیچ سفارش یا مدل پولی تازه برای این بررسی اجرا نشد. DBبودجهquick_check=ok/۱۶۴رزرو است؛ مجموعرزروUSD0.35328 و مصرف۲۳اکتبرUSD0.19171328،نهinvoice. originalmanifestوrawهاhashشده وbackupSQLiteسازگار در.local/review/received-20261023محفوظ‌اند؛ فایل‌های خام واردGitنشدند.

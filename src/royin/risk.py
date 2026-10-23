@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Literal
 
@@ -50,6 +50,14 @@ class MarketRules:
         return (quantity / self.step_size).quantize(
             Decimal("1"), rounding=rounding
         ) * self.step_size
+
+
+def rules_with_notional_floor(rules: MarketRules, floor_tmn: Decimal) -> MarketRules:
+    """A team/organizer floor may tighten observed rules; it never converts quote units."""
+    validate_decimal(floor_tmn, "minimum TMN notional", allow_zero=True)
+    if rules.quote_asset != "TMN":
+        raise ValueError("A TMN notional floor requires TMN market rules")
+    return replace(rules, min_notional=max(rules.min_notional, floor_tmn))
 
 
 @dataclass(frozen=True)
