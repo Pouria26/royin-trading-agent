@@ -709,8 +709,13 @@ class MarketPaperOrchestrator:
         bootstrap_attempts = []
         if self.model_mode == "REAL_MODEL":
             report = {"status":"NO_ELIGIBLE_LIQUID_RESEARCH_UNIVERSE", "batch":()}
-            # Bootstrap data is not a trade pick; one broken market must not close the full universe.
-            for row in liquid[:3]:
+            # Rotate the bounded seed search; three rejected leaders must not starve other markets.
+            bootstrap_rows = sorted(liquid, key=lambda row: row.symbol)
+            after_symbol = self.ledger.get_meta("engine_bootstrap_after_symbol") or ""
+            start = next((i for i, row in enumerate(bootstrap_rows) if row.symbol > after_symbol), 0)
+            for offset in range(min(3, len(bootstrap_rows))):
+                row = bootstrap_rows[(start + offset) % len(bootstrap_rows)]
+                self.ledger.set_meta("engine_bootstrap_after_symbol", row.symbol)
                 report = scan_current_market(feed, **scan_options,batch_limit=1,selected_symbols=[row.symbol])
                 bootstrap_attempts.append({"symbol":row.symbol,"status":report.get("status"),
                     "accepted":bool(report.get("batch")),"errors":report.get("errors",[])})
