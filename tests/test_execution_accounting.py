@@ -4,6 +4,7 @@ import copy
 import json
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import unittest
 from decimal import Decimal as D
@@ -215,7 +216,7 @@ class ExecutionAccountingTests(unittest.TestCase):
             self.fail("second worker entered")
         code = "from royin.ledger import Ledger; import sys,time; l=Ledger(sys.argv[1]);\nwith l.worker():\n print('LOCKED',flush=True); time.sleep(30)"
         child = subprocess.Popen(
-            [str(Path(".venv/Scripts/python.exe").resolve()), "-c", code, str(self.path)],
+            [sys.executable, "-c", code, str(self.path)],
             stdout=subprocess.PIPE,
             text=True,
         )

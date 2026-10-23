@@ -121,6 +121,10 @@ def run(execute=False):
             worker = ledger.worker(account_fingerprint=fingerprint,lock_directory=Path.home()/".royin-credit-locks") if ledger else nullcontext()
             with worker:
                 previous = json.loads(ledger.get_meta("canary_binding") or "null") if ledger else None
+                if previous and previous["revision"] != revision:
+                    report["blocked_reason"] = "EXISTING_FINANCIAL_RUN_SOURCE_MISMATCH"
+                    report["reconciliation_required"] = True
+                    raise ValueError("Canary source changed; do not reinterpret an existing financial run")
                 known_ids = ()
                 if ledger:
                     with ledger.connection() as db:
@@ -138,8 +142,6 @@ def run(execute=False):
                     report["status"] = "PREPARED_TECHNICAL_CANARY_ONLY"
                 else:
                     expires = previous["expires_at"] if previous else int(time.time())+600
-                    if previous and previous["revision"] != revision:
-                        raise ValueError("Canary source changed; do not reinterpret an existing financial run")
                     if not previous:
                         previous = dict(revision=revision,expires_at=expires,initial_tmn=str(balances["TMN"].total))
                         with ledger.transaction():

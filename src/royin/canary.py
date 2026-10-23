@@ -118,6 +118,7 @@ class CreditCanaryTransport(httpx.BaseTransport):
         with (directory/f"attempt-{state['attempts']}-http.json").open("x",encoding="utf-8") as out:
             json.dump(observation,out)
         raw = response.read()
+        response.extensions["royin_received_at"] = int(time.time())
         (directory/(f"attempt-{state['attempts']}-"+hashlib.sha256(raw).hexdigest()+"-body.json")).write_bytes(raw)
         return response
 

@@ -293,6 +293,30 @@ class DashboardTests(unittest.TestCase):
         engine_snap.write_text(json.dumps(snapshot),encoding="utf8")
         self.assertEqual(self.sources.overview()["engine_snapshot"]["status"],"INVALID")
 
+    def test_engine_heartbeat_overrides_archived_age_without_claiming_process_attestation(self):
+        import time
+        path = self.root / ".local/dashboard/engine-snapshot.json"
+        path.parent.mkdir(parents=True,exist_ok=True)
+        now = int(time.time())
+        snapshot = dict(schema_version="royin.engine-monitor.v1", mode="CURRENT_PAPER",worker_state="RUNNING",
+            heartbeat_at=now,observed_at=now,run_id="current-paper",
+            account=dict(balances={"TMN":dict(free="100000",locked="0",total="100000")},equity_tmn="100000"))
+        for age,worker,status in ((0,"RUNNING_REPORTED","AVAILABLE"),(180,"HEARTBEAT_STALE","STALE")):
+            with self.subTest(age=age):
+                path.write_text(json.dumps(dict(snapshot,heartbeat_at=now-age,observed_at=now-age)))
+                overview = self.sources.overview()
+                feed = overview["observation"]
+                self.assertEqual(feed["worker"],worker)
+                self.assertEqual(feed["status"],status)
+                self.assertGreaterEqual(feed["freshness_seconds"],age)
+                self.assertEqual(feed["run_id"],"current-paper")
+                self.assertEqual(feed["events"],[])
+                self.assertIn("HEARTBEAT_REPORT_NOT_PROCESS_ATTESTATION",feed["warnings"])
+        path.write_text(json.dumps(dict(snapshot,heartbeat_at=now+60)))
+        overview = self.sources.overview()
+        self.assertEqual(overview["engine_snapshot"]["status"],"INVALID")
+        self.assertEqual(overview["observation"]["worker"],"UNKNOWN")
+
     def test_asset_projection_rejects_invalid_missing_and_inconsistent_values(self):
         for balances in ({"ETH":dict(free=".1",locked=".2",total=".4")},
                          {"../.env":dict(free="0",locked="0",total="0")},

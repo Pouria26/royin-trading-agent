@@ -1,5 +1,13 @@
 # وضعیت جاری موتور و شواهد
 
+## ادغام remote و پذیرش مستقل — ۲۳ اکتبر ۲۰۲۶
+
+pull صریح کاربر شش commit تازه تاabbfe39 را پس از انتقال محلی24f0daa وارد کرد. تعارض‌های مستندات/ignore با حفظ پیشینه حل شدند. 859f076 ساعت دریافت کامل پاسخ را درroyin_received_at برای fill اعمال می‌کند؛74be2de وضعیت HTTP و علت محدود شکست را ثبت می‌کند و تلاش لغو را با نتیجهٔ قطعی لغو یکی نمی‌داند. UNKNOWN قدیمی، reserve، intent، مجوز منقضی و هشتattempt محفوظ و live بسته است.
+
+پذیرش مستقل روی snapshot stage‌شده و بدون.env:۴۱۲هسته در۷۶٫۵۵۸ثانیه و۱۱داشبورد در۲٫۴۱۱ثانیه،۰fail/۰skip. ابتدا تست worker به‌دلیل مسیر ثابت.venv درsnapshot یکERROR داشت؛sys.executable جایگزین و کلsuite مجدداً پاس شد. Ruff0.17.1،compileall،چهارself-check،Node syntax وconfigنمونه/محلی موفق‌اند. بازبینی مرورگرlocalhost نیز تمایز Paper/پایش/پالس کهنه را نشان داد؛ ممیزی کامل responsive/دسترس‌پذیری انجام نشده است. گزارش‌ها در.local/review/remote-integration-20261023 هستند؛ آزمون‌های سفارش مصنوعی‌اند، نه تأیید POST واقعی یا سود.
+
+DBبودجه پیش از ادامهquick_check=ok و۱۶۴رزرو دارد. worker تازهٔREAL_MODEL/Paper هنوز شروع نشده؛ پس ازcommit ازهمینledger وrunجدید استفاده شود. دادهٔ خصوصی حساب دراین نوبت دوباره خوانده نشده و گزارش۵Mremote مشاهدۀ همکار است. راهنمای فعلیpaper در[evaluation-plan](evaluation-plan.md) بر فرمان‌های تاریخی۱۰۰k در[market-screening-review](market-screening-review.md) مقدم است.
+
 ## انتقال تکمیلی و minimum — ۲۳ اکتبر ۲۰۲۶
 
 فایل وقفهٔflow-forward-1 وbundleتا6c0d919 دریافت و بررسی شد؛ مشکل source غایب رفع شد. DBcanary سالم،BUY_UNKNOWN وcounter۸ دست‌نخورده به مسیر مشترک پیش‌فرض بازیابی شد؛ این کار reconciliationحساب نیست. قیمتintent قبلی واحدTMN دارد،نهریال؛ مانده داخلی آن تخصیص۱۰۰kاست،نه موجودی wallet۵M.

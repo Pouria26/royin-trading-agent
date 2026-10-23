@@ -157,7 +157,29 @@ class WallexLiveBrokerTests(unittest.TestCase):
 
             result = self.submit(self.broker(handler=handler))
             self.assertEqual(result["status"], "UNKNOWN")
+            self.assertEqual(result["failure_reason"], "TRANSPORT_ERROR")
+            self.assertEqual(result["error_type"], type(exc).__name__)
             self.assertGreater(self.ledger.get_balance("TMN").locked, 0)
+
+    def test_http_json_and_contract_failures_remain_distinguishable_without_secrets(self):
+        cases = [
+            (httpx.Response(403, content=b""), "HTTP_ERROR"),
+            (httpx.Response(422, json={"message": "synthetic-key"}), "HTTP_ERROR"),
+            (httpx.Response(201, content=b"synthetic-key"), "INVALID_RESPONSE_JSON"),
+            (httpx.Response(201, json={"success": False}), "INVALID_RESPONSE_CONTRACT"),
+            (self.response("FILLED", "1"), "INVALID_ORDER_SNAPSHOT"),
+        ]
+        for response, reason in cases:
+            with self.subTest(reason=reason, code=response.status_code):
+                self.ledger = Ledger(":memory:")
+                self.ledger.set_balance("TMN", Decimal("5000000"))
+                outcome = self.submit(self.broker(response=response))
+                self.assertEqual(outcome["status"], "UNKNOWN")
+                self.assertEqual(outcome["http_status"], response.status_code)
+                self.assertEqual(outcome["failure_reason"], reason)
+                self.assertNotIn("synthetic-key", json.dumps(outcome))
+                self.assertEqual(self.ledger.get_balance("TMN").locked, Decimal("1499485"))
+                self.assertEqual(self.ledger.get_balance("USDT").total, 0)
 
     def test_404_reconciliation_never_frees_funds(self):
         broker = self.broker()

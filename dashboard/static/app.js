@@ -66,12 +66,14 @@ function renderOverview() {
   if (!o) return;
   const feed = o.observation;
   $('mode').textContent = feed.mode;
-  $('mode-description').textContent = feed.mode === 'OBSERVE_ONLY' ? 'آخرین اجرای مشاهده عمومی · بدون سفارش' : 'حالت موتور تأیید نشده است';
-  $('worker').textContent = 'Worker: ' + feed.worker;
+  const paperMode = ['CURRENT_PAPER','PUBLIC_MARKET_PAPER'].includes(feed.mode);
+  const workerLabels = {RUNNING_REPORTED:'پالس تازهٔ موتور؛ گزارش اجرا', HEARTBEAT_STALE:'پالس موتور کهنه است', STOPPED_FLAT:'توقف ثبت‌شده؛ بدون موقعیت', STOPPED_OPEN:'توقف ثبت‌شده؛ موقعیت باز', NOT_RUNNING:'اجرا نشده', UNKNOWN:'نامعلوم'};
+  $('mode-description').textContent = paperMode ? 'قیمت زنده، پول مجازی؛ سفارش واقعی غیرفعال' : feed.mode === 'OBSERVE_ONLY' ? 'مشاهده عمومی · بدون سفارش' : feed.mode === 'HISTORICAL_REPLAY' ? 'بازپخش تاریخی؛ بدون سفارش واقعی' : 'حالت موتور تأیید نشده است';
+  $('worker').textContent = 'Worker: ' + (workerLabels[feed.worker] || feed.worker);
   $('feed-status').textContent = (statusLabels[feed.status] || feed.status) + ' / ' + feed.status;
   $('feed-time').textContent = time(feed.observed_at);
   $('feed-time').title = time(feed.observed_at, true);
-  $('feed-age').textContent = feed.freshness_seconds == null ? 'freshness نامعلوم' : format(feed.freshness_seconds, 'ثانیه از مشاهده') + ' · سلامت worker نامعلوم';
+  $('feed-age').textContent = feed.freshness_seconds == null ? 'freshness نامعلوم' : format(feed.freshness_seconds, 'ثانیه از پالس') + ' · گزارش موتور؛ تأیید مستقل فرایند نیست';
   $('clock').textContent = time(o.server_time);
   $('reserved').textContent = format(o.reservation.amount, 'USD');
   $('reservation-count').textContent = format(o.reservation.requests, 'رزرو') + ' · ' + format(o.reservation.reserved_tokens, 'token رزروشده') + ' · ' + o.reservation.status;
@@ -113,10 +115,11 @@ function renderOverview() {
     }
   }
   if (feed.status === 'STALE') setNotice('داده ذخیره‌شده کهنه است', 'اتصال جاری موتور تأیید نشده؛ زمان آخرین مشاهده را بررسی کنید. حساب صرافی منتظر اتصال موتور است.');
+  else if (paperMode) setNotice('اجرای کاغذی؛ معامله با پول واقعی فعال نیست', 'وضعیت پالس: '+(workerLabels[feed.worker] || feed.worker)+' · برای خرید واقعی، مسیر مالی مستقل و تأییدشده لازم است.');
   else setNotice('حساب و worker جاری تأیید نشده‌اند', 'شواهد محلی برای بررسی در دسترس‌اند؛ وضعیت سرور داشبورد، سلامت ربات یا آمادگی معامله نیست.');
   state.events = [
-    {severity:'WARNING', title:'حساب UNAVAILABLE', message:'خروجی تأییدشده صرافی باید توسط موتور فراهم شود؛ اتصال خصوصی در داشبورد وجود ندارد.'},
-    {severity:'WARNING', title:'Worker UNKNOWN', message:'آخرین heartbeat ذخیره‌شده، فعالیت جاری worker را ثابت نمی‌کند.'},
+    ...(o.account.status === 'AVAILABLE' ? [] : [{severity:'WARNING', title:'حساب UNAVAILABLE', message:'خروجی تأییدشده صرافی باید توسط موتور فراهم شود؛ اتصال خصوصی در داشبورد وجود ندارد.'}]),
+    {severity:feed.worker === 'RUNNING_REPORTED' ? 'INFO' : 'WARNING', title:'Worker: '+(workerLabels[feed.worker] || feed.worker), message:'پالس ثبت‌شده به‌تنهایی تأیید مستقل فرایند یا آمادگی معاملهٔ واقعی نیست.'},
     ...feed.warnings.map(w => ({severity:'WARNING', title:w, message:'محدودیت منبع مشاهده؛ زمان و provenance را بررسی کنید.'})),
     ...(feed.errors || []).map(e => ({severity:'ERROR', title:e.error_type || 'خطای بدون نوع ثبت‌شده', message:'تلاش '+format(e.attempt)+' · منبع مشاهده را در موتور بررسی کنید؛ داشبورد درخواست مجدد بازار نمی‌فرستد.'})),
     ...(feed.events || []).map(e => ({severity:e.event_type.endsWith('ERROR') ? 'ERROR' : 'INFO', title:e.event_type, message:time(e.observed_at) + ' · ' + e.event_id})),
@@ -297,14 +300,16 @@ async function refresh() {
   try {
     const [overview,runs]=await Promise.all([api('overview'),api('runs')]);
     state.connected=true;state.overview=overview;state.runs=runs.items;
-    options($('run'),state.runs.map(r=>[r.run_id,((r.evidence_kind || '').includes('SYNTHETIC')?'SYNTHETIC / ':'HISTORICAL / ')+r.run_id.split(':')[1]+' · '+r.status]),$('run').value);
+    const activeRun = 'paper:' + (overview.engine_snapshot?.run_id || '');
+    const selectedRun = $('run').value || (state.runs.some(r=>r.run_id === activeRun) ? activeRun : '');
+    options($('run'),state.runs.map(r=>[r.run_id,((r.evidence_kind || '').includes('SYNTHETIC')?'SYNTHETIC / ':r.evidence_kind === 'PUBLIC_MARKET_PAPER'?'PAPER / ':'HISTORICAL / ')+r.run_id.split(':')[1]+' · '+r.status]),selectedRun);
     renderOverview();chooseDataset();
     if (!state.runs.length) {
       $('research-state').textContent='EMPTY · هیچ artifact پشتیبانی‌شده‌ای وجود ندارد.';
       $('chart').replaceChildren(node('p','بدون شاهد؛ بدون داده جایگزین.','empty'));
       $('activity-list').replaceChildren(node('p','UNAVAILABLE · ابتدا شاهد معتبر موتور یا پژوهش لازم است.','empty'));
     } else await loadEvaluation();
-    state.lastSuccess=new Date().toISOString();$('connection').textContent='API محلی متصل · worker نامعلوم';
+    state.lastSuccess=new Date().toISOString();$('connection').textContent='API پایش متصل · وضعیت موتور در نوار زیر';
     $('last-refresh').textContent='آخرین دریافت داشبورد: '+time(state.lastSuccess);
   } catch (e) {
     state.connected=false;state.errorText=e.message;renderOffline();
