@@ -132,6 +132,8 @@ class WallexLiveBroker:
         path = "/v1/account/orders" + ("" if method == "POST" else "/" + client_id)
         # Any outcome after send may be ambiguous. Never free funds on transport/JSON/404 errors.
         self._set_status(client_id, timestamp, "UNKNOWN")
+        observation = {"status": "UNKNOWN", "client_id": client_id,
+                       "reconciliation_required": True, "failure_reason": "TRANSPORT_ERROR"}
         try:
             response = self._injected_client.request(
                 method,
@@ -141,38 +143,41 @@ class WallexLiveBroker:
                 timeout=self.timeout_seconds,
                 follow_redirects=False,
             )
+            observation["http_status"] = response.status_code
+            if response.status_code not in (200, 201):
+                return {**observation, "failure_reason": "HTTP_ERROR"}
+            observation["failure_reason"] = "INVALID_RESPONSE_JSON"
             data = decode_json(response.content)
+            observation["failure_reason"] = "INVALID_RESPONSE_CONTRACT"
             result = data.get("result") if isinstance(data, dict) else None
             if (
-                response.status_code not in (200, 201)
-                or not isinstance(data, dict)
+                not isinstance(data, dict)
                 or data.get("success") is not True
                 or not isinstance(result, dict)
                 or result.get("clientOrderId") != client_id
             ):
-                return {
-                    "status": "UNKNOWN",
-                    "client_id": client_id,
-                    "reconciliation_required": True,
-                }
+                return observation
             from royin.canary import CreditCanaryTransport
 
             received_at = timestamp
+            observation["failure_reason"] = "INVALID_HOST_RECEIPT_TIME"
             if type(self._injected_client._transport) is CreditCanaryTransport:
                 # Real fills can occur after send; only the host transport supplies receipt time.
                 received_at = response.extensions.get("royin_received_at")
                 if type(received_at) is not int or received_at < timestamp:
                     raise ValueError("Invalid host receipt time")
+            observation["failure_reason"] = "INVALID_ORDER_SNAPSHOT"
             status = self._settle_snapshot(client_id, received_at, result, method)
             return {
                 "status": status,
                 "client_id": client_id,
                 "exchange_order_id": client_id,
                 "observed_exchange_status": result.get("status"),
+                "http_status": response.status_code,
                 "reconciliation_required": status == "UNKNOWN",
             }
-        except (httpx.HTTPError, ValueError, KeyError, TypeError, ArithmeticError):
-            return {"status": "UNKNOWN", "client_id": client_id, "reconciliation_required": True}
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, ArithmeticError) as exc:
+            return {**observation, "error_type": type(exc).__name__}
 
     def _settle_snapshot(self, client_id, timestamp, result, method):
         """Accept a complete cumulative multiset, never infer fills from status alone."""

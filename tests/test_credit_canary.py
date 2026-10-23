@@ -126,6 +126,39 @@ class CreditCanaryTests(unittest.TestCase):
         with patch("royin.canary.subprocess.check_output",side_effect=["a"*40," M source.py"]), self.assertRaises(ValueError):
             clean_revision(Path(self.temp.name))
 
+    def test_old_financial_revision_is_reported_before_network_and_preserved(self):
+        from scripts import execute_credit_canary as cli
+        binding = json.dumps(dict(revision="a"*40,expires_at=self.now+10,initial_tmn="100000"))
+        self.ledger.set_meta("canary_binding",binding)
+        root = Path(self.temp.name)/"review"
+        with patch.object(cli,"ROOT",root),patch.object(cli,"load_config",return_value=self.config), \
+             patch.object(cli,"clean_revision",return_value="b"*40), \
+             patch.object(cli,"canary_state_path",return_value=Path(self.ledger.db_path)), \
+             patch.object(cli,"preflight",side_effect=AssertionError("Must not reach network")), \
+             patch("builtins.print"):
+            self.assertEqual(cli.run(True),2)
+        report = json.loads(next((root/"data/private").glob("*/report.json")).read_text())
+        self.assertEqual(report["blocked_reason"],"EXISTING_FINANCIAL_RUN_SOURCE_MISMATCH")
+        self.assertTrue(report["reconciliation_required"])
+        self.assertEqual(report["orders_attempted"],0)
+        self.assertEqual(self.ledger.get_meta("canary_binding"),binding)
+        self.assertEqual(self.ledger.get_balance("TMN").free,D(100000))
+
+    def test_cancel_failure_observation_survives_restart_without_new_order(self):
+        self.transport.inner = httpx.MockTransport(lambda _:httpx.Response(503,content=b""))
+        policy = RiskPolicy(D(100000),D(100000),D(".02"),D(".05"),self.now+600,min_seconds_before_deadline=0)
+        with self.worker():
+            for elapsed in (0,40,41):
+                with patch("royin.canary.time.time",return_value=self.now+elapsed):
+                    state = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),
+                        self.now+elapsed,"a"*64)
+        self.assertEqual(state["status"],"CANCEL_ATTEMPTED_RECONCILIATION_REQUIRED")
+        self.assertEqual(state["last_exchange_observation"]["http_status"],503)
+        self.assertEqual(state["last_exchange_observation"]["failure_reason"],"HTTP_ERROR")
+        self.assertEqual(json.loads(self.ledger.get_meta("pilot_pilot")),state)
+        self.assertEqual(state["orders_attempted"],1)
+        self.assertGreater(self.ledger.get_balance("TMN").locked,0)
+
     def test_empty_http_failure_keeps_status_and_never_refunds_attempt(self):
         self.intent()
         self.transport.inner = httpx.MockTransport(lambda _:httpx.Response(403,content=b""))
@@ -153,6 +186,7 @@ class CreditCanaryTests(unittest.TestCase):
         with self.worker():
             first = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),self.now,"a"*64)
             self.assertEqual(first["stage"],"SELL")
+            self.assertEqual(first["last_exchange_observation"]["http_status"],201)
             with patch("royin.canary.time.time",return_value=self.now+1):
                 final = run_pilot_round_trip(self.broker,self.ledger,self.rules,policy,D(250000),self.now+1,"b"*64,
                     exit_quote=dict(price=D(249875),timestamp=self.now+1))

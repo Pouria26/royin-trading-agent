@@ -70,3 +70,7 @@ finalize_portfolio اکنون وضعیت حفاظت را در همان تراک�
 ## تکمیل اصلاح زمان fill — 2026-10-23
 
 وضعیت: DONE برای receipt-clock؛ اجرای مالی همچنان جدا و بسته. زمان دریافت کامل پاسخ در transport میزبان ثبت و در reconciliation مصرف شد؛ سه regression پذیرش fill حین HTTP، رد آینده و ساعت عقب‌رفته اضافه شدند.۳۸۴تست هسته در۴۵٫۹۴۰ثانیه و۱۲تست اختصاصی canary پاس؛ Ruff، compileall و diff check موفق. state مالی و تنظیمات کاربر حفظ شد. paper قبلی پیش از ویرایش source با صفر سفارش/fill متوقف شد؛ اجرای تازه نیازمند runid/source جدید است. قدم بعدی: ارزیابی مستقل قرارداد اجرای واقعی و مجوز تلاش محدود تازه، بدون reset intent قبلی.
+
+## بررسی و اصلاح تشخیص سفارش — 2026-10-23
+
+DONE: تفکیک HTTP_ERROR/JSON/contract/snapshot/receipt/transport، حفظ http_status بدون Secret، ذخیرهٔ durable نتیجهٔ درخواست و تلاش لغو، و گزارش source mismatch پیش از I/O. تست regression شامل403/422 با بدنهٔ خالی یا حساس،JSON نامعتبر،fill ناسازگار،timeout و شکست لغو/بازیابی و نسخهٔ قدیمی بدون شبکه است.۳۸۷تست در۵۴٫۱۵۰ثانیه،۱۴canary،۱۲broker،Ruff و compileall/diff پاس. استعلام تازهٔ واقعی۶GET و۰POST با موجودی۵M آزاد و۰سفارش/USDT انجام شد. BLOCKED: ریشهٔ پاسخ خالی تاریخی فاقد HTTP status قابل تعیین نیست؛ مجوز قبلی منقضی و۸attempt مصرف شده و UNKNOWN پابرجاست. خرید تازه/چهارساعت live تکمیل نشده؛ گیت‌ها و reserve برای سبزشدن حذف نشدند.

@@ -209,9 +209,12 @@ def run_pilot_round_trip(broker, ledger, rules, policy, current_price, current_t
             state["reconciliations"]+=1
         ledger.set_meta(key,json.dumps(state))
         if cancel:
-            broker.cancel_order(cid,timestamp=current_time)
-            return {**state,"status":"CANCEL_REQUESTED_RECONCILIATION_REQUIRED"}
+            state["last_exchange_observation"] = broker.cancel_order(cid,timestamp=current_time)
+            state["status"] = "CANCEL_ATTEMPTED_RECONCILIATION_REQUIRED"
+            ledger.set_meta(key,json.dumps(state))
+            return state
         outcome=broker.reconcile_order(cid,timestamp=current_time)
+    state["last_exchange_observation"] = outcome
     terminal=outcome.get("status") in ("FILLED","CANCELED","PARTIALLY_FILLED_CANCELED")
     state["status"]=("BUY" if stage=="BUY" else "SELL")+"_"+outcome.get("status","UNKNOWN")
     if terminal:
