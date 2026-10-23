@@ -93,11 +93,36 @@ class WinklerTests(unittest.TestCase):
         result = score_zero_baseline([D("-.02"), D("0"), D(".01"), D(".03")],
                                      interval=(D("-.01"), D(".02")))
         self.assertEqual(result["n"], 4)
+        self.assertEqual(result["mean_abs_error"], D(".015"))
         self.assertEqual(result["coverage"], D("0.5"))
         self.assertEqual(result["mean_width"], D(".03"))
 
 
 class ForecastScoreTests(unittest.TestCase):
+    def test_mean_and_paired_zero_errors_expose_loss_hidden_by_median(self):
+        points = (".002", ".002", ".002", ".09", ".09")
+        issued = [forecast(forecast_id=str(i), return_q10="-.2", return_q50=point,
+                           return_q90=".2") for i, point in enumerate(points)]
+        scored = score_return_forecasts(issued, {str(i): D(".01") for i in range(5)})
+        zero = score_zero_baseline([D(".01")] * 5)
+        self.assertEqual(scored["median_abs_error"], D(".008"))
+        self.assertEqual(scored["mean_abs_error"], D(".0368"))
+        self.assertEqual(zero["mean_abs_error"], D(".01"))
+        self.assertEqual(scored["per_horizon"][10800]["mean_abs_error"], D(".0368"))
+        self.assertEqual(scored["zero_point_comparison"], dict(
+            scored_pairs=5, model_better=3, model_worse=2, tied=0,
+            mean_absolute_error_difference=D(".0268")))
+
+    def test_missing_or_pending_are_not_zero_error_pairs(self):
+        scored = score_return_forecasts(
+            [forecast(forecast_id="a"), forecast(forecast_id="b")], {"a": None})
+        self.assertEqual((scored["pending"], scored["missing_outcome"]), (1, 1))
+        self.assertIsNone(scored["mean_abs_error"])
+        self.assertIsNone(scored["zero_point_comparison"])
+        tied = score_return_forecasts([forecast()], {"fc_1": D(".012")})
+        self.assertEqual(tied["zero_point_comparison"]["tied"], 1)
+        self.assertEqual(tied["zero_point_comparison"]["scored_pairs"], 1)
+
     def test_pending_and_missing_outcomes_stay_visible(self):
         forecasts = [forecast(forecast_id="a"), forecast(forecast_id="b"), forecast(forecast_id="c")]
         result = score_return_forecasts(

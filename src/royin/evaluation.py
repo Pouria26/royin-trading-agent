@@ -1614,6 +1614,15 @@ def score_return_forecasts(forecasts, outcomes, *, alpha=Decimal("0.2")):
     result = dict(
         issued=len(forecasts), scored=n, pending=pending, missing_outcome=missing,
         median_abs_error=_median([r["abs_error"] for r in rows]) if n else None,
+        mean_abs_error=(sum((r["abs_error"] for r in rows), Decimal(0)) / n) if n else None,
+        zero_point_comparison=dict(
+            scored_pairs=n,
+            model_better=sum(r["abs_error"] < abs(r["outcome"]) for r in rows),
+            model_worse=sum(r["abs_error"] > abs(r["outcome"]) for r in rows),
+            tied=sum(r["abs_error"] == abs(r["outcome"]) for r in rows),
+            mean_absolute_error_difference=sum(
+                (r["abs_error"] - abs(r["outcome"]) for r in rows), Decimal(0)) / n,
+        ) if n else None,
         bias=(sum((r["bias"] for r in rows), Decimal(0)) / n) if n else None,
         coverage=(Decimal(sum(1 for r in rows if r["covered"])) / n) if n else None,
         mean_width=(sum((r["width"] for r in rows), Decimal(0)) / n) if n else None,
@@ -1629,6 +1638,7 @@ def score_return_forecasts(forecasts, outcomes, *, alpha=Decimal("0.2")):
         result["per_horizon"][horizon] = dict(
             n=count,
             median_abs_error=_median([r["abs_error"] for r in group]),
+            mean_abs_error=sum((r["abs_error"] for r in group), Decimal(0)) / count,
             bias=sum((r["bias"] for r in group), Decimal(0)) / count,
             coverage=Decimal(sum(1 for r in group if r["covered"])) / count,
             mean_width=sum((r["width"] for r in group), Decimal(0)) / count,
@@ -1644,13 +1654,15 @@ def score_zero_baseline(outcome_returns, *, interval=None):
         raise ValueError("Baseline needs outcomes")
     errors = [abs(v) for v in values]
     if interval is None:
-        return dict(n=len(values),median_abs_error=_median(errors),bias=sum(values,Decimal(0))/len(values),
+        return dict(n=len(values),median_abs_error=_median(errors),
+                    mean_abs_error=sum(errors,Decimal(0))/len(values),bias=sum(values,Decimal(0))/len(values),
                     coverage=None,mean_width=None,mean_winkler=None,q10=None,q90=None,
                     interval_status="BLOCKED_NO_DEVELOPMENT_INTERVAL")
     q10, q90 = interval
     return dict(
         n=len(values),
         median_abs_error=_median(errors),
+        mean_abs_error=sum(errors, Decimal(0)) / len(values),
         bias=sum(values, Decimal(0)) / len(values),
         coverage=Decimal(sum(1 for v in values if q10 <= v <= q90)) / len(values),
         mean_width=q90 - q10,

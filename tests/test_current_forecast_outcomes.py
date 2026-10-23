@@ -97,8 +97,12 @@ class CurrentForecastOutcomeTests(unittest.TestCase):
         scores = report["scores"]
         self.assertEqual(scores["scored"],1)
         self.assertEqual(scores["median_abs_error"],"0.03")
+        self.assertEqual(scores["mean_abs_error"],"0.03")
+        self.assertEqual(scores["zero_point_comparison"]["model_better"],1)
+        self.assertEqual(scores["zero_point_comparison"]["mean_absolute_error_difference"],"-0.01")
         self.assertEqual(scores["mean_winkler"],"0.14")
         self.assertEqual(report["zero_point_baseline"]["median_abs_error"],"0.04")
+        self.assertEqual(report["zero_point_baseline"]["mean_abs_error"],"0.04")
         self.assertIsNone(report["zero_point_baseline"]["q90"])
         self.assertEqual(path.read_bytes(),before)
         with self.assertRaises(FileExistsError),patch.object(scorer.urllib.request,"urlopen") as http:
