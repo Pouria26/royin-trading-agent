@@ -1,3 +1,9 @@
+## وضعیت مقدم — مقایسهٔ prospective ورود، ۲۳ اکتبر ۲۰۲۶
+
+مسیر مقایسهٔ کاغذی shared-input/shared-book اضافه و ۴۴۷ تست هسته/۱۱داشبورد پاس شد؛ [قرارداد دقیق و فرمان اجرا](docs/paired-entry-evaluation.md). پیش از تغییر، process و artifacts/paired-paper را بررسی کنید: run فعال source منجمد دارد. این یادداشت به‌تنهایی شروع/پایان worker را ثابت نمی‌کند؛ protocol/progress/report و PID باید خوانده شوند. چهار arm مستقل و cash، entry-only و خروج host هستند، نه اجرای کامل Position Reviewer.
+
+اصلاح مالی کاغذی: سفارش فروش نهایی اکنون با intent/fill/stop اتمیک در broker_orders ثبت می‌شود؛ replay تعداد سفارش‌ها را ضعیف نکردیم. مزیت سود هنوز ثابت نشده؛ مدل منتخب عملیاتی GPT و challenger Claude است. state مالی UNKNOWN و canary هشت attempt تغییر نکرده و live بسته است. دو فایل پژوهش untracked کاربر حفظ شوند؛ push مجاز نشده است.
+
 # پرامپت انتقال پروژهٔ رویین به Agent جدید
 
 ## وضعیت مقدم بر یادداشت‌های تاریخی — ۲۳ اکتبر، پس از پایان run سه‌ساعته

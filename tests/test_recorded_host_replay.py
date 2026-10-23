@@ -183,6 +183,8 @@ class RecordedHostReplayTests(unittest.TestCase):
         result, states = replay.replay_accounting(self.manifest)
         self.assertEqual(D(result["realized_pnl_tmn"]),D("9.42533"))
         self.assertEqual(result["closed_round_trips"],1)
+        self.assertEqual([D(pnl) for pnl in result["closed_round_trip_pnls_tmn"]],[D("9.42533")])
+        self.assertEqual(D(result["realized_pnl_excluding_best_trip_tmn"]),D(0))
         self.assertEqual(len(states),len(events)+1)
         self.assertEqual(D(result["balances"]["TMN"]["free"]),D("5000009.42533"))
 

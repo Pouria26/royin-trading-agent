@@ -580,6 +580,13 @@ class PaperBroker:
                 status="FILLED",
                 created_at=timestamp,
             )
+            # Persist the terminal order in the same paper_atomic transaction as its fill.
+            with self.ledger.connection() as db:
+                db.execute(
+                    "INSERT INTO broker_orders (client_id,symbol,side,price,quantity,status,created_at) "
+                    "VALUES (?,?,'SELL',?,?,'FILLED',?)",
+                    (liq_cid,self.rules.symbol,str(current_price),str(sellable_qty),timestamp),
+                )
             liquidated_qty = sellable_qty
             liquidation_cash = (sellable_qty * current_price) - fee
 

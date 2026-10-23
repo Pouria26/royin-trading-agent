@@ -1,3 +1,9 @@
+## ۲۰۲۶-۱۰-۲۳ — ثبت سفارش خروج و ارزیابی مشترک ورود
+
+تست کامل coordinator→ledger→manifest→replay آشکار کرد finalize_portfolio سفارش SELL نهایی را فقط در حافظه می‌ساخت؛ بازیابی پس از تراکنش آن را حذف می‌کرد، با وجود ثبت fill در ledger. INSERT سفارش به همان تراکنش اضافه شد؛ خرابی INSERT باید کل intent/fill/cash/stop را rollback کند. ۴۴۷تست هسته/۱۱داشبورد پاس‌اند. این اصلاح paper است، نه حل UNKNOWN مالی.
+
+اجرای مشترک آینده از run_paired_paper، چهار دفترکل و cash با input/book یکسان و host-only خروج استفاده می‌کند؛ host shortlist پنج‌نمادی، fixed horizon۳۰دقیقه، debit۱۵۰k مجازی و دو پنجره ثبت‌شده. source حین run ثابت و resume ممنوع؛ STOP_REQUESTED توقف محدود و خروج همهٔ armها را درخواست می‌کند. عدد۱۵۰k مجوز live نیست. ۱۳ تصمیم معتبر مدل در اجرای سه‌ساعتهٔ گذشته همگی WAIT بودند، نه ENTER ردشده توسط risk. نتیجهٔ کاغذی آینده هنوز اندازه‌گیری نشده؛ [قرارداد](docs/paired-entry-evaluation.md).
+
 # حافظهٔ فنی پایدار
 
 ## ۲۰۲۶-۱۰-۲۳ — اتصال provider و صداقت harness

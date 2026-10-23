@@ -107,6 +107,7 @@ def replay_accounting(manifest):
     ledger.initialize_portfolio(decimal_number(arm["initial_capital_tmn"],positive=True),
         binding=canonical_hash(journal),quote_asset="TMN")
     states, fill_rows, intents = [balances(ledger)], [], 0
+    closed_pnls, last_closed_count, last_flat_pnl = [], 0, Decimal(0)
     for event in journal["events"]:
         kind, row = event["event_type"], event["payload"]
         if kind == "INTENT":
@@ -127,6 +128,12 @@ def replay_accounting(manifest):
             if before != (balances(ledger),ledger.get_realized_pnl()):
                 raise ValueError("Recorded fill is not idempotent")
             fill_rows.append({k:str(v) if isinstance(v,Decimal) else v for k,v in args.items()})
+            closed_count = int(ledger.get_meta("closed_round_trips") or "0")
+            if closed_count != last_closed_count:
+                if closed_count != last_closed_count + 1:
+                    raise ValueError("Unexpected closed round-trip count")
+                closed_pnls.append(ledger.get_realized_pnl() - last_flat_pnl)
+                last_flat_pnl, last_closed_count = ledger.get_realized_pnl(), closed_count
         elif kind == "CANCEL":
             if not ledger.cancel_intent(row["client_id"]):
                 raise ValueError("Cancellation has no active recorded intent")
@@ -140,7 +147,10 @@ def replay_accounting(manifest):
         raise ValueError("Recorded journal, manifest totals or fills disagree")
     return dict(status="VERIFIED_RECORDED_ACCOUNTING",balances=balances(ledger),
         realized_pnl_tmn=str(ledger.get_realized_pnl()),events=len(journal["events"]),
-        closed_round_trips=int(ledger.get_meta("closed_round_trips") or "0")), states
+        closed_round_trips=int(ledger.get_meta("closed_round_trips") or "0"),
+        closed_round_trip_pnls_tmn=[str(pnl) for pnl in closed_pnls],
+        realized_pnl_excluding_best_trip_tmn=str(ledger.get_realized_pnl()-max(closed_pnls))
+            if closed_pnls else None), states
 
 
 def recorded_proposal(trace):

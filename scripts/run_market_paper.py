@@ -910,6 +910,13 @@ class MarketPaperOrchestrator:
                 invalidation="Next closed candle",
             )
 
+        await self._apply_entry_decision(feed,decision,batch_map,primary_snap=primary_snap,
+            report=report,bootstrap_attempts=bootstrap_attempts,input_state=input_state,
+            model_trace=model_trace)
+
+    async def _apply_entry_decision(self, feed, decision, batch_map, *, primary_snap,
+                                    report, bootstrap_attempts, input_state, model_trace):
+        """Apply the same host risk, book, fee and protection gates to a paper decision."""
         # Host risk evaluation
         risk_result = None
         client_id = None
