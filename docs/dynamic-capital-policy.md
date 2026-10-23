@@ -1,3 +1,7 @@
+## Current audit and provider authority — 2026-10-23 evening
+
+BoxAPI/gpt-6-luna is the current operator-selected provider; the APMix operational selection below is historical and superseded. Current funding is documented in funded-boxapi-runtime.md. Read [risk and WAIT causal audit](risk-wait-audit.md):1%account drawdown reduces the future planned risk budget, not every order automatically;25k at5M is not a guaranteed actual loss ceiling. The current captured WAITs were not rejected by capital gates. Trading parameters remain unchanged.
+
 # Dynamic capital and current evidence — 2026-10-23
 
 The operator explicitly requested real autonomous trading through Monday and

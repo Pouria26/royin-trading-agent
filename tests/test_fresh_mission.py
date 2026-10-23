@@ -418,6 +418,28 @@ class FreshMissionTests(unittest.TestCase):
         self.assertIsNone(engine.capital_status(173850))
         self.assertEqual(self.ledger.get_meta("closed_round_trips"), "2")
 
+    def test_one_percent_drawdown_reduces_future_risk_without_blocking_entries(self):
+        self.dynamic_permit()
+        engine = FreshEngine(self.ledger, self.permit, None, self.config, self.root,
+                            client=None, feed=None, signals=None)
+        self.assertEqual(engine.capital_status(1010), D(1))
+        # Synthetic valuation fixtures; production balances/counters are never adjusted.
+        self.ledger.set_balance("TMN", D("3950000.01"))
+        self.assertEqual(engine.capital_status(1020), D(1))
+        self.ledger.set_balance("TMN", D("3950000"))
+        scale = engine.capital_status(1030)
+        self.assertEqual(scale, D(".5"))
+        self.assertEqual(self.ledger.get_meta("capital_block_reason"), "")
+        self.assertIsNone(self.ledger.get_meta("risk_mission_halted"))
+        plan = allocate_entry_capital(equity_tmn=D(self.ledger.get_meta("risk_account_equity")),
+            free_cash_tmn=self.ledger.get_balance("TMN").free, price_tmn=D(1000), atr_tmn=D(10),
+            depth_tmn=D(100000000), fee_rate=D(".003"), tick_size=D(".01"), bootstrap=True,
+            risk_scale=scale)
+        self.assertTrue(plan["approved"])
+        self.assertEqual(D(plan["risk_budget_tmn"]), D(12375))
+        self.assertEqual(D(plan["debit_limit_tmn"]), D(150000))
+        self.assertEqual(self.old_hash, hashlib.sha256((self.root / "old.sqlite3").read_bytes()).hexdigest())
+
     def test_missing_authorization_old_evidence_and_open_orders_cannot_bootstrap(self):
         for changes in (
             dict(operator_instruction=""),

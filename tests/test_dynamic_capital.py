@@ -36,6 +36,17 @@ class DynamicCapitalTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises((ValueError, TypeError)):
                 self.plan(atr_tmn=value)
 
+    def test_reduced_risk_does_not_halve_a_nonbinding_bootstrap_cap(self):
+        # Synthetic counterexample: the first-trip cap binds before the loss budget.
+        normal = self.plan(bootstrap=True, risk_scale=D(1))
+        reduced = self.plan(bootstrap=True, risk_scale=D(".5"))
+        self.assertTrue(normal["approved"] and reduced["approved"])
+        self.assertEqual(D(normal["debit_limit_tmn"]), D(150000))
+        self.assertEqual(D(reduced["debit_limit_tmn"]), D(150000))
+        self.assertEqual(D(reduced["risk_budget_tmn"]), D(normal["risk_budget_tmn"]) / 2)
+        self.assertLess(D(reduced["debit_limit_tmn"]) * D(reduced["loss_fraction"]),
+                        D(reduced["risk_budget_tmn"]))
+
 
 if __name__ == "__main__":
     unittest.main()
