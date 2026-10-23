@@ -98,6 +98,32 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         self.assertIsNone(feed.deadline_monotonic)
         self.assertEqual(o.ledger.get_balance("TMN").free,D(5000000))
 
+    def test_candle_boundary_during_collection_is_deferred_not_budget_exhaustion(self):
+        for deferred in (True, False):
+            with self.subTest(deferred=deferred):
+                o = self.make_runner()
+                o.model_mode, o.run_envelope = "REAL_MODEL", object()
+                snap = snapshot("ETHTMN")
+                report = dict(batch=[ScanCandidate(snap,D(0),opportunity())], cutoff=8100,
+                    market_rules={"ETHTMN":runner.build_default_rules("ETHTMN")}, coverage={}, errors=[])
+                async def infer(*args, deferred=deferred, **kwargs):
+                    if deferred:
+                        kwargs["model_trace"].update(host_outcome="HOST_DEFERRED",
+                            defer_reason="INSUFFICIENT_CLOSED_CANDLE_TIME")
+                    raise BudgetBlocked("CLOSED_CANDLE_TIME" if deferred else "Durable budget exhausted")
+                with patch.object(runner,"public_symbols",return_value=(catalog(),8105,{"ETHTMN"})), \
+                     patch.object(runner,"scan_current_market",return_value=report), \
+                     patch.object(runner,"decide_role",side_effect=infer), \
+                     patch.object(o,"_apply_entry_decision") as apply, patch("time.time",return_value=8105):
+                    asyncio.run(o._handle_entry_cycle(MagicMock(),8105))
+                self.assertEqual(o.ledger.get_meta("entry_block_reason"),
+                    "DEFERRED_CLOSED_CANDLE_TIME" if deferred else "BUDGET_EXHAUSTED")
+                if deferred:
+                    apply.assert_not_awaited()
+                    self.assertEqual(o.decision_traces[-1]["host_outcome"], "HOST_DEFERRED")
+                else:
+                    apply.assert_awaited_once()
+
     def test_research_coverage_is_durable_and_visible_on_the_next_model_call(self):
         o = self.make_runner()
         self.assertEqual(o.risk_policy.max_order_tmn,D(100000))

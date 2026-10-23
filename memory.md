@@ -1,3 +1,7 @@
+## Live startup observation — 2026-10-23, 17:33 Tehran
+
+Fresh mission3 prepared with observed five-million TMN cash and no orders/assets; first real worker then deferred before inference as collection crossed the final candle minute. The existing handler mislabeled that temporary condition BUDGET_EXHAUSTED. Worker stopped PAUSED_RESTART with zero actual orders/fills/model HTTP; its state and original115 external reservations are preserved. The fix recognizes only the explicit HOST_DEFERRED/INSUFFICIENT_CLOSED_CANDLE_TIME trace; genuine budget exhaustion remains fatal for entries.46 targeted tests passed; full480 immediately preceding this change passed. New source requires a new run/permit; no gate or counter is manually reset.
+
 ## Financial preparation regression — 2026-10-23, 17:25 Tehran
 
 Two fresh preparation attempts read the dedicated account successfully (5,000,000 TMN, zero locked/non-TMN assets, zero open orders) but failed before authorization/orders: read counters made an uninitialized financial ledger nonempty. Both failed directories are retained, with zero intents/fills. Preparation now stores preflight read accounting in a separate durable ledger. A regression exercises the actual initialization order rather than authorizing only an in-memory fixture. No historical DB or counters were reset. Targeted17 tests and full480 core tests passed (84.587s); Ruff and diff checks passed. Actual new execution remains pending.

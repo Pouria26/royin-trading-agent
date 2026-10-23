@@ -908,6 +908,13 @@ class MarketPaperOrchestrator:
                     timeout_seconds=60,
                 )
             except BudgetBlocked as exc:
+                if (model_trace.get("host_outcome") == "HOST_DEFERRED"
+                        and model_trace.get("defer_reason") == "INSUFFICIENT_CLOSED_CANDLE_TIME"):
+                    self.ledger.set_meta("entry_block_reason", "DEFERRED_CLOSED_CANDLE_TIME")
+                    self.decision_traces.append(dict(model_trace=model_trace,
+                        host_outcome="HOST_DEFERRED", cutoff=primary_snap.cutoff,
+                        reason="Collection left insufficient time before the next candle; no model HTTP"))
+                    return
                 self.ledger.set_meta("entry_block_reason", "BUDGET_EXHAUSTED")
                 decision = RoleDecisionProposal(
                     role="ENTRY_ANALYST",
