@@ -103,6 +103,9 @@ class EntryOpportunityContext(BaseModel):
         return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
 
 
+MAX_RESEARCH_SYMBOLS = 10
+
+
 class MarketCatalogCandidate(BaseModel):
     """Validated public catalog facts for research selection, never an entry signal."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -110,6 +113,8 @@ class MarketCatalogCandidate(BaseModel):
     price_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
     turnover_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
     return_24h: Decimal | None = Field(default=None, ge=-1, allow_inf_nan=False)
+    research_requests: int = Field(default=0, strict=True, ge=0)
+    accepted_research_count: int = Field(default=0, strict=True, ge=0)
 
 
 class MarketResearchUniverse(BaseModel):
@@ -134,9 +139,11 @@ class MarketResearchUniverse(BaseModel):
             ctx.prec = 160
             rows = [[row.symbol, int(row.turnover_tmn // Decimal(1000000)),
                 str(row.return_24h.quantize(Decimal("0.0001"),rounding=ROUND_HALF_EVEN))
-                    if row.return_24h is not None else None] for row in self.markets]
+                    if row.return_24h is not None else None, row.research_requests,
+                row.accepted_research_count] for row in self.markets]
         return dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
-            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp"],rows=rows,
+            columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp",
+                "research_requests", "accepted_research_count"],rows=rows,
             unavailable_for_current_cutoff=list(self.unavailable_symbols))
 
 

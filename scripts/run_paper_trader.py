@@ -12,7 +12,7 @@ from itertools import pairwise
 from pathlib import Path
 from urllib.parse import urlencode
 
-from royin.decision import EntryOpportunityContext
+from royin.decision import MAX_RESEARCH_SYMBOLS, EntryOpportunityContext
 from royin.features import FeatureSnapshot, extract_features
 from royin.market_context import catalog_return, market_context
 from royin.market_data import (
@@ -83,8 +83,8 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
                       account_as_of=None, limit=3, min_turnover_tmn=Decimal("100000000"),
                       diversify=False, tmn_only=False, selected_symbols=None):
     """Deep-research batch: explicit model selection or the existing diagnostic ranking."""
-    if type(limit) is not int or not 1 <= limit <= 5:
-        raise ValueError("Shortlist cap must be 1..5")
+    if type(limit) is not int or not 1 <= limit <= MAX_RESEARCH_SYMBOLS:
+        raise ValueError("Shortlist cap must be 1..10")
     liquid = catalog_candidates(payload, account_symbols=account_symbols, cutoff=cutoff,
         received_at=received_at, account_as_of=account_as_of,
         min_turnover_tmn=min_turnover_tmn, tmn_only=tmn_only)
@@ -92,7 +92,7 @@ def shortlist_markets(payload, *, account_symbols, cutoff, received_at,
         if (not isinstance(selected_symbols, (list,tuple)) or not 1 <= len(selected_symbols) <= limit
                 or any(not isinstance(symbol,str) for symbol in selected_symbols)
                 or len(set(selected_symbols)) != len(selected_symbols)):
-            raise ValueError("Model research selection must contain1..5 unique symbols")
+            raise ValueError("Model research selection must contain1..10 unique symbols")
         indexed = {row.symbol:row for row in liquid}
         if not set(selected_symbols).issubset(indexed):
             raise ValueError("Model research selection is outside the eligible liquid universe")
@@ -128,9 +128,9 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
     decimal_number(round_trip_fee_pct)
     for amount in (min_depth_tmn, max_spread_pct):
         decimal_number(amount, positive=True)
-    if type(limit) is not int or not 1 <= limit <= 5:
+    if type(limit) is not int or not 1 <= limit <= MAX_RESEARCH_SYMBOLS:
         raise ValueError("Invalid batch limit")
-    if round_trip_fee_pct >= 1 or max_spread_pct >= 1 or len(shortlist) > 5:
+    if round_trip_fee_pct >= 1 or max_spread_pct >= 1 or len(shortlist) > MAX_RESEARCH_SYMBOLS:
         raise ValueError("Invalid scanner limits")
     snapshot_cutoff = cutoff if snapshot_cutoff is None else snapshot_cutoff
     if type(snapshot_cutoff) is not int or not 0 < snapshot_cutoff <= cutoff:

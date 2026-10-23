@@ -99,6 +99,41 @@ class ProtectionTests(unittest.TestCase):
         self.assertEqual(self.ledger.get_realized_pnl(),D("1.343153"))
         self.assertEqual(self.ledger.get_balance("USDT").total,D(0))
 
+    def test_unfillable_stop_is_durable_and_executes_after_recovery_even_if_price_bounces(self):
+        result = self.broker.observe_quote(D(90),source_time=1010,received_at=1010,now=1010,
+            policy=policy(),execution_available=False)
+        self.assertEqual(result["status"],"EXIT_REQUIRED_NO_DEPTH")
+        self.assertEqual(self.ledger.get_balance("USDT").total,D(1))
+        state = json.loads(self.ledger.get_meta("protection_USDTTMN"))
+        self.assertEqual(state["high_water"],"100")
+        self.assertEqual(state["pending_exit_reason"],"STOP_OR_TRAILING")
+        self.broker = PaperBroker(Ledger(self.path),rules())
+        result = self.tick("105",1020)
+        self.assertEqual(result["action"],"EXIT")
+        self.assertEqual(self.ledger.get_balance("USDT").total,D(0))
+        self.assertEqual(self.ledger.get_balance("TMN").free,D(1000)-D("100.3")+D(105)*D(".9995")*D(".997"))
+
+    def test_unexecutable_high_never_tightens_stop_or_inflates_peak(self):
+        result = self.broker.observe_quote(D(120),source_time=1010,received_at=1010,now=1010,
+            policy=policy(),execution_available=False)
+        self.assertEqual(result["status"],"NO_EXECUTABLE_DEPTH")
+        state = json.loads(self.ledger.get_meta("protection_USDTTMN"))
+        self.assertEqual(state["high_water"],"100")
+        self.assertEqual(state["trailing_stop_price"],"98.00")
+        self.assertNotIn("pending_exit_reason",state)
+
+    def test_finalization_closes_protection_and_allows_a_new_fill_binding(self):
+        result = self.broker.finalize_portfolio(D(105),timestamp=1010)
+        self.assertEqual(result["status"],"FINALIZED")
+        self.assertEqual(json.loads(self.ledger.get_meta("protection_USDTTMN"))["status"],"CLOSED")
+        risk = RiskResult(True,"next technical entry","ENTER","USDTTMN",D(1),D(100),D(98),D(".3"))
+        self.broker.submit_order(risk,client_id="second-buy",timestamp=1020)
+        self.broker.reconcile_order("second-buy",simulated_state="FILLED",timestamp=1020)
+        state = self.broker.arm_protection(policy(),opened_at=1020,entry_price=D(100))
+        self.assertEqual(state["opened_at"],1020)
+        self.assertEqual(state["status"],"OPEN")
+        self.assertEqual(state["high_water"],"100")
+
     def test_gap_through_stop_uses_seen_bid_not_promised_stop_price(self):
         self.tick("90",1010)
         self.assertEqual(self.ledger.get_balance("TMN").free,D("989.385135"))

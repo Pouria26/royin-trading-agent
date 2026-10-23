@@ -18,12 +18,12 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
             markets=(MarketCatalogCandidate(symbol="SOLTMN",price_tmn=D(101),
                 turnover_tmn=D(299999999),return_24h=D(".012345")),))
         view = universe.screening_view()
-        self.assertEqual(view["rows"],[["SOLTMN",299,"0.0123"]])
+        self.assertEqual(view["rows"],[["SOLTMN",299,"0.0123",0,0]])
         self.assertEqual(universe.markets[0].turnover_tmn,D(299999999))
         self.assertIn("turnover_million_tmn_floor",view["columns"])
 
-    async def run_case(self, *, selection=None, loaded_symbol="SOLTMN", skip_tool=False, bad_catalog=False, unavailable=()):
-        symbols = ("BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN")
+    async def run_case(self, *, selection=None, loaded_symbol="SOLTMN", skip_tool=False, bad_catalog=False, unavailable=(), timeout=30, load_all=False):
+        symbols = ("BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN","XRPTMN","BNBTMN","TRXTMN","BCHTMN")
         universe = MarketResearchUniverse(catalog_sha256="c"*64,observed_at=8100,unavailable_symbols=unavailable,
             markets=tuple(MarketCatalogCandidate(symbol=s,price_tmn=D(101),turnover_tmn=D(200000000),
                 return_24h=D(".01")) for s in symbols))
@@ -32,7 +32,8 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         opp = opportunity()
         if bad_catalog:
             opp = opp.model_copy(update={"catalog_sha256":"d"*64})
-        loader = AsyncMock(return_value={loaded_symbol:(chosen,opp)})
+        loaded = {symbol:(snapshot(symbol),opp) for symbol in selection} if load_all else {loaded_symbol:(chosen,opp)}
+        loader = AsyncMock(return_value=loaded)
         proposal = enter_proposal(anchor if skip_tool else chosen)
         bodies = []
         async def handler(request):
@@ -49,7 +50,7 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as client:
             decision = await decide_role(anchor,market_batch={anchor.symbol:(anchor,opportunity())},
                 market_universe=universe,market_loader=loader,client=client,config=RuntimeConfig(BOXAPI_API_KEY="fake"),
-                allowed_symbols=symbols,model_trace=trace)
+                allowed_symbols=symbols,model_trace=trace,timeout_seconds=timeout)
         return decision,trace,loader,bodies
 
     async def test_model_researches_outside_anchor_from_wider_universe_with_only_two_requests(self):
@@ -63,7 +64,7 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("LTCTMN",first)
         initial = next(row["content"] for row in bodies[0]["messages"] if row["role"] == "user")
         self.assertNotIn("BTCTMN",initial.split("Research selection context:")[0])
-        self.assertEqual(len(trace["context"]["research_universe"]["markets"]),7)
+        self.assertEqual(len(trace["context"]["research_universe"]["markets"]),11)
         self.assertEqual(trace["context"]["requested_symbols"],["SOLTMN"])
         self.assertEqual([row["symbol"] for row in trace["context"]["candidates"]],["SOLTMN"])
         self.assertEqual(trace["host_outcome"],"MODEL_DECISION")
@@ -75,6 +76,24 @@ class ModelResearchTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(decision.action,"WAIT")
                 self.assertEqual(trace["host_outcome"],"HOST_FALLBACK")
                 loader.assert_not_awaited()
+
+    async def test_ten_distinct_model_choices_are_admitted_but_eleven_never_reach_loader(self):
+        symbols = ["BTCTMN","ETHTMN","DOGETMN","SOLTMN","ADATMN","LTCTMN","XLMTMN","XRPTMN","BNBTMN","TRXTMN"]
+        decision,trace,loader,_ = await self.run_case(selection=symbols,timeout=60,load_all=True)
+        self.assertEqual(trace["host_outcome"],"MODEL_DECISION")
+        self.assertEqual(decision.symbol,"SOLTMN")
+        loader.assert_awaited_once_with(tuple(symbols))
+        self.assertEqual(len(trace["context"]["candidates"]),10)
+        _,trace,loader,_ = await self.run_case(selection=[*symbols,"BCHTMN"])
+        self.assertEqual(trace["host_outcome"],"HOST_FALLBACK")
+        loader.assert_not_awaited()
+
+    async def test_research_timeout_stays_bounded_and_coverage_counters_reject_bool(self):
+        with self.assertRaises(ValueError):
+            await self.run_case(timeout=61)
+        for field in ("research_requests","accepted_research_count"):
+            with self.subTest(field=field),self.assertRaises(ValueError):
+                MarketCatalogCandidate(symbol="SOLTMN",price_tmn=D(101),turnover_tmn=D(200000000),**{field:True})
 
     async def test_known_bad_current_data_cannot_be_requested_again(self):
         decision,trace,loader,_ = await self.run_case(selection=["SOLTMN"],unavailable=("SOLTMN",))

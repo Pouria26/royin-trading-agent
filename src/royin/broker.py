@@ -585,6 +585,11 @@ class PaperBroker:
 
         final_tmn = self.ledger.get_balance(self.rules.quote_asset).free
         residual_base = self.ledger.get_balance(self.rules.base_asset).free
+        protection_key = "protection_" + self.rules.symbol
+        protection = json.loads(self.ledger.get_meta(protection_key) or "null")
+        if protection is not None:
+            protection["status"] = "EXIT_REQUIRED_RESIDUAL" if residual_base else "CLOSED"
+            self.ledger.set_meta(protection_key,json.dumps(protection,sort_keys=True))
         realized_pnl = self.ledger.get_realized_pnl(self.rules.symbol)
         net_return_pct = ((final_tmn / initial_capital) - Decimal(1)) * Decimal(100)
 
@@ -675,12 +680,14 @@ class PaperBroker:
         return state
 
     @paper_atomic
-    def observe_quote(self, bid, *, source_time, received_at, now, policy, slippage_pct=Decimal(".0005")):
+    def observe_quote(self, bid, *, source_time, received_at, now, policy, slippage_pct=Decimal(".0005"),
+                      execution_available=True):
         """One bounded host-monitor tick, independent of model completion or token budget."""
         validate_decimal(bid, "bid", strictly_positive=True)
         validate_decimal(slippage_pct, "slippage")
         if (
             slippage_pct >= 1
+            or type(execution_available) is not bool
             or any(type(t) is not int or t <= 0 for t in (source_time, received_at, now))
             or not source_time <= received_at <= now
         ):
@@ -720,7 +727,7 @@ class PaperBroker:
             ).fetchone()
         basis = Decimal(basis_row[0]) if basis_row else Decimal(0)
         net_if_exit = quantity * bid * (1 - slippage_pct) * (1 - self.rules.taker_fee_rate) - basis
-        reason = (
+        reason = state.get("pending_exit_reason") or (
             "STOP_OR_TRAILING"
             if bid <= stop
             else "MAX_NET_LOSS"
@@ -729,6 +736,15 @@ class PaperBroker:
             if now >= hard_exit_at
             else None
         )
+        if not execution_available:
+            self.ledger.set_meta("entry_block_reason", "NO_EXECUTABLE_DEPTH")
+            if reason:
+                state["pending_exit_reason"] = reason
+                self.ledger.set_meta(key, json.dumps(state, sort_keys=True))
+            return dict(status="EXIT_REQUIRED_NO_DEPTH" if reason else "NO_EXECUTABLE_DEPTH",
+                action="WAIT", exit_required=bool(reason), entry_enabled=False, review_due=False)
+        if self.ledger.get_meta("entry_block_reason") == "NO_EXECUTABLE_DEPTH":
+            self.ledger.set_meta("entry_block_reason", "")
         if reason:
             portfolio = json.loads(self.ledger.get_meta("portfolio") or "{}")
             report = self.finalize_portfolio(
