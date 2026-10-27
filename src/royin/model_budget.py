@@ -20,9 +20,16 @@ class BudgetBlocked(ValueError):
 
 
 class ModelBudget:
-    def __init__(self, config, path=None, *, audit=None, require_existing=False):
+    def __init__(self, config, path=None, *, audit=None, require_existing=False,
+                 pool_id=None, pool_sha256=None):
         self.audit = audit
         self.config = config
+        self.pool = None
+        self.pool_id = pool_id
+        if (pool_id is None) != (pool_sha256 is None):
+            raise BudgetBlocked("Complete pool authority binding required")
+        if pool_id is not None and (config.LLM_PROVIDER != "boxapi" or not config.BOXAPI_CREDIT_ID or not require_existing):
+            raise BudgetBlocked("Funded BoxAPI continuation required for a pool")
         self.is_priced_usd = config.LLM_PROVIDER == "boxapi"
         self.credit_id = config.BOXAPI_CREDIT_ID if self.is_priced_usd else None
         if self.credit_id and not require_existing:
@@ -71,6 +78,12 @@ class ModelBudget:
         rate = p["rates_per_million"][config.LLM_MODEL]
         self.input_rate = decimal_number(rate["input"], positive=True)
         self.output_rate = decimal_number(rate["output"], positive=True)
+        if pool_id is not None:
+            from royin.boxapi_pool import BoxAPIPool
+            self.pool = BoxAPIPool(self, pool_id, pool_sha256)
+            self.total_limit, self.daily_limit = self.pool.total_limit, None
+            self.policy.update(max_requests_total=self.pool.max_requests,
+                               max_requests_daily=self.pool.max_requests)
 
     def connect(self):
         """Continuation never creates a replacement ledger, including after deletion races."""
@@ -100,6 +113,17 @@ class ModelBudget:
 
     def validate_durable(self, db):
         self.validate_existing(db,allow_empty=not self.is_priced_usd)
+        if self.is_priced_usd and self.pool_id is None and db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='boxapi_pools'").fetchone():
+            key = self.config.model_api_key
+            fp = hashlib.sha256(key.get_secret_value().encode()).hexdigest() if key else None
+            rows = db.execute("SELECT authority_json FROM boxapi_pools LIMIT 9").fetchall()
+            if len(rows) > 8:
+                raise BudgetBlocked("Invalid funding pool count")
+            if any(fp in {m['credential_sha256'] for m in json.loads(r[0])['members']} for r in rows):
+                raise BudgetBlocked("Pool already authorized; restore original pool authority")
+        if self.pool is not None:
+            self.pool.validate(db)
         if self.credit_id:
             self._credit(db)
         elif self.is_priced_usd and db.execute(
@@ -213,6 +237,9 @@ class ModelBudget:
         ) / Decimal(1_000_000)
         nano_usd = int((cost * 1_000_000_000).to_integral_value(rounding=ROUND_CEILING))
         now = now or datetime.now(UTC)
+        if self.pool is not None:
+            self.pool.reserve(now=now,cost=cost,tokens=tokens)
+            return cost
         # The competition's Tehran dates use +03:30; no host timezone or optional tz database.
         day = now.astimezone(timezone(timedelta(hours=3, minutes=30))).date().isoformat()
         with closing(self.connect()) as db, db:
@@ -286,9 +313,10 @@ class ModelBudget:
         raw = request.content
         payload = json.loads(raw)
         limit = payload.get("max_completion_tokens", payload.get("max_tokens"))
+        if len(raw) + 1024 > self.policy["max_input_tokens"]:
+            raise BudgetBlocked("Request exceeds the reserved input byte bound")
         if (
-            len(raw) + 1024 > self.policy["max_input_tokens"]
-            or (type(limit) is not int or not 0 < limit <= self.policy["max_output_tokens"])
+            (type(limit) is not int or not 0 < limit <= self.policy["max_output_tokens"])
             or payload.get("stream")
             or payload.get("n", 1) != 1
             or (
@@ -297,7 +325,16 @@ class ModelBudget:
             )
         ):
             raise BudgetBlocked("Request exceeds the reserved token/model contract")
-        cost = self.reserve()
+        if self.pool is not None:
+            cost = (self.policy["max_input_tokens"] * self.input_rate
+                    + self.policy["max_output_tokens"] * self.output_rate) / Decimal(1_000_000)
+            fingerprint, key = self.pool.reserve(now=datetime.now(UTC),cost=cost,
+                tokens=self.policy["max_input_tokens"]+self.policy["max_output_tokens"])
+            request.headers["Authorization"] = "Bearer " + key
+            request.extensions["royin_pool_member"] = fingerprint
+            request.extensions["royin_pool_id"] = self.pool_id
+        else:
+            cost = self.reserve()
         if self.audit:
             self.audit.record_event(
                 "MODEL_RESERVATION",
@@ -308,5 +345,10 @@ class ModelBudget:
                     "reserved_cost_usd": str(cost) if self.is_priced_usd else None,
                     "billing_mode": "PRICED_USD" if self.is_priced_usd else "UNPRICED_USER_AUTHORIZED",
                     "provider_reported_usage": None,
+                    "pool_id": self.pool_id,
                 },
             )
+
+    async def after_response(self, response):
+        if self.pool is not None:
+            self.pool.observe(response.request.extensions.get("royin_pool_member"),response.status_code)

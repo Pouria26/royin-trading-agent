@@ -81,6 +81,14 @@ class ModelBudgetTests(unittest.TestCase):
         with closing(sqlite3.connect(self.path)) as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM model_reservations").fetchone()[0], 1)
 
+    def test_oversized_input_is_distinct_from_exhausted_money_without_reservation(self):
+        budget = ModelBudget(self.config, self.path)
+        request = httpx2.Request("POST", "https://ai.boxapi.ir/ai/v1/chat/completions",
+            json={"model":"gpt-6-luna", "max_completion_tokens":512, "messages":["x"*34000]})
+        with self.assertRaisesRegex(BudgetBlocked, "reserved input byte bound"):
+            asyncio.run(budget.before_request(request))
+        self.assertFalse(self.path.exists())
+
     def test_http_hook_reserves_before_transport_and_blocks_second_request(self):
         config = self.config.model_copy(update={"LLM_TOKEN_BUDGET": 33792})
         budget = ModelBudget(config, self.path)

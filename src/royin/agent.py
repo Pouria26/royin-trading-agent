@@ -154,6 +154,7 @@ class RoleRunEnvelope:
         self.cost_limit_usd = Decimal(".50")
         self.agent_limit = 48
         self.contract_sha256 = service_contract.sha256 if service_contract else None
+        self.scope_started_at = None
         if service_contract and not budget.is_priced_usd:
             self.agent_limit = service_contract.max_role_decisions
         if service_contract and budget.credit_id:
@@ -161,6 +162,13 @@ class RoleRunEnvelope:
             self.cost_limit_usd = budget.total_limit
             self.contract_sha256 = hashlib.sha256(
                 (service_contract.sha256 + ":" + budget.credit_id).encode()).hexdigest()
+        if service_contract and budget.pool is not None:
+            self.scope_id = scope_id + "__" + budget.pool_id
+            self.agent_limit = budget.pool.max_requests // 2
+            self.cost_limit_usd = budget.total_limit
+            self.contract_sha256 = hashlib.sha256(
+                (service_contract.sha256 + ":" + budget.pool.expected_sha256).encode()).hexdigest()
+            self.scope_started_at = service_contract.started_at.timestamp()
         if self.scope_id is not None:
             age = self._durable_claim()
             self.started -= age
@@ -183,7 +191,8 @@ class RoleRunEnvelope:
             now = time.time()
             db.execute("INSERT OR IGNORE INTO role_run_envelopes "
                        "(scope,started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit,contract_sha256) VALUES (?,?,?,0,0,'0',?,?,?)",
-                       (self.scope_id, now, self.duration_seconds, str(self.cost_limit_usd), self.agent_limit, self.contract_sha256))
+                       (self.scope_id, self.scope_started_at if self.scope_started_at is not None else now,
+                        self.duration_seconds, str(self.cost_limit_usd), self.agent_limit, self.contract_sha256))
             started, duration, runs, attempts, reserved, cost_limit, agent_limit, contract_sha256 = db.execute(
                 "SELECT started,duration,agent_runs,http_attempts,reserved,cost_limit,agent_limit,contract_sha256 FROM role_run_envelopes WHERE scope=?",
                 (self.scope_id,)).fetchone()
@@ -616,10 +625,14 @@ async def decide(
     if client is not None:
         result = await _execute_with_client(client)
     else:
-        hooks = {"request": [run_envelope.before_request if run_envelope else budget.before_request]}
+        hooks = {"request": [run_envelope.before_request if run_envelope else budget.before_request],
+                 "response": [budget.after_response]}
         if model_trace is not None:
             async def capture_request(request):
                 model_trace.setdefault("requests", []).append(request.content.decode())
+                if request.extensions.get("royin_pool_id"):
+                    model_trace.setdefault("funding", []).append(dict(pool_id=request.extensions["royin_pool_id"],
+                        credential_sha256=request.extensions["royin_pool_member"]))
 
             async def capture_response(response):
                 await response.aread()
