@@ -71,6 +71,21 @@ class CloudMonitorTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body), {"status": "MONITOR_SERVER_AVAILABLE"})
 
+    def test_external_link_navigation_requires_auth_but_cross_site_reads_stay_denied(self):
+        navigation = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
+                      "Sec-Fetch-Dest": "document"}
+        self.assertEqual(self.request("GET", "/", headers=navigation)[0], 401)
+        authenticated = {**navigation, "Authorization": self.auth}
+        status, headers, body = self.request("GET", "/", headers=authenticated)
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertIn(b"app.js", body)
+        for path in ["/api/v1/overview", "/app.js", "/fonts/InterVariable.woff2"]:
+            self.assertEqual(self.request("GET", path, headers=authenticated)[0], 403)
+        for change in [{"Sec-Fetch-Dest": "iframe"}, {"Sec-Fetch-Dest": "empty"},
+                       {"Sec-Fetch-Mode": "cors"}, {"Origin": "https://evil.test"}]:
+            self.assertEqual(self.request("GET", "/", headers={**authenticated, **change})[0], 403)
+
     def test_authenticated_signed_push_displays_actual_balance_and_decision(self):
         self.assertEqual(self.push()[0], 200)
         status, _, body = self.request("GET", "/api/v1/overview", headers={"Authorization": self.auth})
@@ -80,6 +95,26 @@ class CloudMonitorTests(unittest.TestCase):
         self.assertEqual(data["observation"]["mode"], "LIVE_BOUNDED")
         self.assertEqual(data["live_activity"]["decisions"][0]["action"], "WAIT")
         self.assertFalse((self.root / "data").exists())
+
+    def test_residual_inventory_and_non_cash_warning_survive_both_push_projections(self):
+        payload = sample()
+        account = payload["snapshot"]["account"]
+        account["balances"]["ETH"] = dict(free="0.00001",locked="0",total="0.00001")
+        account.update(residual_assets={"ETH":"0.00001"},equity_basis="LIQUID_VALUE_EXCLUDING_RECORDED_DUST")
+        payload["snapshot"] = snapshot_view(payload["snapshot"],"mission_test")
+        self.assertEqual(self.push(payload)[0],200)
+        saved = json.loads((self.root/".local/dashboard/engine-snapshot.json").read_text())
+        self.assertEqual(saved["account"]["residual_assets"],{"ETH":"0.00001"})
+        self.assertEqual(saved["account"]["equity_tmn"],"5000000")
+        self.assertIn("NON_TMN_RESIDUAL_NOT_FINALIZED",saved["warnings"])
+
+    def test_residual_projection_cannot_relabel_cash_or_lie_about_quantity(self):
+        for asset, quantity in [("TMN","5000000"),("ETH","0.00002"),("ETH","0")]:
+            payload = sample()
+            account = payload["snapshot"]["account"]
+            account["balances"]["ETH"] = dict(free="0.00001",locked="0",total="0.00001")
+            account.update(residual_assets={asset:quantity},equity_basis="LIQUID_VALUE_EXCLUDING_RECORDED_DUST")
+            self.assertEqual(self.push(payload)[0],400)
 
     def test_wrong_key_old_signature_and_replay_do_not_replace_snapshot(self):
         payload = sample()
@@ -129,6 +164,18 @@ class CloudMonitorTests(unittest.TestCase):
 
 
 class MonitoringProjectionTests(unittest.TestCase):
+    def test_compact_projection_works_when_raw_manifest_has_outgrown_monitor_limit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "signals").mkdir()
+            (root / "signals/manifest.json").write_text('{"partial_large_model_archive":')
+            decisions = sample()["activity"]["decisions"]
+            (root / "signals/monitor-decisions.json").write_text(json.dumps(dict(
+                schema_version="royin.monitor-decisions.v1", decisions=decisions)))
+            result = read_activity(root)
+            self.assertEqual(result["decisions"][0]["decision_id"], "decision_test")
+            self.assertNotIn("SIGNAL_LOG_UNAVAILABLE", result["warnings"])
+
     def test_file_projection_omits_raw_model_response_and_preserves_sources(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

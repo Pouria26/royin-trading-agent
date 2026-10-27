@@ -15,7 +15,7 @@ from pathlib import Path
 
 from dashboard.monitor_snapshot import MAX_PUSH_BYTES, activity_view, snapshot_view, stamp
 from dashboard.server import handler_for
-from dashboard.sources import Sources
+from dashboard.sources import Sources, envelope, timestamp
 
 
 def signature(key, sent_at, nonce, body):
@@ -35,6 +35,22 @@ class MonitorSources(Sources):
             result = super().overview()
             result["live_activity"] = self.activity
             result["monitor_received_at"] = self.received_at
+            metrics = (self.activity or {}).get("model_metrics")
+            if metrics:
+                stale = not 0 <= int(time.time()) - metrics["observed_at"] <= 120
+                for component, target, source in (
+                    ("reservation", "reservation", "ORIGINAL_FUNDED_BUDGET_READ_ONLY"),
+                    ("usage", "archived_usage", "RECORDED_MISSION_SDK_USAGE"),
+                    ("model", "model", "RECORDED_MISSION_MODEL_TRACES"),
+                ):
+                    values = metrics[component]
+                    projected = envelope()
+                    projected.update(values, source=source, observed_at=timestamp(metrics["observed_at"]),
+                                     invoice=None, provider_usage=None,
+                                     warnings=["SDK_COVERAGE_MAY_BE_PARTIAL", "NOT_PROVIDER_INVOICE_OR_CURRENT_CREDIT"])
+                    if stale and projected["status"] == "AVAILABLE":
+                        projected["status"] = "STALE"
+                    result[target] = projected
             return result
 
 
@@ -81,13 +97,13 @@ def make_cloud_server(*, host, port, root, username, password, ingest_key, missi
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= MAX_PUSH_BYTES or self.headers.get("Transfer-Encoding"):
                     return self.send(413, dict(status="REJECTED_SIZE"))
+                self.connection.settimeout(5)
+                body = self.rfile.read(length)
                 sent_at = int(self.headers.get("X-Royin-Time", "0"))
                 nonce = self.headers.get("X-Royin-Nonce", "")
                 supplied = self.headers.get("X-Royin-Signature", "")
                 if abs(int(time.time()) - sent_at) > 60 or len(nonce) != 32 or len(supplied) != 64:
                     return self.send(403, dict(status="REJECTED_SIGNATURE"))
-                self.connection.settimeout(5)
-                body = self.rfile.read(length)
                 if len(body) != length or not hmac.compare_digest(supplied, signature(ingest_key, sent_at, nonce, body)):
                     return self.send(403, dict(status="REJECTED_SIGNATURE"))
                 payload = json.loads(body)
@@ -95,6 +111,8 @@ def make_cloud_server(*, host, port, root, username, password, ingest_key, missi
                     raise ValueError("Unexpected push schema")
                 snap = snapshot_view(payload["snapshot"], mission)
                 activity = activity_view(payload.get("activity", {}))
+                if (activity.get("model_metrics") or {}).get("observed_at", 0) > int(time.time()) + 60:
+                    raise ValueError("Future model telemetry")
                 if max(stamp(snap["heartbeat_at"]), stamp(snap["observed_at"])) > int(time.time()) + 60:
                     raise ValueError("Future observation")
                 with sources.state_lock:

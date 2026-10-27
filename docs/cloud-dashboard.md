@@ -1,5 +1,25 @@
 # Separate cloud dashboard
 
+## Recorded contract — 2026-10-25 morning
+
+Financial source at that observation was immutable artifactd3e64d8b7a4213bbf98caa1cdf4f26702b7f92cc,
+same original mission9. Earlier026a1be/eb0596 source references below are historical.
+Cloudsource1defe3acc7f88b6c6bc40c151d39fce7e72d1641b8777b6a358dd4ea2d48e66b;
+publisher sourceac04648803ae5d16b67aa07e1e3795e0b9558bf93b54b899c1a80b7c916ad3a6
+is recorded in /state/monitoring/publisher-settings.json publisher_source. Restore it
+after engine restart, never an old hardcoded publisher folder or a second worker.
+
+Explicit extension to former file-only contract: single low-priority publisher also
+reads ORIGINAL MODELbudget via bounded mode=ro/query_only SELECT. No financial DB,
+trading constructor, provider request or financial/model credentials are involved.
+Only selected funded aggregate reservations and cached bounded recorded SDK traces
+are HMAC-published. Cloud has no original DB/financial keys. Missing/partial usage is
+explicit; invoice unavailable. HTML/CSS/fonts/layout unchanged, JS existingdatafields
+bind actual attempts/fallbacks/timeouts/usage coverage. Acceptance/limitations:
+docs/live-wait-and-model-telemetry-20261025.md.
+
+## Historical initial contract — 2026-10-23
+
 The trading source stays frozen at026a1be. The monitor is an independent Liara
 application, `royin-monitor`, with its own512MB workload and no financial disk,
 Wallex key, model key, Liara administrative token or trading imports.

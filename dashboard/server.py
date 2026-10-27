@@ -55,7 +55,12 @@ def handler_for(sources, *, allowed_hosts=None, allowed_origins=None, authorize=
             origin = self.headers.get("Origin")
             if origin and origin not in origins:
                 return self.send(403, envelope("INVALID", error="ORIGIN_DENIED"))
-            if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            # Opening a link from a messenger/search page is a legitimate navigation.
+            # Keep cross-site API reads, assets and embedded documents isolated.
+            navigation = (self.path == "/" and self.command == "GET"
+                          and self.headers.get("Sec-Fetch-Mode") == "navigate"
+                          and self.headers.get("Sec-Fetch-Dest") == "document")
+            if self.headers.get("Sec-Fetch-Site") == "cross-site" and not navigation:
                 return self.send(403, envelope("INVALID", error="CROSS_SITE_DENIED"))
             if authorize is not None and not authorize(self):
                 return
@@ -100,6 +105,15 @@ def handler_for(sources, *, allowed_hosts=None, allowed_origins=None, authorize=
 
         def reject(self):
             self.close_connection = True
+            # Drain only small framed bodies so closing a read-only rejection does
+            # not reset the socket before clients can read the 405 response.
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if 0 < length <= 4096 and not self.headers.get("Transfer-Encoding"):
+                    self.connection.settimeout(1)
+                    self.rfile.read(length)
+            except (ValueError, OSError):
+                pass
             self.send(405, envelope("INVALID", error="READ_ONLY_GET_HEAD"))
 
         do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_TRACE = do_CONNECT = reject

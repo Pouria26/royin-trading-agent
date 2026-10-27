@@ -1,8 +1,10 @@
-"""Allowlisted monitoring exports only; no trading imports or database connections."""
+"""Allowlisted monitoring exports only; no trading imports or financial database connections."""
 
 import json
+from decimal import Decimal
 from pathlib import Path
 
+from dashboard.model_metrics import metrics_view
 from dashboard.sources import decimal, ident, project_balances, text
 
 MAX_PUSH_BYTES = 256 * 1024
@@ -25,13 +27,31 @@ def snapshot_view(raw, mission):
     if "TMN" not in balances:
         raise ValueError("Missing cash balance")
     equity = decimal(raw.get("account", {}).get("equity_tmn"), False)
+    account = dict(balances=balances,equity_tmn=equity)
+    warnings = ["RECORDED_BROKER_LEDGER_NOT_EXCHANGE_STREAM", "READ_ONLY_MONITOR_COPY"]
+    residuals = raw.get("account",{}).get("residual_assets",{})
+    if not isinstance(residuals,dict) or len(residuals) > 8:
+        raise ValueError("Invalid residual monitor projection")
+    if residuals:
+        if raw["account"].get("equity_basis") != "LIQUID_VALUE_EXCLUDING_RECORDED_DUST":
+            raise ValueError("Residual valuation basis is missing")
+        clean = {}
+        for asset, quantity in residuals.items():
+            amount = decimal(quantity,False)
+            if (asset == "TMN" or asset not in balances or amount is None or Decimal(amount) <= 0
+                    or Decimal(amount) != Decimal(balances[asset]["total"])
+                    or Decimal(balances[asset]["locked"]) != 0):
+                raise ValueError("Residual projection disagrees with actual inventory")
+            clean[asset] = amount
+        account.update(residual_assets=clean,equity_basis="LIQUID_VALUE_EXCLUDING_RECORDED_DUST")
+        warnings.append("NON_TMN_RESIDUAL_NOT_FINALIZED")
     return dict(schema_version="royin.engine-monitor.v1", source="RECORDED_FINANCIAL_LEDGER",
                 evidence_kind="REAL_CREDIT_ACCOUNT", mode="LIVE_BOUNDED", run_id=mission,
                 worker_state=ident(raw.get("worker_state")),
                 heartbeat_at=stamp(raw.get("heartbeat_at")), observed_at=stamp(raw.get("observed_at")),
-                account=dict(balances=balances, equity_tmn=equity),
+                account=account,
                 risk=dict(status=ident(raw.get("risk", {}).get("status"))),
-                warnings=["RECORDED_BROKER_LEDGER_NOT_EXCHANGE_STREAM", "READ_ONLY_MONITOR_COPY"])
+                warnings=warnings)
 
 
 def activity_view(raw):
@@ -48,8 +68,11 @@ def activity_view(raw):
         values = {key: text(row.get(key)) if key == "reason" else ident(row.get(key)) for key in EVENT_FIELDS}
         values.update({key: decimal(row.get(key)) for key in ("price", "quantity", "fee")})
         events.append(dict(event_type=kind, recorded_at=text(row.get("recorded_at")), **values))
-    return dict(decisions=decisions, events=events,
-                warnings=["RECENT_BOUNDED_RECORDS_NOT_FULL_HISTORY", "AUDIT_EVENT_ALONE_IS_NOT_EXCHANGE_FINALITY"])
+    result = dict(decisions=decisions, events=events,
+                  warnings=["RECENT_BOUNDED_RECORDS_NOT_FULL_HISTORY", "AUDIT_EVENT_ALONE_IS_NOT_EXCHANGE_FINALITY"])
+    if raw.get("model_metrics") is not None:
+        result["model_metrics"] = metrics_view(raw["model_metrics"])
+    return result
 
 
 def read_json(path, limit):
@@ -69,8 +92,16 @@ def read_activity(mission_root):
     decisions, events = [], []
     warnings = []
     try:
-        manifest = read_json(root / "signals/manifest.json", MAX_SIGNAL_BYTES)
-        rows = manifest.get("arms", {}).get("paper_portfolio", {}).get("decision_traces", [])
+        compact = root / "signals/monitor-decisions.json"
+        if compact.is_file():
+            projection = read_json(compact, MAX_PUSH_BYTES)
+            if projection.get("schema_version") != "royin.monitor-decisions.v1":
+                raise ValueError("Unexpected compact decision schema")
+            decisions = projection["decisions"]
+            rows = []
+        else:
+            manifest = read_json(root / "signals/manifest.json", MAX_SIGNAL_BYTES)
+            rows = manifest.get("arms", {}).get("paper_portfolio", {}).get("decision_traces", [])
         for row in rows[-12:]:
             decision = row.get("decision", {})
             if decision.get("cutoff"):

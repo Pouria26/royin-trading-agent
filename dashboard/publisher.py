@@ -1,4 +1,4 @@
-"""Bounded report-file publisher; never imports or starts the trading engine."""
+"""Bounded monitoring publisher; optional read-only model budget, never a trading worker."""
 
 import argparse
 import json
@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from dashboard.cloud import signature
+from dashboard.model_metrics import ModelMetricsReader
 from dashboard.monitor_snapshot import MAX_PUSH_BYTES, read_activity, read_json, snapshot_view
 
 
@@ -33,6 +34,13 @@ def run(settings):
     os.nice(10)
     root = Path(settings["mission_root"])
     snapshot = Path(settings["snapshot"])
+    metrics = None
+    if settings.get("model_budget"):
+        # Explicit existing ledger only; no financial Ledger constructor or credentials.
+        budget = Path(settings["model_budget"])
+        if budget.resolve() != root.parent.parent / "data/llm-budget.sqlite3":
+            raise ValueError("Unexpected model telemetry ledger")
+        metrics = ModelMetricsReader(root / "signals/manifest.json", budget, settings["model_credit_id"])
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     with (Path(settings["control_root"]) / "publisher.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -40,7 +48,9 @@ def run(settings):
         while int(time.time()) < stop_at:
             try:
                 raw = snapshot_view(read_json(snapshot, 64 * 1024), settings["mission"])
-                signals = root / "signals/manifest.json"
+                signals = root / "signals/monitor-decisions.json"
+                if not signals.is_file():
+                    signals = root / "signals/manifest.json"
                 status = signals.stat() if signals.exists() else None
                 current_stat = (status.st_mtime_ns, status.st_size) if status else None
                 # Audit changes are small; the large model manifest is parsed only after a change.
@@ -50,6 +60,8 @@ def run(settings):
                 else:
                     latest = read_activity_tail(root)
                     activity.update(events=latest["events"])
+                if metrics is not None:
+                    activity["model_metrics"] = metrics.read(int(time.time()))
                 payload = json.dumps(dict(schema_version="royin.monitor-push.v1", snapshot=raw,
                                           activity=activity), allow_nan=False).encode()
                 if len(payload) > MAX_PUSH_BYTES:

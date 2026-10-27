@@ -115,7 +115,7 @@ def bounded_list(value):
     return value
 
 
-def readonly_budget(path):
+def readonly_budget(path, *, credit_id=None):
     """One consistent bounded transaction; never constructs Ledger or migrations."""
     result = envelope(source_name="model_reservations", unit="USD", amount=None,
                       requests=None, reserved_tokens=None, provider_usage=None, invoice=None)
@@ -128,10 +128,15 @@ def readonly_budget(path):
             db.execute("PRAGMA query_only=ON")
             db.execute("BEGIN")
             columns = {row[1] for row in db.execute("PRAGMA table_info(model_reservations)")}
-            if columns != {"id", "day", "nano_usd", "tokens", "model", "policy_hash"}:
+            base_columns = {"id", "day", "nano_usd", "tokens", "model", "policy_hash"}
+            if columns not in (base_columns, base_columns | {"credit_id"}):
                 raise ValueError("schema")
+            if credit_id is not None and (ident(credit_id) != credit_id or "credit_id" not in columns):
+                raise ValueError("credit binding")
             db.set_progress_handler(lambda: 1, 200000)
-            rows = db.execute("SELECT nano_usd,tokens FROM model_reservations LIMIT 10001").fetchall()
+            query = "SELECT nano_usd,tokens FROM model_reservations"
+            rows = db.execute(query + (" WHERE credit_id=?" if credit_id is not None else "")
+                              + " LIMIT 10001", (credit_id,) if credit_id is not None else ()).fetchall()
             if len(rows) > 10000:
                 raise ValueError("bound")
             for cost, tokens in rows:
@@ -139,7 +144,8 @@ def readonly_budget(path):
                 count(tokens)
             total = sum(r[0] for r in rows)
             result.update(status="AVAILABLE" if rows else "EMPTY", requests=len(rows),
-                          reserved_tokens=sum(r[1] for r in rows), amount=str(Decimal(total) / 10**9))
+                          reserved_tokens=sum(r[1] for r in rows), amount=str(Decimal(total) / 10**9),
+                          credit_id=credit_id, scope="SELECTED_FUNDED_CREDIT" if credit_id else "ALL_LEDGER_RESERVATIONS")
     except sqlite3.OperationalError:
         result.update(status="UNAVAILABLE", warnings=["BUDGET_BUSY_OR_UNREADABLE"])
     except (sqlite3.DatabaseError, ValueError):

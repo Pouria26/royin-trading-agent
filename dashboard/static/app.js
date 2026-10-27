@@ -94,9 +94,13 @@ function renderOverview() {
   $('reserved').textContent = format(o.reservation.amount, 'USD');
   $('reservation-count').textContent = format(o.reservation.requests, 'رزرو') + ' · ' + format(o.reservation.reserved_tokens, 'token رزروشده') + ' · ' + o.reservation.status;
   $('usage').textContent = format(o.archived_usage.input_tokens) + ' / ' + format(o.archived_usage.output_tokens);
+  const missionUsage = o.model.source === 'RECORDED_MISSION_MODEL_TRACES';
   $('model-info').textContent = [o.model.model || 'مدل نامعلوم', o.model.provider || 'provider نامعلوم',
-    format(o.model.decisions, 'تصمیم snapshot تاریخی'), format(o.model.average_latency_seconds, 'ثانیه میانگین تشخیصی'),
-    'timeout / error: نامعلوم', 'توافق با baseline اثبات مزیت مالی نیست.'].join(' · ');
+    format(o.model.decisions, missionUsage ? 'تلاش ثبت‌شدهٔ مأموریت' : 'تصمیم snapshot تاریخی'),
+    short(o.model.average_latency_seconds, 'ثانیه میانگین تشخیصی'),
+    missionUsage ? 'timeout / fallback: ' + format(o.model.timeouts) + ' / ' + format(o.model.errors) : 'timeout / error: نامعلوم',
+    ...(missionUsage ? ['پوشش usage: ' + format(o.archived_usage.reported_traces) + ' / ' + format(o.archived_usage.attempted_traces)] : []),
+    'توافق با baseline اثبات مزیت مالی نیست.'].join(' · ');
   if ($('account-status')) {
     if (o.account && o.account.status === 'AVAILABLE') {
       $('account-status').textContent = o.account.reconciliation === 'PAPER_INTERNAL_LEDGER' ? 'دفتر کل کاغذی؛ پول مجازی' : o.account.reconciliation === 'FINANCIAL_RECORDED_LEDGER' ? 'دفتر مالی؛ بر پایهٔ fillهای ثبت‌شده' : 'مشاهدهٔ ذخیره‌شدهٔ حساب اعتباری';
