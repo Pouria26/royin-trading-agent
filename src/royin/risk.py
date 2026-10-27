@@ -558,13 +558,26 @@ def evaluate_risk(
         )
 
     # 9. Portfolio drawdown kill-switch with durable metadata persistence
+    from royin.residuals import quarantined_residuals
+    residuals = quarantined_residuals(ledger) if ledger.get_meta("fresh_permit") else {}
+    if decision.action == "ENTER" and market_rules.base_asset in residuals:
+        return RiskResult(False,"A quarantined residual cannot be merged into a new position","WAIT",symbol,zero,zero,None,zero)
     if decision.action == "ENTER" and ledger.get_meta("portfolio") and any(
-        asset != market_rules.quote_asset and balance.total > 0 for asset,balance in ledger.get_all_balances().items()
+        asset != market_rules.quote_asset and asset not in residuals and balance.total > 0
+        for asset,balance in ledger.get_all_balances().items()
     ):
         return RiskResult(False, "One-position portfolio is already invested", "WAIT", symbol, zero, zero, None, zero)
-    current_equity = ledger.get_equity(
-        {symbol: current_price}, quote_currency=market_rules.quote_asset
-    )
+    if residuals:
+        # Retain actual balances/cost basis. This is a conservative liquid-value
+        # risk calculation, never a declaration that residual coins became cash.
+        current_equity = ledger.get_balance(market_rules.quote_asset).total
+        for asset,balance in ledger.get_all_balances().items():
+            if balance.total and asset != market_rules.quote_asset and asset not in residuals:
+                if asset != market_rules.base_asset:
+                    raise ValueError("A held asset lacks a valuation price")
+                current_equity += balance.total*current_price
+    else:
+        current_equity = ledger.get_equity({symbol:current_price},quote_currency=market_rules.quote_asset)
     if peak_equity is None:
         saved_peak = ledger.get_meta(f"peak_equity_{market_rules.quote_asset}")
         if saved_peak:

@@ -149,11 +149,13 @@ class FreshMissionTransport(httpx.BaseTransport):
         ):
             raise ValueError("Shared account ownership required")
         url, method = request.url, request.method
+        cancel_query=(method=="DELETE" and url.path=="/v1/account/orders"
+            and len(url.params.multi_items())==1 and "clientOrderId" in url.params)
         if (
             url.scheme != "https"
             or url.host != "api.wallex.ir"
             or url.port not in (None, 443)
-            or url.query
+            or (url.query and not cancel_query)
             or url.fragment
             or url.username
             or url.password
@@ -174,10 +176,12 @@ class FreshMissionTransport(httpx.BaseTransport):
             }:
                 raise ValueError("Invalid LIMIT payload")
             cid = payload["client_id"]
-        elif method in ("GET", "DELETE") and re.fullmatch(
+        elif method == "GET" and re.fullmatch(
             r"/v1/account/orders/[A-Za-z0-9_]{1,64}", url.path
         ):
             cid = url.path.rsplit("/", 1)[1]
+        elif cancel_query and re.fullmatch(r"[A-Za-z0-9_]{1,64}",url.params["clientOrderId"]):
+            cid=url.params["clientOrderId"]
         else:
             raise ValueError("Financial endpoint forbidden")
         if not isinstance(cid, str) or not cid.startswith(self.permit.mission_id + "_"):
@@ -209,6 +213,13 @@ class FreshMissionTransport(httpx.BaseTransport):
                 if not self.permit.start_at <= now < self.permit.end_at:
                     raise ValueError("Financial permit expired")
                 if side == "BUY":
+                    from royin.reconciliation import verify_reconciliation_for_post
+                    verified_evidence = json.loads(self.ledger.get_meta("fresh_evidence_" + cid) or "null")
+                    if isinstance(verified_evidence, dict):
+                        verify_reconciliation_for_post(self.ledger, verified_evidence, cid=cid,
+                            debit_tmn=Decimal(price)*Decimal(quantity)*(1+self.rules.taker_fee_rate), now=now)
+                    from royin.residuals import quarantined_residuals
+                    residuals = quarantined_residuals(self.ledger)
                     # Reserve the final 16 HTTP attempts for cancellation/reconciliation/exit.
                     if (
                         now >= self.permit.entry_end_at
@@ -217,13 +228,20 @@ class FreshMissionTransport(httpx.BaseTransport):
                         or Decimal(price) * Decimal(quantity) * (1 + self.rules.taker_fee_rate)
                         > self.buy_debit_cap()
                         or any(
-                            a != "TMN" and b.total
+                            a != "TMN" and a not in residuals and b.total
                             for a, b in self.ledger.get_all_balances().items()
                         )
+                        or self.rules.base_asset in residuals
                     ):
                         raise ValueError("BUY time, debit, position or attempt cap exceeded")
                     evidence = json.loads(self.ledger.get_meta("fresh_evidence_" + cid) or "null")
-                    if (
+                    operator_entry = isinstance(evidence,dict) and evidence.get("source_kind")=="OPERATOR"
+                    if operator_entry:
+                        from royin.operator_entry import validate_operator_post
+
+                        validate_operator_post(self.ledger,self.permit,self.rules,evidence,
+                            cid=cid,price=price,quantity=quantity,now=now,equity_tmn=self.account_equity())
+                    elif (
                         not isinstance(evidence, dict)
                         or evidence.get("source_kind") != "REAL_MODEL"
                         or evidence.get("action") != "ENTER"
@@ -239,7 +257,7 @@ class FreshMissionTransport(httpx.BaseTransport):
                         raise ValueError(
                             "Fresh bound AI, book, economics and account evidence required"
                         )
-                    if self.permit.capital_policy == "VOLATILITY_CAPITAL_V1":
+                    if self.permit.capital_policy == "VOLATILITY_CAPITAL_V1" and not operator_entry:
                         from royin.ledger import validate_decimal
 
                         plan = evidence.get("capital_plan") or {}
@@ -249,8 +267,11 @@ class FreshMissionTransport(httpx.BaseTransport):
                             ("debit_limit_tmn", "loss_fraction", "risk_budget_tmn"))
                         for value in (cap, loss, risk_budget):
                             validate_decimal(value, "capital evidence", strictly_positive=True)
+                        residual_reserve = Decimal(plan.get("residual_loss_reserve_tmn", "0"))
+                        validate_decimal(residual_reserve, "residual loss reserve", allow_zero=True)
                         debit = Decimal(price) * Decimal(quantity) * (1 + self.rules.taker_fee_rate)
-                        if (debit > cap or debit * loss > risk_budget
+                        if (residual_reserve != Decimal("500")
+                                or debit > cap or debit * loss + residual_reserve > risk_budget
                                 or risk_budget > self.account_equity() * Decimal(".005")):
                             raise ValueError("Dynamic capital or stop-risk budget exceeded")
                     state["buys"] += 1

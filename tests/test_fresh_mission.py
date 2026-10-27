@@ -16,13 +16,17 @@ import httpx
 
 from royin.config import RuntimeConfig
 from royin.decision import Decision, ReturnForecast
+from royin.features import extract_features
 from royin.fresh_mission import FreshMissionPermit, FreshMissionTransport, authorize_fresh_mission
 from royin.ledger import Ledger
 from royin.live_broker import WallexLiveBroker
-from royin.risk import MarketRules, RiskResult, allocate_entry_capital
+from royin.market_data import Candle, CandleSeries
+from royin.markets import Balance
+from royin.risk import MarketRules, RiskResult, allocate_entry_capital, assess_target_net
 from scripts import run_fresh_service
 from scripts.backup_runtime_state import backup
 from scripts.run_fresh_service import FreshEngine, account_matches
+from scripts.run_paper_trader import ScannerPublicFeed
 from tests.test_market_selection import opportunity
 from tests.test_market_selection import snapshot as market_snapshot
 
@@ -155,6 +159,22 @@ class FreshMissionTests(unittest.TestCase):
         asyncio.run(engine.entry_tick(1010))
         self.assertEqual(self.ledger.get_meta("entry_block_reason"), "BUDGET_EXHAUSTED")
         signals._execute_cycle.assert_not_called()
+
+    def test_actual_financial_feed_exports_capture_receipts_and_retains_restored_index(self):
+        # Raw files alone cannot identify which symbol/query produced a failed history.
+        receipt=dict(endpoint="/v1/depth",query=dict(symbol="ETHTMN"),sha256="a"*64,received_at=1000)
+        signals=SimpleNamespace(restored_captures=[receipt],public_feed=None)
+        feed=ScannerPublicFeed(self.root/'public',max_requests=16)
+        engine=FreshEngine(self.ledger,self.permit,None,self.config,self.root,
+            client=None,feed=feed,signals=signals)
+        self.assertIs(engine.signals.public_feed,feed)
+        self.assertEqual(feed.captures,[receipt])
+        self.assertIsNot(feed.captures,signals.restored_captures)
+        feed.captures.append(dict(receipt,received_at=1010))
+        self.assertEqual(len(engine.signals.public_feed.captures),2)
+        self.assertEqual(signals.restored_captures,[receipt])
+        self.assertEqual(feed.requests,0)
+        self.assertFalse(self.calls)
         self.assertFalse(self.calls)
 
     def test_prepared_config_change_blocks_before_signal_engine_or_financial_write(self):
@@ -242,6 +262,12 @@ class FreshMissionTests(unittest.TestCase):
             backup(self.root / "old.sqlite3", output)
 
     def test_real_broker_receipt_and_host_stop_use_actual_fills_after_restart(self):
+        self._assert_real_broker_stop_with_fee_reserve("TMN")
+
+    def test_base_fee_exit_keeps_a_fee_reserve_and_preserves_residual_after_restart(self):
+        self._assert_real_broker_stop_with_fee_reserve("ETH")
+
+    def _assert_real_broker_stop_with_fee_reserve(self, exit_fee_asset):
         self.authorize()
         cid = "fresh_test_buy_1010"
         self.evidence(cid)
@@ -267,8 +293,8 @@ class FreshMissionTests(unittest.TestCase):
                             price=price,
                             quantity=qty,
                             sum=str(D(price) * D(qty)),
-                            fee=str(D(price) * D(qty) * D(".003")),
-                            feeAsset="TMN",
+                            fee=str(D(qty) * D(".003") * (1 if side == "SELL" and exit_fee_asset == "ETH" else D(price))),
+                            feeAsset=exit_fee_asset if side == "SELL" else "TMN",
                             timestamp=datetime.fromtimestamp(instant, UTC).isoformat(),
                         )
                     ],
@@ -331,15 +357,28 @@ class FreshMissionTests(unittest.TestCase):
             patch("royin.fresh_mission.time.time", return_value=1020),
         ):
             self.assertTrue(engine.position_tick(1020))
-        self.assertEqual(self.ledger.get_balance("ETH").total, 0)
-        # 1400*(95-100) - 420 buy fee - 399 sell fee = -7819; no simulated settlement.
-        self.assertEqual(self.ledger.get_balance("TMN").total, D("142181"))
+        residual, cash, pnl = (("4.19","141784.14415","-7795.59885") if exit_fee_asset == "TMN"
+                               else (".00257","142181.95","-7817.792229"))
+        self.assertEqual(self.ledger.get_balance("ETH").total, D(residual))
+        # SELL1395.81@95; quote fee397.80585 OR base fee4.18743.
+        # Actual cash, unsold acquisition cost and realized PnL must conserve funds.
+        self.assertEqual(self.ledger.get_balance("TMN").total, D(cash))
         self.assertEqual(
             json.loads(self.ledger.get_meta("fresh_position"))["reason"], "STOP_OR_TRAILING"
         )
         self.assertEqual(len(self.calls), 2)
         with self.ledger.connection() as db:
             self.assertEqual(db.execute("SELECT count(*) FROM fills").fetchone()[0], 2)
+            self.assertEqual(D(db.execute("SELECT pnl FROM realized_pnl").fetchone()[0]),D(pnl))
+        from royin.residuals import quarantined_residuals
+        restored = FreshEngine(Ledger(self.ledger.db_path),self.permit,None,self.config,self.root,
+            client=None,feed=feed,signals=no_ai)
+        with patch("royin.fresh_mission.time.time",return_value=1020):
+            self.assertFalse(restored.position_tick(1020))
+        self.assertEqual(quarantined_residuals(restored.ledger),{"ETH":D(residual)})
+        self.assertEqual(restored.ledger.get_balance("ETH").total,D(residual))
+        self.assertIsNone(restored.ledger.get_meta("closed_round_trips"))
+        self.assertEqual(len(self.calls),2)  # Classification is not another trade.
         # The original UNKNOWN and its locked reserve still exist separately.
         self.assertEqual(
             hashlib.sha256((self.root / "old.sqlite3").read_bytes()).hexdigest(), self.old_hash
@@ -369,7 +408,8 @@ class FreshMissionTests(unittest.TestCase):
         self.ledger.set_meta("closed_round_trips", "1")  # Synthetic prior execution receipt for this unit case.
         cid = "fresh_test_dynamic_buy"
         plan = allocate_entry_capital(equity_tmn=D(5000000), free_cash_tmn=D(4000000), price_tmn=D(100),
-            atr_tmn=D(1), depth_tmn=D(100000000), fee_rate=D(".003"), tick_size=D(1), bootstrap=False, risk_scale=D(1))
+            atr_tmn=D(1), depth_tmn=D(100000000), fee_rate=D(".003"), tick_size=D(1), bootstrap=False,
+            risk_scale=D(1), residual_loss_reserve_tmn=D(500))
         self.evidence(cid, capital_plan=plan)
         response = dict(success=True, result=dict(clientOrderId=cid, symbol="ETHTMN", side="BUY", type="LIMIT",
             price="100", origQty="6000", executedQty="0", executedSum="0", status="NEW", active=True, fills=[]))
@@ -393,6 +433,23 @@ class FreshMissionTests(unittest.TestCase):
         self.assertFalse(self.calls)
         self.assertEqual(self.ledger.get_balance("TMN").locked, D(601800))
         self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["attempts"], 0)
+
+    def test_dynamic_transport_counts_cash_residual_loss_before_post(self):
+        self.dynamic_permit()
+        self.ledger.set_meta("closed_round_trips", "1")  # Synthetic completed-trip fixture.
+        cid = "fresh_test_residual_risk"
+        self.evidence(cid, capital_plan=dict(policy="VOLATILITY_CAPITAL_V1", approved=True,
+            debit_limit_tmn="700000", loss_fraction=".041", risk_budget_tmn="25000",
+            residual_loss_reserve_tmn="500"))
+        # 601800*.041 clears 25000, but the additional 500 cash loss would exceed it.
+        self.assertLess(D(601800) * D(".041"), D(25000))
+        broker, _ = self.make_broker()
+        risk = RiskResult(True, "synthetic residual risk", "ENTER", "ETHTMN", D(6000), D(100), D(98), D(1800))
+        with self.worker():
+            self.assertEqual(broker.submit_order(risk, client_id=cid, timestamp=1010)["status"], "UNKNOWN")
+        self.assertFalse(self.calls)
+        self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["attempts"], 0)
+        self.assertEqual(self.ledger.get_balance("TMN").locked, D(601800))
 
     def test_daily_risk_resume_does_not_reset_orders_or_mission_drawdown(self):
         self.dynamic_permit()
@@ -510,12 +567,23 @@ class FreshMissionTests(unittest.TestCase):
         async def select(*_):
             signals.selection = (decision, (snap, opp), dict(host_outcome="MODEL_DECISION", evidence_kind="REAL_MODEL_ATTEMPT"))
         signals._execute_cycle = AsyncMock(side_effect=select)
-        feed = SimpleNamespace(get=lambda *_,**kw:({"success":True,"result":{"bid":[{"price":"100.99","quantity":"10000"}],
-            "ask":[{"price":"101","quantity":"10000"}]}}, 8105))
+        def public_get(endpoint, params, *, cutoff, max_age_seconds):
+            # Match ScannerPublicFeed's required params argument; a variadic mock hid the live bug.
+            if endpoint == "/v1/markets":
+                return {"success":True,"result":{"symbols":{"ETHTMN":dict(symbol="ETHTMN",
+                    baseAsset="ETH", quoteAsset="TMN", stepSize=2, tickSize=0,
+                    minNotional="50000", minQty=".01")}}}, 8105
+            if endpoint == "/hector/web/v1/markets":
+                return {"success":True,"result":{"markets":[dict(symbol="ETHTMN",base_asset="ETH",
+                    quote_asset="TMN",is_spot=True,amount_precision=2,price_precision=0)]}}, 8105
+            self.assertEqual(endpoint, "/v1/depth")
+            return {"success":True,"result":{"bid":[{"price":"100.99","quantity":"10000"}],
+                "ask":[{"price":"101","quantity":"10000"}]}}, 8105
+        feed = SimpleNamespace(get=public_get)
         engine = FreshEngine(self.ledger, self.permit, None, self.config, self.root, client=None, feed=feed, signals=signals)
         from royin.markets import Balance
         engine.reads.snapshot = lambda:({"TMN":Balance(D(5000000), D(5000000), D(0))}, [])
-        engine.rules = lambda _:self.rules
+        engine.reads.get = lambda _:dict(success=True,result={"ETHTMN":dict(makerFeeRate=".0025",takerFeeRate=".003")})
         transport_type = FreshMissionTransport
         def factory(ledger, rules, config, *, permit):
             def handler(request):
@@ -537,6 +605,88 @@ class FreshMissionTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT count(*) FROM fills").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT status FROM live_broker_orders").fetchone()[0], "OPEN")
         self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["buys"], 1)
+
+    def _execute_coarse_btc_case(self, final_bid=None, *, synthetic_fine_step=False):
+        self.permit = self.permit.model_copy(update=dict(start_at=8000, entry_end_at=9000, end_at=10000))
+        self.authorize()
+        WallexLiveBroker.initialize_state(self.ledger)
+        step = D("1e-9") if synthetic_fine_step else D("1e-8")
+        self.rules = MarketRules("BTCTMN","BTC","TMN",D(1),step,D(100000),
+                                 step,D(".0025"),D(".003"))
+        close = D("21469288285")
+        candles = tuple(Candle(6000+i*60,close,close+1,close-1,close,D(100)) for i in range(35))
+        snap = extract_features(CandleSeries(candles,60),"BTCTMN",cutoff=8100)
+        forecast = ReturnForecast(forecast_id="synthetic-lot-fit",symbol=snap.symbol,cutoff=snap.cutoff,
+            reference_price=close,reference_kind="LAST_CLOSE",horizon_seconds=300,
+            return_q10=D("-.01"),return_q50=D(".6") if final_bid else D(".03"),
+            return_q90=D(".8") if final_bid else D(".05"),target_return_fraction=D(".6") if final_bid else D(".03"),
+            review_after_seconds=60,invalidation="Synthetic stop",evidence_ids=("EV_DATA_FRESH",))
+        decision = Decision(decision_id="synthetic-coarse-lots",action="ENTER",symbol=snap.symbol,
+            cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,evidence_ids=("EV_DATA_FRESH",),
+            reason="Synthetic bound role proposal",invalidation="Synthetic stop",forecast=forecast)
+        book = dict(success=True,result=dict(bid=[dict(price="21485289489",quantity="1")],
+                                            ask=[dict(price="21517750507",quantity="1")]))
+        books = []
+        def get(endpoint, params, **kwargs):
+            self.assertEqual((endpoint,params),("/v1/depth",{"symbol":"BTCTMN"}))
+            books.append(endpoint)
+            if final_bid and len(books) == 2:
+                return dict(success=True,result=dict(bid=[dict(price=final_bid,quantity="1")],
+                                                     ask=book["result"]["ask"])),8105
+            return book,8105
+        engine = FreshEngine(self.ledger,self.permit,None,self.config,self.root,
+                             client=None,feed=SimpleNamespace(get=get),signals=None)
+        engine.rules = lambda _: self.rules
+        engine.reads.snapshot = lambda:({"TMN":Balance(D(5000000),D(5000000),D(0))},[])
+        transport_type = FreshMissionTransport
+        def transport(ledger,rules,config,*,permit):
+            def receive(request):
+                self.calls.append(request)
+                p = json.loads(request.content)
+                return httpx.Response(200,json=dict(success=True,result=dict(clientOrderId=p["client_id"],
+                    symbol=p["symbol"],side=p["side"],type="LIMIT",price=p["price"],origQty=p["quantity"],
+                    executedQty="0",executedSum="0",status="NEW",active=True,fills=[])))
+            return transport_type(ledger,rules,config,permit=permit,inner=httpx.MockTransport(receive))
+        with self.worker(),patch("scripts.run_fresh_service.FreshMissionTransport",side_effect=transport), \
+                patch("royin.fresh_mission.time.time",return_value=8105):
+            asyncio.run(engine.execute_selection(decision,snap,opportunity(),
+                dict(host_outcome="MODEL_DECISION",evidence_kind="REAL_MODEL_ATTEMPT"),D(1)))
+        return engine, decision
+
+    def test_real_order_coordinator_rejects_old_false_coarse_btc_capacity_before_post(self):
+        self._execute_coarse_btc_case()
+        self.assertFalse(self.calls)
+        self.assertEqual(self.ledger.get_balance("TMN").locked, 0)
+        self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["attempts"], 0)
+        gate = json.loads(next(self.root.glob("entry-gate-*.json")).read_text())
+        self.assertEqual(gate["reason"], "No quantity fitted within bounded exit minimum and residual search")
+        self.assertEqual(self.old_hash,hashlib.sha256((self.root/"old.sqlite3").read_bytes()).hexdigest())
+
+    def test_real_order_coordinator_admits_synthetic_fine_lots_under_fee_envelope(self):
+        self._execute_coarse_btc_case(synthetic_fine_step=True)
+        self.assertEqual(len(self.calls),1)
+        sent = json.loads(self.calls[0].content)
+        evidence = json.loads(self.ledger.get_meta("fresh_evidence_"+sent["client_id"]))
+        self.assertLessEqual(D(sent["quantity"]), D(evidence["lot_fit"]["requested_quantity_ceiling"]))
+        self.assertEqual(D(evidence["lot_fit"]["selected_quantity"]), D(sent["quantity"]))
+        self.assertTrue(all(s["residual_within_budget"] for s in evidence["economics"]["scenarios"]))
+        self.assertTrue(all(D(s["residual_upper_bound_tmn"]) <= 500 for s in evidence["economics"]["scenarios"]))
+        self.assertLessEqual(self.ledger.get_balance("TMN").locked,D(150000))
+        self.assertEqual(self.old_hash,hashlib.sha256((self.root/"old.sqlite3").read_bytes()).hexdigest())
+
+    def test_changed_final_book_cannot_hide_unsellable_exit_behind_optimistic_target(self):
+        _, decision = self._execute_coarse_btc_case(final_bid="14000000000", synthetic_fine_step=True)
+        hypothetical = assess_target_net(forecast=decision.forecast,rules=self.rules,
+            quantity=D(".00000668"),entry_price=D("21528509382"),
+            spread_pct=1-D("14000000000")/D("21517750507"),slippage_pct=D(".0005"),
+            reserve_exit_base_fee=True)
+        # A deliberately optimistic target clears future economics but cannot sell at today's bid.
+        self.assertTrue(hypothetical["approved"])
+        self.assertFalse(self.calls)
+        self.assertEqual(self.ledger.get_balance("TMN").locked,D(0))
+        self.assertEqual(json.loads(self.ledger.get_meta("fresh_transport"))["attempts"],0)
+        gate = json.loads(next(self.root.glob("entry-gate-*.json")).read_text())
+        self.assertEqual(gate["reason"],"Final exit minimum or residual capacity changed")
 
     def test_repricing_above_the_original_forecast_target_cannot_send_an_order(self):
         self.permit = self.permit.model_copy(update=dict(start_at=8000, entry_end_at=9000, end_at=10000))
@@ -598,7 +748,8 @@ class FreshMissionTests(unittest.TestCase):
         with patch("royin.fresh_mission.time.time", return_value=1030):
             self.assertTrue(restored.position_tick(1030))
         risk = broker.submit_order.call_args.args[0]
-        self.assertEqual((risk.action,risk.reason,risk.quantity), ("EXIT","STOP_OR_TRAILING",D(1400)))
+        self.assertEqual((risk.action,risk.reason,risk.quantity), ("EXIT","STOP_OR_TRAILING",D("1395.81")))
+        self.assertGreaterEqual(D(1400)-risk.quantity,risk.quantity*D(".003"))
         self.assertFalse(self.calls)
 
 

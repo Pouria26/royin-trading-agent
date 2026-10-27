@@ -135,7 +135,7 @@ class WallexLiveBroker:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        path = "/v1/account/orders" + ("" if method == "POST" else "/" + client_id)
+        path = "/v1/account/orders" + ("/" + client_id if method == "GET" else "")
         # Any outcome after send may be ambiguous. Never free funds on transport/JSON/404 errors.
         self._set_status(client_id, timestamp, "UNKNOWN")
         observation = {"status": "UNKNOWN", "client_id": client_id,
@@ -145,6 +145,7 @@ class WallexLiveBroker:
                 method,
                 self.config.WALLEX_BASE_URL + path,
                 json=payload,
+                params={"clientOrderId":client_id} if method=="DELETE" else None,
                 headers=headers,
                 timeout=self.timeout_seconds,
                 follow_redirects=False,

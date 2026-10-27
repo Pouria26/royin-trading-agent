@@ -9,6 +9,7 @@ import signal
 import sqlite3
 import subprocess
 import time
+import traceback
 from contextlib import closing, suppress
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
@@ -32,14 +33,19 @@ from royin.markets import (
     parse_fee_rates,
     parse_spot_rules,
 )
+from royin.reconciliation import assess_account_reconciliation
+from royin.residuals import quarantine_residual, quarantined_residuals
 from royin.risk import (
     RiskPolicy,
     RiskResult,
     allocate_entry_capital,
     assess_target_net,
+    choose_lot_quantity_for_exit,
     evaluate_risk,
+    project_exit_cash,
     rules_with_notional_floor,
 )
+from royin.runtime_release import entry_analysis_interval, model_pool_binding, source_history
 from royin.service_contract import ServiceContract
 from scripts.probe_wallex_account import choose_credit_account
 from scripts.run_market_paper import DEFAULT_SLIPPAGE_PCT, MarketPaperOrchestrator
@@ -76,6 +82,17 @@ class EntrySignals(MarketPaperOrchestrator):
 
 
 def signals_for(contract, config, root):
+    financial = root / "financial.sqlite3"
+    history = ()
+    amended_interval = None
+    pool_id, pool_sha = None, None
+    if financial.is_file():
+        with closing(sqlite3.connect(financial.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+            meta = dict(db.execute("SELECT key,value FROM metadata"))
+        if meta.get("fresh_source_sha256"):
+            history = source_history(meta)
+            amended_interval = entry_analysis_interval(meta, contract)
+            pool_id, pool_sha = model_pool_binding(meta, contract)
     return EntrySignals(
         run_id=contract.service_id,
         model_mode="REAL_MODEL",
@@ -89,6 +106,10 @@ def signals_for(contract, config, root):
         horizon_max_seconds=contract.horizon_max_seconds,
         capture_dir=root / "signals",
         service_contract=contract,
+        source_history=history,
+        entry_analysis_interval_seconds=amended_interval,
+        model_budget_pool_id=pool_id,
+        model_budget_pool_sha256=pool_sha,
     )
 
 
@@ -97,6 +118,8 @@ class AccountReads:
 
     def __init__(self, config, ledger, root, client):
         self.config, self.ledger, self.root, self.client = config, ledger, root, client
+        self.last_read_number = None
+        self.last_snapshot_read_numbers = None
 
     def get(self, path):
         if path not in (
@@ -129,13 +152,17 @@ class AccountReads:
         data = decode_json(raw)
         if not isinstance(data, dict) or data.get("success") is not True:
             raise ValueError("Unsuccessful account observation")
+        self.last_read_number = attempts + 1
         return data
 
     def snapshot(self):
         account = self.config.SUB_ACCOUNT_CLIENT_ID.get_secret_value()
         choose_credit_account(self.get("/sub-accounts"), account)
+        numbers = [self.last_read_number]
         balances = parse_credit_balances(self.get("/v1/account/balances-detail"))
+        numbers.append(self.last_read_number)
         orders = self.get("/v1/account/openOrders")
+        numbers.append(self.last_read_number)
         rows = orders.get("result")
         rows = rows.get("orders") if isinstance(rows, dict) else rows
         info = orders.get("result_info", {})
@@ -146,23 +173,14 @@ class AccountReads:
         ):
             raise ValueError("Incomplete account open order list")
         ids = [row["clientOrderId"] for row in rows]
+        self.last_snapshot_read_numbers = numbers
         return balances, ids
 
 
-def account_matches(ledger, balances, ids):
+def account_matches(ledger, balances, ids, *, read_numbers=None):
     """Compare total assets, keeping exchange-locked cash distinct from local fee reserves."""
-    authorization = json.loads(ledger.get_meta("fresh_authorization"))
-    with ledger.connection() as db:
-        known = {r[0] for r in db.execute("SELECT client_id FROM live_broker_orders")}
-    if not set(ids).issubset(known):
-        return False
-    outside = Decimal(authorization["cash_baseline_tmn"]) - Decimal(authorization["allocation_tmn"])
-    assets = set(balances) | set(ledger.get_all_balances())
-    return all(
-        (balances[a].total if a in balances else Decimal(0))
-        == ledger.get_balance(a).total + (outside if a == "TMN" else 0)
-        for a in assets
-    )
+    return assess_account_reconciliation(ledger, balances, ids, now=int(time.time()),
+                                         read_numbers=read_numbers)["approved"]
 
 
 class FreshEngine:
@@ -175,6 +193,9 @@ class FreshEngine:
             feed,
             signals,
         )
+        if signals is not None and feed is not None:
+            feed.captures = list(getattr(signals,"restored_captures",()))
+            signals.public_feed = feed
         self.reads = AccountReads(config, ledger, root / "account-captures", client)
         self.policy = RiskPolicy(
             min(Decimal("150000"), permit.allocation_tmn),
@@ -210,12 +231,22 @@ class FreshEngine:
             self.ledger.set_meta("risk_account_equity", str(equity))
         return None if reason else Decimal(".5") if drawdown >= Decimal(".01") else Decimal(1)
 
+    def observe_account(self):
+        balances, ids = self.reads.snapshot()
+        report = assess_account_reconciliation(self.ledger, balances, ids, now=int(time.time()),
+            read_numbers=getattr(self.reads, "last_snapshot_read_numbers", None))
+        self.ledger.set_meta("fresh_last_account_reconciliation", json.dumps(report))
+        return balances, ids, report
+
     def entry_gate(self, decision, reason, *, approved=False):
         record = dict(decision_id=decision.decision_id, snapshot_sha256=decision.snapshot_sha256,
             symbol=decision.symbol, cutoff=decision.cutoff, action="ENTER", approved=approved,
             reason=reason, timestamp=int(time.time()))
         name = hashlib.sha256(decision.decision_id.encode()).hexdigest()
         atomic_json(self.root/("entry-gate-"+name+".json"), record)
+        self.ledger.set_meta("last_entry_gate", json.dumps(record))
+        self.ledger.set_meta("last_entry_integration_error",
+                             reason if reason.startswith("ENTRY_INTEGRATION_ERROR_") else "")
         if self.ledger.audit:
             self.ledger.audit.record_event("ENTRY_GATE", "RISK", record)
 
@@ -227,9 +258,12 @@ class FreshEngine:
         for field in ("free", "total"):
             balances["TMN"][field] = str(Decimal(balances["TMN"][field]) + outside)
         state = json.loads(self.ledger.get_meta("fresh_position") or "null")
+        residuals = quarantined_residuals(self.ledger)
         equity = Decimal(balances["TMN"]["total"])
         for asset, values in balances.items():
             if asset != "TMN" and Decimal(values["total"]):
+                if asset in residuals:
+                    continue
                 if not state or not state.get("last_bid"):
                     equity = None
                     break
@@ -239,22 +273,37 @@ class FreshEngine:
         atomic_json(directory / "engine-snapshot.json", dict(schema_version="royin.engine-monitor.v1",
             source="RECORDED_FINANCIAL_LEDGER", evidence_kind="REAL_CREDIT_ACCOUNT", mode="LIVE_BOUNDED",
             run_id=self.permit.mission_id, worker_state=self.ledger.get_meta("service_state"),
-            heartbeat_at=now, observed_at=now, account=dict(balances=balances, equity_tmn=str(equity) if equity is not None else None),
-            risk=dict(status=self.ledger.get_meta("capital_block_reason") or self.ledger.get_meta("entry_block_reason") or "HOST_GATES_ACTIVE"),
-            warnings=["RECORDED_BROKER_LEDGER_NOT_EXCHANGE_STREAM", "HISTORICAL_FINALITY_UNCONFIRMED"]))
+            heartbeat_at=now, observed_at=now, account=dict(balances=balances,
+                equity_tmn=str(equity) if equity is not None else None,
+                residual_assets={a:str(q) for a,q in residuals.items()},
+                equity_basis="LIQUID_VALUE_EXCLUDING_RECORDED_DUST" if residuals else "RECORDED_MARK_VALUE"),
+            risk=dict(status=self.ledger.get_meta("capital_block_reason") or self.ledger.get_meta("entry_block_reason")
+                      or self.ledger.get_meta("last_entry_integration_error") or "HOST_GATES_ACTIVE"),
+            warnings=["RECORDED_BROKER_LEDGER_NOT_EXCHANGE_STREAM", "HISTORICAL_FINALITY_UNCONFIRMED"]
+                + (["NON_TMN_RESIDUAL_NOT_FINALIZED"] if residuals else [])))
+        # Keep monitoring bounded even after the full raw model manifest exceeds its read limit.
+        decisions = []
+        for row in getattr(self.signals, "decision_traces", [])[-12:]:
+            decision, trace = row.get("decision", {}), row.get("model_trace", {})
+            if decision.get("cutoff"):
+                decisions.append(dict(**{key: decision.get(key) for key in
+                    ("decision_id", "symbol", "action", "cutoff", "reason")},
+                    host_outcome=trace.get("host_outcome"), evidence_kind=trace.get("evidence_kind")))
+        atomic_json(self.root / "signals/monitor-decisions.json",
+                    dict(schema_version="royin.monitor-decisions.v1", decisions=decisions))
 
     def rules(self, symbol):
         fees = self.reads.get("/v1/account/fee")
         maker, taker = parse_fee_rates(fees, symbol)
         if max(maker, taker) > Decimal(".003"):
             raise ValueError("Fee exceeds reviewed conservative policy")
-        payload, _ = self.feed.get("/v1/markets", cutoff=int(time.time()), max_age_seconds=0)
+        payload, _ = self.feed.get("/v1/markets", {}, cutoff=int(time.time()), max_age_seconds=0)
         rules = rules_with_notional_floor(
             parse_spot_rules(payload, maker_fee_rate=maker, taker_fee_rate=taker)[symbol],
             Decimal("100000"),
         )
         catalog, _ = self.feed.get(
-            "/hector/web/v1/markets", cutoff=int(time.time()), max_age_seconds=0
+            "/hector/web/v1/markets", {}, cutoff=int(time.time()), max_age_seconds=0
         )
         if (
             not parse_catalog(catalog)[symbol].is_spot
@@ -306,8 +355,10 @@ class FreshEngine:
         try:
             # At most one cancellation, then cumulative GET; never resubmit a timed-out POST.
             key = "fresh_cancel_" + cid
+            evidence=json.loads(self.ledger.get_meta("fresh_evidence_"+cid) or "{}")
+            cancel_after=60 if evidence.get("source_kind")=="OPERATOR" else 30
             if (
-                now - created >= 30
+                now - created >= cancel_after
                 and status in ("OPEN", "PARTIALLY_FILLED")
                 and self.ledger.get_meta(key) is None
             ):
@@ -323,13 +374,32 @@ class FreshEngine:
             client.close()
         return True
 
+    def classify_position_residual(self,rules,*,price_tmn,quote_received_at,now):
+        selected=json.loads(self.ledger.get_meta("fresh_selected_position") or "{}")
+        if selected.get("source_kind")=="OPERATOR":
+            origin=self.ledger.get_meta("position_origin_"+rules.base_asset)
+            with self.ledger.connection() as db:
+                sold=db.execute("select 1 from fills f join order_intents i on i.client_id=f.client_id "
+                    "where i.symbol=? and i.side='SELL' and i.rowid>=(select rowid from order_intents where client_id=?) limit 1",
+                    (rules.symbol,origin)).fetchone()
+            if not sold:
+                # A small partial BUY is inventory, not post-liquidation dust.
+                return False
+        return quarantine_residual(self.ledger,rules,price_tmn=price_tmn,
+            quote_received_at=quote_received_at,now=now)
+
     def position_tick(self, now):
         """Host-owned stop/trailing/deadline. No model completion is needed to request exit."""
         from royin.risk import MarketRules
 
         balances = self.ledger.get_all_balances()
-        held = [(a, b) for a, b in balances.items() if a != "TMN" and b.total]
+        residuals = quarantined_residuals(self.ledger)
+        held = [(a, b) for a, b in balances.items() if a != "TMN" and a not in residuals and b.total]
         if not held:
+            if residuals and self.ledger.get_meta("entry_block_reason") in (
+                "UNSELLABLE_RESIDUAL", "EXIT_REQUIRES_EXECUTABLE_DEPTH"
+            ) and self.active_order() is None:
+                self.ledger.set_meta("entry_block_reason", "")
             return False
         if len(held) != 1:
             raise ValueError("More than one held asset")
@@ -361,20 +431,29 @@ class FreshEngine:
                 forecast_end_at=selected["forecast_end_at"],
                 reason=None,
             )
+            if selected.get("source_kind")=="OPERATOR":
+                state["end_reason"]="OPERATOR_MAX_HOLDING_TIME"
             self.ledger.set_meta("fresh_position", json.dumps(state))
         if now >= min(self.permit.entry_end_at, state["forecast_end_at"]) and not state["reason"]:
-            state["reason"] = "DEADLINE_OR_FORECAST"
+            state["reason"] = state.get("end_reason","DEADLINE_OR_FORECAST")
             self.ledger.set_meta("fresh_position", json.dumps(state))
         depth, received = self.feed.get(
             "/v1/depth", {"symbol": rules.symbol}, cutoff=now, max_age_seconds=0
         )
-        quantity = rules.quantize_quantity(balance.free)
+        if not 0 <= int(time.time()) - received <= 5:
+            raise ValueError("No fresh full-quantity exit depth")
+        # The exit may charge base instead of quote. Keep that fee outside the
+        # locked sell quantity; any small remainder must retain explicit evidence.
+        quantity = rules.quantize_quantity(balance.free/(1+rules.taker_fee_rate))
         if quantity < rules.min_quantity or quantity == 0:
+            mark = decimal_number(depth["result"]["bid"][0]["price"],positive=True)
+            if self.classify_position_residual(rules,price_tmn=mark,quote_received_at=received,now=int(time.time())):
+                if self.ledger.get_meta("entry_block_reason") in ("UNSELLABLE_RESIDUAL","EXIT_REQUIRES_EXECUTABLE_DEPTH"):
+                    self.ledger.set_meta("entry_block_reason","")
+                return False
             self.ledger.set_meta("entry_block_reason", "UNSELLABLE_RESIDUAL")
             return True
         bid = conservative_book_price(depth, "SELL", quantity)
-        if not 0 <= int(time.time()) - received <= 5:
-            raise ValueError("No fresh full-quantity exit depth")
         if bid is None:
             best_bid = decimal_number(depth["result"]["bid"][0]["price"], positive=True)
             if best_bid <= Decimal(state["stop"]) and not state["reason"]:
@@ -393,7 +472,7 @@ class FreshEngine:
         reason = state["reason"] or (
             "STOP_OR_TRAILING"
             if bid <= stop
-            else "DEADLINE_OR_FORECAST"
+            else state.get("end_reason","DEADLINE_OR_FORECAST")
             if now >= min(self.permit.entry_end_at, state["forecast_end_at"])
             else None
         )
@@ -405,6 +484,10 @@ class FreshEngine:
             rounding=ROUND_DOWN
         ) * rules.tick_size
         if quantity < rules.min_quantity or quantity * price < rules.min_notional:
+            if self.classify_position_residual(rules,price_tmn=bid,quote_received_at=received,now=int(time.time())):
+                if self.ledger.get_meta("entry_block_reason") in ("UNSELLABLE_RESIDUAL","EXIT_REQUIRES_EXECUTABLE_DEPTH"):
+                    self.ledger.set_meta("entry_block_reason","")
+                return False
             self.ledger.set_meta("entry_block_reason", "UNSELLABLE_RESIDUAL")
             return True
         risk = RiskResult(
@@ -418,6 +501,12 @@ class FreshEngine:
             quantity * price * rules.taker_fee_rate,
         )
         cid = self.permit.mission_id + "_exit_" + str(now)
+        selected=json.loads(self.ledger.get_meta("fresh_selected_position") or "{}")
+        if selected.get("source_kind")=="OPERATOR":
+            from royin.operator_entry import load_operator_authority, operator_order_origin
+
+            authority,_state=load_operator_authority(self.ledger,self.permit)
+            operator_order_origin(self.ledger,cid,authority)
         broker, client = self.broker(rules)
         try:
             broker.submit_order(risk, client_id=cid, timestamp=int(time.time()))
@@ -425,7 +514,94 @@ class FreshEngine:
             client.close()
         return True
 
+    def operator_entry_tick(self, now):
+        """Execute only the separate human mandate; never manufacture a model result."""
+        from royin.operator_entry import (
+            STATE_KEY,
+            ingest_operator_requests,
+            load_operator_authority,
+            operator_order_origin,
+            plan_operator_entry,
+        )
+
+        loaded=load_operator_authority(self.ledger,self.permit)
+        if loaded is None or loaded[1]["state"] in ("COMPLETE","EXPIRED"):
+            ingest_operator_requests(self.ledger,self.permit,self.root/"operator-entry-requests",now=now)
+            loaded=load_operator_authority(self.ledger,self.permit)
+        if loaded is None:
+            return False
+        auth,state=loaded
+        if state["state"] in ("COMPLETE","EXPIRED"):
+            return False
+        if state["state"] in ("CLAIMED","ATTEMPTED"):
+            with self.ledger.connection() as db:
+                row=db.execute("select status from live_broker_orders where client_id=?",(auth["client_id"],)).fetchone()
+            if row and row[0] in TERMINAL:
+                self.ledger.set_meta(STATE_KEY,json.dumps(dict(state="COMPLETE",authority_sha256=auth["sha256"],
+                    client_id=auth["client_id"],completed_at=now)))
+            else:
+                self.ledger.set_meta("entry_block_reason","OPERATOR_ENTRY_RECONCILIATION_REQUIRED")
+            return True
+        if now>=auth["expires_at"]:
+            self.ledger.set_meta(STATE_KEY,json.dumps(dict(state="EXPIRED",authority_sha256=auth["sha256"],expired_at=now)))
+            return True
+        if self.ledger.get_meta("entry_block_reason"):
+            return True
+        risk_scale=self.capital_status(now)
+        if risk_scale is None:
+            return True
+        with self.ledger.connection() as db:
+            if db.execute("select 1 from order_intents where status not in ('FILLED','CANCELED','PARTIALLY_FILLED_CANCELED','REJECTED') limit 1").fetchone():
+                raise ValueError("Operator entry has an unresolved financial intent")
+        rules=self.rules(auth["symbol"])
+        if rules.base_asset in quarantined_residuals(self.ledger):
+            raise ValueError("An operator entry cannot repurchase an audited residual asset")
+        _balances,ids,account_report=self.observe_account()
+        if ids or not account_report["approved"]:
+            self.ledger.set_meta("entry_block_reason","ACCOUNT_RECONCILIATION_REQUIRED")
+            return True
+        depth,received=self.feed.get("/v1/depth",{"symbol":rules.symbol},cutoff=int(time.time()),max_age_seconds=0)
+        current=int(time.time())
+        if not auth["authorized_at"]<=current<auth["expires_at"] or not 0<=current-received<=5:
+            raise ValueError("Operator authority or final quote expired")
+        authorization=json.loads(self.ledger.get_meta("fresh_authorization"))
+        equity=(Decimal(authorization["cash_baseline_tmn"])-self.permit.allocation_tmn
+                +self.ledger.get_balance("TMN").total)
+        risk,plan=plan_operator_entry(auth,rules,depth,equity_tmn=equity,
+            free_cash_tmn=min(self.ledger.get_balance("TMN").free,
+                Decimal(account_report["available_cash_lower_bound_tmn"])),risk_scale=risk_scale)
+        end=min(current+auth["max_holding_seconds"],self.permit.entry_end_at)
+        evidence=dict(source_kind="OPERATOR",policy=auth["policy"],action="ENTER",symbol=rules.symbol,
+            operator_authority_sha256=auth["sha256"],quote_received_at=received,position_end_at=end,
+            rules_sha256=hashlib.sha256(json.dumps(asdict(rules),default=str,sort_keys=True).encode()).hexdigest(),
+            target_net_approved=False,account_reconciled=True,account_reconciliation=account_report,cancel_after_seconds=60,
+            capital_plan=plan,risk_scale=str(risk_scale),final_depth=depth,
+            limit_basis="OPERATOR_PASSIVE_FRESH_BEST_BID",model_forecast=None)
+        cid=auth["client_id"]
+        with self.ledger.transaction():
+            if json.loads(self.ledger.get_meta(STATE_KEY))["state"]!="AUTHORIZED":
+                raise ValueError("Operator authority was already claimed")
+            self.ledger.set_meta(STATE_KEY,json.dumps(dict(state="CLAIMED",authority_sha256=auth["sha256"],
+                client_id=cid,claimed_at=current)))
+            self.ledger.set_meta("fresh_evidence_"+cid,json.dumps(evidence,default=str))
+            self.ledger.set_meta("fresh_active_rules",json.dumps(asdict(rules),default=str))
+            self.ledger.set_meta("fresh_selected_position",json.dumps(dict(source_kind="OPERATOR",
+                end_basis="OPERATOR_MAX_HOLDING_TIME",forecast_end_at=end,stop_fraction=auth["stop_fraction"],
+                operator_authority_sha256=auth["sha256"])))
+            self.ledger.set_meta("fresh_position","null")
+            operator_order_origin(self.ledger,cid,auth)
+        broker,client=self.broker(rules)
+        try:
+            outcome=broker.submit_order(risk,client_id=cid,timestamp=int(time.time()))
+            atomic_json(self.root/"operator-order-observation.json",dict(source_kind="OPERATOR",client_id=cid,
+                operator_authority_sha256=auth["sha256"],outcome=outcome))
+        finally:
+            client.close()
+        return True
+
     async def entry_tick(self, now):
+        if self.operator_entry_tick(now):
+            return
         if self.signals.model_startup_blocked:
             self.ledger.set_meta("entry_block_reason", "MODEL_STATE_BLOCKED_PROTECTION_ONLY")
             return
@@ -448,8 +624,8 @@ class FreshEngine:
         state = json.loads(self.ledger.get_meta("fresh_transport"))
         if state["buys"] >= self.permit.max_buys:
             return
-        balances, ids = self.reads.snapshot()
-        if not account_matches(self.ledger, balances, ids):
+        _balances, ids, account_report = self.observe_account()
+        if ids or not account_report["approved"]:
             self.ledger.set_meta("entry_block_reason", "ACCOUNT_RECONCILIATION_REQUIRED")
             return
         self.signals.selection = None
@@ -462,11 +638,22 @@ class FreshEngine:
         if self.signals.selection is None:
             return
         decision, (snapshot, opportunity), trace = self.signals.selection
+        try:
+            await self.execute_selection(decision, snapshot, opportunity, trace, risk_scale)
+        except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error, httpx.HTTPError, ArithmeticError) as exc:
+            self.entry_gate(decision, "ENTRY_INTEGRATION_ERROR_" + type(exc).__name__)
+            raise
+
+    async def execute_selection(self, decision, snapshot, opportunity, trace, risk_scale):
+        """One admitted proposal; every integration failure is linked back to its decision."""
         if trace.get("host_outcome") != "MODEL_DECISION" or trace.get("evidence_kind") != "REAL_MODEL_ATTEMPT":
             raise ValueError("Fresh entry requires a validated real-provider decision")
         if decision.forecast is None:
             raise ValueError("A valid real forecast is required")
         rules = self.rules(decision.symbol)
+        if rules.base_asset in quarantined_residuals(self.ledger):
+            self.entry_gate(decision, "Audited residual asset cannot be repurchased")
+            return
         depth, received = self.feed.get(
             "/v1/depth", {"symbol": rules.symbol}, cutoff=int(time.time()), max_age_seconds=0
         )
@@ -488,6 +675,8 @@ class FreshEngine:
                 fee_rate=rules.taker_fee_rate, tick_size=rules.tick_size,
                 bootstrap=int(self.ledger.get_meta("closed_round_trips") or 0) == 0,
                 risk_scale=risk_scale,
+                # A bounded unsellable residual has zero cash value in the loss budget.
+                residual_loss_reserve_tmn=Decimal("500"),
             )
             if not capital_plan["approved"]:
                 self.entry_gate(decision, capital_plan["reason"])
@@ -513,6 +702,20 @@ class FreshEngine:
         if executable is None or unwind is None or unwind > executable:
             self.entry_gate(decision, "No full executable entry/unwind depth within limit")
             return
+        requested_quantity = risk.quantity
+        exit_bound = min(unwind * (1 - DEFAULT_SLIPPAGE_PCT), risk.stop_price)
+        exit_bound = (exit_bound / rules.tick_size).to_integral_value(rounding=ROUND_DOWN) * rules.tick_size
+        fitted = choose_lot_quantity_for_exit(rules, requested_quantity, risk.price, exit_bound,
+                                              reserve_exit_base_fee=True)
+        if fitted is None:
+            self.entry_gate(decision, "No quantity fitted within bounded exit minimum and residual search")
+            return
+        risk = replace(risk, quantity=fitted, estimated_fee_quote=fitted*risk.price*rules.taker_fee_rate)
+        executable = conservative_book_price(depth, "BUY", risk.quantity, limit_price=price)
+        unwind = conservative_book_price(depth, "SELL", risk.quantity)
+        if executable is None or unwind is None or unwind > executable:
+            self.entry_gate(decision, "Fitted quantity has no executable entry/unwind depth")
+            return
         economics = assess_target_net(
             forecast=decision.forecast,
             rules=rules,
@@ -520,14 +723,19 @@ class FreshEngine:
             entry_price=price,
             spread_pct=1 - unwind / executable,
             slippage_pct=DEFAULT_SLIPPAGE_PCT,
+            reserve_exit_base_fee=True,
+            require_central=True,
         )
         if not economics["approved"]:
             self.entry_gate(decision, "Conditional target does not clear fees and executable costs")
             return
         # Refresh account after inference, then fetch the final book so receipt age is at most five seconds.
-        balances, ids = self.reads.snapshot()
-        if not account_matches(self.ledger, balances, ids) or ids:
+        _balances, ids, account_report = self.observe_account()
+        if not account_report["approved"] or ids:
             raise ValueError("Account changed during inference")
+        if risk.quantity*price*(1+rules.taker_fee_rate) > Decimal(account_report["available_cash_lower_bound_tmn"]):
+            self.entry_gate(decision, "Conservative observed cash does not cover the complete debit")
+            return
         depth, received = self.feed.get(
             "/v1/depth", {"symbol": rules.symbol}, cutoff=int(time.time()), max_age_seconds=0
         )
@@ -536,6 +744,13 @@ class FreshEngine:
         if executable is None or unwind is None or unwind > executable:
             self.entry_gate(decision, "Final entry/unwind book changed")
             return
+        exit_bound = min(unwind * (1 - DEFAULT_SLIPPAGE_PCT), risk.stop_price)
+        exit_bound = (exit_bound / rules.tick_size).to_integral_value(rounding=ROUND_DOWN) * rules.tick_size
+        final_exit_cases = project_exit_cash(rules=rules,quantity=risk.quantity,entry_price=risk.price,
+            exit_price=exit_bound,reserve_exit_base_fee=True)
+        if not all(case["sellable"] and case["residual_within_budget"] for case in final_exit_cases):
+            self.entry_gate(decision, "Final exit minimum or residual capacity changed")
+            return
         economics = assess_target_net(
             forecast=decision.forecast,
             rules=rules,
@@ -543,6 +758,8 @@ class FreshEngine:
             entry_price=price,
             spread_pct=1 - unwind / executable,
             slippage_pct=DEFAULT_SLIPPAGE_PCT,
+            reserve_exit_base_fee=True,
+            require_central=True,
         )
         if not economics["approved"]:
             self.entry_gate(decision, "Final conditional economics rejected")
@@ -562,10 +779,13 @@ class FreshEngine:
             forecast_end_at=decision.forecast.cutoff + decision.forecast.horizon_seconds,
             target_net_approved=True,
             account_reconciled=True,
+            account_reconciliation=account_report,
             economics=economics,
             decision=decision.model_dump(mode="json"),
             model_trace=trace,
             capital_plan=capital_plan,
+            lot_fit=dict(policy="BOUNDED_DOWNWARD_LOT_FIT_V1",requested_quantity_ceiling=str(requested_quantity),
+                         selected_quantity=str(fitted),exit_minimum_price_bound=str(exit_bound),attempt_limit=256),
         )
         with self.ledger.transaction():
             self.ledger.set_meta("fresh_evidence_" + cid, json.dumps(evidence, default=str))
@@ -672,9 +892,10 @@ async def run(root, permit, contract, config, *, port=3000):
         ):
             raise ValueError("Financial permit or scheduling contract changed")
         signals = signals_for(contract, config, run_dir)
-        if ledger.get_meta("fresh_source_sha256") != signals.code_sha256:
+        if source_history(ledger)[-1] != signals.code_sha256:
             signals.close()
             raise ValueError("Prepared financial source changed")
+        audit.hashes["code"] = signals.code_sha256
         stop = asyncio.Event()
         server = fresh_health_server(path, permit.mission_id, port)
         old_handlers = {
@@ -728,7 +949,9 @@ async def run(root, permit, contract, config, *, port=3000):
                     ) as exc:
                         ledger.set_meta("last_cycle_error", type(exc).__name__)
                         atomic_json(
-                            run_dir / "last-error.json", dict(error_type=type(exc).__name__, at=now)
+                            run_dir / "last-error.json", dict(error_type=type(exc).__name__, at=now,
+                                frames=[dict(file=Path(frame.filename).name, function=frame.name, line=frame.lineno)
+                                        for frame in traceback.extract_tb(exc.__traceback__)[-8:]])
                         )
                     else:
                         ledger.set_meta("last_cycle_error", "")

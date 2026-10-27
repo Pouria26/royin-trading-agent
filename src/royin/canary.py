@@ -60,19 +60,23 @@ class CreditCanaryTransport(httpx.BaseTransport):
                 or getattr(self.ledger,"_worker_account_fingerprint",None) != self.account_fingerprint):
             raise ValueError("Shared account worker lock required")
         url = request.url
+        method = request.method
+        cancel_query=(method=="DELETE" and url.path=="/v1/account/orders"
+            and len(url.params.multi_items())==1 and "clientOrderId" in url.params)
         if (url.scheme != "https" or url.host != "api.wallex.ir" or url.port not in (None,443)
-                or url.query or url.fragment or url.username or url.password
+                or (url.query and not cancel_query) or url.fragment or url.username or url.password
                 or request.headers.get("x-api-key") != self.config.WALLEX_API_KEY.get_secret_value()
                 or request.headers.get("sub-account-client-id") != self.config.SUB_ACCOUNT_CLIENT_ID.get_secret_value()):
             raise ValueError("Unscoped canary request")
-        method = request.method
         payload = decode_json(request.content) if method == "POST" else None
         if method == "POST" and url.path == "/v1/account/orders":
             if not isinstance(payload,dict) or set(payload) != {"client_id","symbol","side","type","price","quantity"}:
                 raise ValueError("Invalid canary order payload")
             cid = payload["client_id"]
-        elif method in ("GET","DELETE") and re.fullmatch(r"/v1/account/orders/[A-Za-z0-9_]{1,64}",url.path):
+        elif method == "GET" and re.fullmatch(r"/v1/account/orders/[A-Za-z0-9_]{1,64}",url.path):
             cid = url.path.rsplit("/",1)[1]
+        elif cancel_query and re.fullmatch(r"[A-Za-z0-9_]{1,64}",url.params["clientOrderId"]):
+            cid=url.params["clientOrderId"]
         else:
             raise ValueError("Canary endpoint/method forbidden")
         with self.ledger.transaction() as db:
