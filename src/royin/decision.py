@@ -79,6 +79,19 @@ class PositionReviewContext(BaseModel):
         return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
 
 
+class ResearchExecutionCapacity(BaseModel):
+    """Observed rules and a research debit ceiling, never financial authorization."""
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    debit_ceiling_tmn: Decimal = Field(gt=0, allow_inf_nan=False)
+    tick_size: Decimal = Field(gt=0, allow_inf_nan=False)
+    step_size: Decimal = Field(gt=0, allow_inf_nan=False)
+    min_notional: Decimal = Field(gt=0, allow_inf_nan=False)
+    min_quantity: Decimal = Field(gt=0, allow_inf_nan=False)
+    maker_fee_rate: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    taker_fee_rate: Decimal = Field(ge=0, lt=1, allow_inf_nan=False)
+    reserve_exit_base_fee: bool = False
+
+
 class EntryOpportunityContext(BaseModel):
     """Fresh scanner cost/liquidity facts; never order sizing or account authorization."""
 
@@ -97,6 +110,7 @@ class EntryOpportunityContext(BaseModel):
     relative_strength_24h: Decimal | None = Field(default=None, allow_inf_nan=False)
     best_bid: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
     best_ask: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+    execution_capacity: ResearchExecutionCapacity | None = None
 
     @property
     def orderbook_imbalance(self):
@@ -105,7 +119,9 @@ class EntryOpportunityContext(BaseModel):
 
     @property
     def sha256(self):
-        return hashlib.sha256(self.model_dump_json().encode()).hexdigest()
+        # Preserve historical opportunity hashes when this new optional dossier is absent.
+        exclude = {"execution_capacity"} if self.execution_capacity is None else None
+        return hashlib.sha256(self.model_dump_json(exclude=exclude).encode()).hexdigest()
 
 
 MAX_RESEARCH_SYMBOLS = 10
@@ -120,6 +136,20 @@ class MarketCatalogCandidate(BaseModel):
     return_24h: Decimal | None = Field(default=None, ge=-1, allow_inf_nan=False)
     research_requests: int = Field(default=0, strict=True, ge=0)
     accepted_research_count: int = Field(default=0, strict=True, ge=0)
+    lot_hint: Literal["FIT_ESTIMATE", "NO_FIT_FOUND", "UNKNOWN"] | None = None
+    last_research_status: Literal["DATA_OK", "HISTORY_PARSE_FAILED", "HISTORY_FETCH_FAILED",
+        "SPREAD_TOO_WIDE", "DEPTH_TOO_SHALLOW", "DEPTH_FETCH_FAILED", "OTHER_REJECTION"] | None = None
+    last_research_at: int | None = Field(default=None, strict=True, ge=0)
+    last_capacity_status: Literal["FIT", "BLOCKED"] | None = None
+    last_cash_hurdle: Decimal | None = Field(default=None, allow_inf_nan=False)
+    last_trend: Literal["BULLISH", "BEARISH", "NEUTRAL"] | None = None
+
+    @model_validator(mode="after")
+    def coherent_observation(self):
+        if self.last_capacity_status is not None and (
+                self.last_research_status != "DATA_OK" or self.last_research_at is None):
+            raise ValueError("Observed capacity requires a timestamped successful data row")
+        return self
 
 
 class MarketResearchUniverse(BaseModel):
@@ -128,6 +158,7 @@ class MarketResearchUniverse(BaseModel):
     observed_at: int = Field(strict=True, ge=0)
     markets: tuple[MarketCatalogCandidate, ...] = Field(min_length=1, max_length=256)
     unavailable_symbols: tuple[str, ...] = ()
+    control_symbols: tuple[str, ...] = Field(default=(), max_length=2)
 
     @model_validator(mode="after")
     def unique_symbols(self):
@@ -136,6 +167,10 @@ class MarketResearchUniverse(BaseModel):
         if (len(set(self.unavailable_symbols)) != len(self.unavailable_symbols)
                 or not set(self.unavailable_symbols).issubset({row.symbol for row in self.markets})):
             raise ValueError("Unavailable research symbols must be unique universe members")
+        if (len(set(self.control_symbols)) != len(self.control_symbols)
+                or not set(self.control_symbols).issubset({row.symbol for row in self.markets})
+                or set(self.control_symbols).intersection(self.unavailable_symbols)):
+            raise ValueError("Research controls must be distinct available universe members")
         return self
 
     def screening_view(self):
@@ -146,10 +181,39 @@ class MarketResearchUniverse(BaseModel):
                 str(row.return_24h.quantize(Decimal("0.0001"),rounding=ROUND_HALF_EVEN))
                     if row.return_24h is not None else None, row.research_requests,
                 row.accepted_research_count] for row in self.markets]
-        return dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
+        result = dict(catalog_sha256=self.catalog_sha256,observed_at=self.observed_at,
             columns=["symbol","turnover_million_tmn_floor","return_24h_fraction_rounded_4dp",
                 "research_requests", "accepted_research_count"],rows=rows,
             unavailable_for_current_cutoff=list(self.unavailable_symbols))
+        if self.control_symbols:
+            result.update(host_research_controls=list(self.control_symbols),
+                model_selection_limit=MAX_RESEARCH_SYMBOLS-len(self.control_symbols))
+        if any(row.lot_hint is not None or row.last_research_status is not None for row in self.markets):
+            statuses = ["DATA_OK", "HISTORY_PARSE_FAILED", "HISTORY_FETCH_FAILED", "SPREAD_TOO_WIDE",
+                        "DEPTH_TOO_SHALLOW", "DEPTH_FETCH_FAILED", "OTHER_REJECTION"]
+            result["selection_hints"] = dict(
+                basis="Catalog-price lot estimate, not book validation/admission or a permanent ban; row indexes are zero-based",
+                lot_fit=[i for i,row in enumerate(self.markets) if row.lot_hint == "FIT_ESTIMATE"],
+                lot_no_fit=[i for i,row in enumerate(self.markets) if row.lot_hint == "NO_FIT_FOUND"],
+                status_legend=statuses, recent_result_columns=["row","status_index","age_minutes"],
+                recent_results=[[i,statuses.index(row.last_research_status),(self.observed_at-row.last_research_at)//60]
+                    for i,row in enumerate(self.markets)
+                    if row.last_capacity_status is None and row.last_research_status is not None and row.last_research_at is not None
+                    and 0 <= self.observed_at-row.last_research_at <= 3600])
+            observations=[]
+            for i,row in enumerate(self.markets):
+                if (row.last_capacity_status is not None and row.last_research_at is not None
+                        and 0 <= self.observed_at-row.last_research_at <= 3600):
+                    observations.append([i,(self.observed_at-row.last_research_at)//60,
+                        1 if row.last_capacity_status=="FIT" else 0,
+                        int((row.last_cash_hurdle*10000).to_integral_value(rounding=ROUND_HALF_EVEN))
+                            if row.last_cash_hurdle is not None else None,
+                        {"BULLISH":1,"BEARISH":-1,"NEUTRAL":0}.get(row.last_trend)])
+            if observations:
+                result["selection_hints"].update(
+                    candidate_columns=["data_ok_row","age_minutes","capacity_fit_1_blocked_0","indicative_cash_hurdle_bps","trend_sign"],
+                    recent_candidates=observations)
+        return result
 
 
 class ReturnForecast(BaseModel):
@@ -297,11 +361,60 @@ class MarketEntryProposal(RoleDecisionProposal):
     forecast: ReturnForecast
     horizon_seconds: int = Field(strict=True, ge=60, le=259200)
     review_after_seconds: int = Field(strict=True, ge=0)
+    compared_symbols: tuple[str, ...] | None = Field(default=None, max_length=MAX_RESEARCH_SYMBOLS)
+    feasible_symbols: tuple[str, ...] | None = Field(default=None, max_length=MAX_RESEARCH_SYMBOLS)
+    candidate_medians: tuple[tuple[str, int, Decimal], ...] | None = Field(
+        default=None, max_length=3*MAX_RESEARCH_SYMBOLS)
+
+    @field_validator("candidate_medians", mode="before")
+    @classmethod
+    def exact_candidate_medians(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value,(list,tuple)) or len(value)>3*MAX_RESEARCH_SYMBOLS:
+            raise ValueError("Bounded candidate-horizon estimates required")
+        result=[]
+        for row in value:
+            if (not isinstance(row,(list,tuple)) or len(row)!=3 or not isinstance(row[0],str)
+                    or not re.fullmatch(r"^[A-Z0-9]+(?:TMN|USDT)$",row[0])
+                    or type(row[1]) is not int or not 60<=row[1]<=259200):
+                raise ValueError("Exact candidate-horizon estimate required")
+            result.append((row[0],row[1],ReturnForecast.signed_return_fraction(row[2])))
+        if len({(s,h) for s,h,_ in result})!=len(result):
+            raise ValueError("Duplicate candidate-horizon estimate")
+        return tuple(result)
+
+    @field_validator("compared_symbols", "feasible_symbols", mode="before")
+    @classmethod
+    def distinct_compared_symbols(cls, value):
+        if value is None:
+            return None
+        if (not isinstance(value,(list,tuple)) or any(not isinstance(s,str)
+                or not re.fullmatch(r"^[A-Z0-9]+(?:TMN|USDT)$",s) for s in value)
+                or len(set(value))!=len(value)):
+            raise ValueError("Comparison symbols must be distinct canonical symbols")
+        return tuple(value)
+
+
+class MarketEntrySignal(MarketEntryProposal):
+    """Model price/action signal; source hashes belong exclusively to the host."""
+
+    symbol: str = Field(pattern=r"^[A-Z0-9]+(?:TMN|USDT)$")
+    snapshot_sha256: None = Field(default=None, exclude=True)
+    opportunity_sha256: None = Field(default=None, exclude=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def host_owned_source_hashes(cls, value):
+        if isinstance(value,dict) and any(key in value for key in ("snapshot_sha256","opportunity_sha256")):
+            raise ValueError("Source hashes are host-owned and forbidden in model signals")
+        return value
 
 
 def validate_role_proposal(
     proposal, *, role, snapshot, position, opportunity,
     market_batch=None, horizon_bounds=None, remaining_seconds=None, require_forecast=False,
+    require_comparison=False, evaluation_horizons=None,
 ):
     """Reject cross-role/state output before the unchanged execution Decision boundary.
 
@@ -326,9 +439,45 @@ def validate_role_proposal(
 
     if proposal.symbol is not None and proposal.symbol != snapshot.symbol:
         raise ValueError("Selected symbol does not match the bound snapshot")
+    if any(eid not in snapshot.evidences for eid in proposal.evidence_ids):
+        raise ValueError("Decision cites evidence outside the chosen snapshot")
     if market_batch is not None:
         if role != "ENTRY_ANALYST" or snapshot.symbol not in market_batch:
             raise ValueError("Batch is only valid for the entry role")
+        if require_comparison and (not isinstance(proposal,MarketEntryProposal)
+                or proposal.compared_symbols is None or set(proposal.compared_symbols)!=set(market_batch)):
+            raise ValueError("Comparison does not cover the accepted research batch")
+        explicit_capacity = any(opp.execution_capacity is not None for _snap,opp in market_batch.values())
+        if require_comparison or explicit_capacity:
+            from royin.risk import entry_cost_context
+            costs={symbol:entry_cost_context(snap,opp) for symbol,(snap,opp) in market_batch.items()}
+            feasible={symbol for symbol,cost in costs.items()
+                if cost.get('capacity',{}).get('status')=='SELLABLE_WITH_BOUNDED_RESIDUAL'
+                and cost.get('cash_break_even_reference_return_fraction') is not None}
+            if require_comparison and (proposal.feasible_symbols is None or set(proposal.feasible_symbols)!=feasible):
+                raise ValueError("Comparison misstates fresh execution capacity")
+            if feasible and snapshot.symbol not in feasible:
+                raise ValueError("Final selection must use a fresh feasible candidate")
+            if proposal.action == "ENTER" and explicit_capacity and snapshot.symbol not in feasible:
+                raise ValueError("Entry candidate has no proven execution capacity")
+            if evaluation_horizons is not None:
+                if (not require_comparison or not isinstance(evaluation_horizons,tuple)
+                        or not evaluation_horizons or len(set(evaluation_horizons))!=len(evaluation_horizons)
+                        or horizon_bounds is None or any(type(h) is not int
+                            or not horizon_bounds[0]<=h<=horizon_bounds[1] for h in evaluation_horizons)):
+                    raise ValueError("Host comparison horizons are invalid")
+                horizons=set(evaluation_horizons)
+                if snapshot.symbol in feasible and proposal.forecast is not None:
+                    horizons.add(proposal.forecast.horizon_seconds)
+                expected={(symbol,horizon) for symbol in feasible for horizon in horizons}
+                estimates=proposal.candidate_medians
+                if estimates is None or {(s,h) for s,h,_ in estimates}!=expected:
+                    raise ValueError("Numeric comparison does not cover the candidate-horizon grid")
+                if snapshot.symbol in feasible and proposal.forecast is not None:
+                    selected=next(q for s,h,q in estimates if s==snapshot.symbol
+                        and h==proposal.forecast.horizon_seconds)
+                    if selected!=proposal.forecast.return_q50:
+                        raise ValueError("Numeric comparison differs from the selected forecast")
         if proposal.action == "ENTER":
             if proposal.symbol is None or proposal.symbol != snapshot.symbol:
                 raise ValueError("ENTER must select exactly the bound batch symbol")
@@ -341,16 +490,25 @@ def validate_role_proposal(
                 horizon_min_seconds=horizon_bounds[0], horizon_max_seconds=horizon_bounds[1],
                 remaining_seconds=remaining_seconds,
             )
-            if opportunity.market_context is not None:
-                target = proposal.forecast.target_return_fraction
-                if target is None or target <= Decimal(".02"):
-                    raise ValueError("Proposed opportunity does not exceed the 2% gross objective")
-                if opportunity.market_context.regime == "BEARISH" and not (
-                    opportunity.asset_return_24h is not None and opportunity.asset_return_24h > 0
-                    and opportunity.relative_strength_24h is not None and opportunity.relative_strength_24h > 0
+            target = proposal.forecast.target_return_fraction
+            if target is None or target <= 0:
+                raise ValueError("Entry requires a positive target forecast")
+            if opportunity.best_bid is not None and opportunity.best_ask is not None:
+                # Local import avoids the existing risk -> Decision dependency at module load.
+                from royin.risk import entry_cost_context
+                cost = entry_cost_context(snapshot, opportunity)
+                hurdle = Decimal(cost.get("cash_break_even_reference_return_fraction",
+                                          cost["break_even_reference_return_fraction"]))
+                if target <= hurdle:
+                    raise ValueError("Entry target does not clear observed execution costs")
+                if proposal.forecast.return_q50 <= hurdle:
+                    raise ValueError("Entry central forecast does not clear observed execution costs")
+            if (opportunity.market_context is not None
+                    and opportunity.market_context.regime == "BEARISH" and not (
+                    opportunity.relative_strength_24h is not None and opportunity.relative_strength_24h > 0
                     and "EV_TREND_BULLISH" in snapshot.evidences
-                ):
-                    raise ValueError("Bear-market exception lacks observed relative strength")
+                    )):
+                raise ValueError("Bear-market exception lacks observed relative strength")
             if (
                 proposal.horizon_seconds != proposal.forecast.horizon_seconds
                 or proposal.review_after_seconds != proposal.forecast.review_after_seconds

@@ -15,14 +15,17 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
-from royin.decision import ReturnForecast, validate_forecast
+from royin.decision import MarketEntrySignal, ReturnForecast, validate_forecast
 from royin.evaluation import score_return_forecasts, score_zero_baseline, source_bundle_sha256
 from royin.market_data import decode_json, parse_history
 from royin.model_profiles import matches_provider_model
 
 
-def current_forecasts(manifest_path):
+def current_forecasts(manifest_path, *, trace_start=0, trace_limit=None):
     """Verify issued forecasts against their snapshot, batch and actual provider output."""
+    if (type(trace_start) is not int or trace_start < 0
+            or (trace_limit is not None and (type(trace_limit) is not int or not 1 <= trace_limit <= 32))):
+        raise ValueError("Explicit trace range requires a nonnegative start and1..32 limit")
     raw = manifest_path.read_bytes()
     manifest = json.loads(raw)
     if manifest.get("mode") != "CURRENT_PAPER" or manifest.get("model_mode") != "REAL_MODEL":
@@ -30,13 +33,28 @@ def current_forecasts(manifest_path):
     sha = hashlib.sha256(raw).hexdigest()
     records, skipped = [], []
     for index, row in enumerate(manifest["arms"]["paper_portfolio"]["decision_traces"]):
-        decision = row["decision"]
+        if index < trace_start or (trace_limit is not None and index >= trace_start+trace_limit):
+            skipped.append(dict(run_id=manifest["run_id"],trace_index=index,reason="OUTSIDE_REQUESTED_TRACE_RANGE"))
+            continue
+        decision = row.get("decision")
+        if not isinstance(decision, dict):
+            trace = row.get("model_trace") or {}
+            if (row.get("host_outcome") == trace.get("host_outcome") == "HOST_DEFERRED"
+                    and not trace.get("requests") and not trace.get("responses")):
+                skipped.append(dict(run_id=manifest["run_id"], trace_index=index,
+                                    reason="HOST_DEFERRED_NO_FORECAST"))
+                continue
+            raise ValueError("Missing decision outside an unissued host deferral")
         if decision.get("forecast") is None:
             skipped.append(dict(run_id=manifest["run_id"],trace_index=index,reason="NO_ISSUED_MODEL_FORECAST"))
             continue
         issued_at = datetime.fromisoformat(row.get("issued_at_utc", manifest["created_at_utc"]).replace("Z","+00:00"))
         manifest_at = datetime.fromisoformat(manifest["created_at_utc"].replace("Z","+00:00"))
-        if issued_at.utcoffset() is None or manifest_at.utcoffset() is None or issued_at > manifest_at:
+        # The exporter truncates manifest time to seconds; fractional issuance in
+        # that same recorded second is consistent. Do not grant a full-second clock grace.
+        manifest_has_fraction = "." in manifest["created_at_utc"].split("T")[-1]
+        comparable_issued = issued_at if manifest_has_fraction else issued_at.replace(microsecond=0)
+        if issued_at.utcoffset() is None or manifest_at.utcoffset() is None or comparable_issued > manifest_at:
             raise ValueError("Invalid recorded issuance timestamp")
         model = row.get("model_trace") or {}
         if (model.get("host_outcome") != "MODEL_DECISION" or model.get("evidence_kind") != "REAL_MODEL_ATTEMPT"
@@ -65,11 +83,25 @@ def current_forecasts(manifest_path):
         finals = [json.loads(t["function"]["arguments"]) for t in output if t["function"]["name"] == "final_result"]
         if len(finals) != 1:
             raise ValueError("Missing unique structured provider result")
+        if context.get("output_binding_policy") == "HOST_OWNED_MARKET_BINDING_V1":
+            # The model supplies prices/action, never source hashes. Verify the
+            # recorded host binding against both raw output and the full snapshot.
+            signal = MarketEntrySignal.model_validate(finals[0]).model_dump(mode="json")
+            if context.get("candidates") is None:
+                raise ValueError("Host binding requires the recorded candidate batch")
+            expected_binding = dict(policy="HOST_OWNED_MARKET_BINDING_V1", symbol=decision["symbol"],
+                snapshot_sha256=snapshot_sha,
+                opportunity_sha256=chosen[0].get("opportunity_sha256") if decision["action"] == "ENTER" else None,
+                validated_signal_sha256=hashlib.sha256(json.dumps(signal,sort_keys=True,separators=(",",":")).encode()).hexdigest())
+            if model.get("model_signal") != signal or model.get("host_binding") != expected_binding:
+                raise ValueError("Host/provider source binding receipt mismatch")
+        elif finals[0]["snapshot_sha256"] != snapshot_sha:
+            raise ValueError("Host/provider forecast identity mismatch")
         forecast = ReturnForecast.model_validate(decision["forecast"])
         if (ReturnForecast.model_validate(finals[0]["forecast"]) != forecast
                 or finals[0]["action"] != decision["action"]
                 or (finals[0]["symbol"] != decision["symbol"] and not (decision["action"] == "WAIT" and finals[0]["symbol"] is None))
-                or finals[0]["snapshot_sha256"] != snapshot_sha or model["decision"]["forecast"] != decision["forecast"]):
+                or model["decision"]["forecast"] != decision["forecast"]):
             raise ValueError("Host/provider forecast identity mismatch")
         bounds = context.get("horizon_bounds",[300,36000])
         validate_forecast(forecast,snapshot=SimpleNamespace(symbol=snapshot["symbol"],cutoff=snapshot["cutoff"],
@@ -98,7 +130,7 @@ def terminal_close(payload, forecast, now):
     return series.candles[0].close
 
 
-def score_current(manifest_paths, output_dir=None, *, now=None):
+def score_current(manifest_paths, output_dir=None, *, now=None, trace_start=0, trace_limit=None):
     """No key/model/order; at most32 outcome GETs, no retries and no source mutation."""
     import uuid
     now = int(time.time()) if now is None else now
@@ -109,7 +141,7 @@ def score_current(manifest_paths, output_dir=None, *, now=None):
         raise ValueError("Supply1..32 distinct source manifests")
     records, skipped, hashes = [], [], {}
     for path in paths:
-        sha,items,omitted = current_forecasts(path)
+        sha,items,omitted = current_forecasts(path,trace_start=trace_start,trace_limit=trace_limit)
         if sha in hashes.values():
             raise ValueError("Duplicate manifest content cannot count as a fresh observation")
         hashes[str(path)] = sha
@@ -167,6 +199,7 @@ def score_current(manifest_paths, output_dir=None, *, now=None):
     report = dict(status="COMPLETE_FORECAST_DIAGNOSTIC" if records and scores["scored"]==len(records) else "PARTIAL_FORECAST_DIAGNOSTIC",
         created_at_utc=datetime.now(UTC).isoformat(),scoring_clock=now,actual_gets=gets,max_gets=32,
         scoring_code_sha256=scoring_code_sha256,policy="EXACT_TERMINAL_MINUTE_DIAGNOSTIC_V1",
+        trace_selection=dict(start=trace_start,limit=trace_limit,index_basis="ORIGINAL_MANIFEST_ZERO_BASED"),
         source_manifests=hashes,records=records,skipped_decisions=skipped,scores=scores,zero_point_baseline=baseline,
         limits=["Terminal price forecast, not a fill, executable profit, strategy win rate or calibration proof",
                 "One-minute timestamps are interpreted as bar opens; source semantics remain diagnostic",
@@ -311,6 +344,8 @@ def main(argv=None):
     sources.add_argument("--run-dir")
     sources.add_argument("--paper-manifest",nargs="+",type=Path)
     parser.add_argument("--output-dir",type=Path)
+    parser.add_argument("--trace-start",type=int,default=0,help="Original zero-based trace start; excluded rows remain reported")
+    parser.add_argument("--trace-limit",type=int,help="Explicit1..32 trace window; does not rewrite the source manifest")
     parser.add_argument("--record", action="store_true")
     parser.add_argument("--score", action="store_true")
     parser.add_argument("--replay", action="store_true")
@@ -319,7 +354,8 @@ def main(argv=None):
         if not args.score or args.record or args.replay:
             parser.error("Paper manifests require --score alone")
         try:
-            return score_current(args.paper_manifest,args.output_dir)
+            return score_current(args.paper_manifest,args.output_dir,
+                trace_start=args.trace_start,trace_limit=args.trace_limit)
         except (OSError,ValueError,KeyError,TypeError) as exc:
             print(json.dumps(dict(status="BLOCKED_FORECAST_INPUT",error_type=type(exc).__name__)))
             return 2

@@ -452,8 +452,9 @@ class CurrentMarketReadinessTests(unittest.TestCase):
         proposal["opportunity_sha256"] = opp.sha256
         proposal["review_after_seconds"] = 600
         proposal["forecast"]["review_after_seconds"] = 600
-        # A valid-entry fixture must clear the coarse price tick and both fee assets.
+        # Both target and central forecast must clear coarse ticks and both fee assets.
         proposal["forecast"]["target_return_fraction"] = ".05"
+        proposal["forecast"].update(return_q50=".04", return_q90=".06")
         decision = bind_decision(MarketEntryProposal.model_validate(proposal),decision_id="chosen-eth",
             symbol=snap.symbol,cutoff=snap.cutoff,snapshot_sha256=snap.snapshot_sha256,
             available_evidence_ids=tuple(snap.evidences))

@@ -72,7 +72,8 @@ class MarketContextTests(unittest.TestCase):
             validate_role_proposal(proposal,role="ENTRY_ANALYST",snapshot=snap,position=None,opportunity=opp,
                 market_batch={"BTCTMN":(snap,opp)},horizon_bounds=(300,36000))
         payload["forecast"]["target_return_fraction"] = ".01"
-        with self.assertRaisesRegex(ValueError,"2%"):
+        # The fixed gross objective is superseded; negative relative strength still blocks.
+        with self.assertRaisesRegex(ValueError,"relative strength"):
             validate_role_proposal(MarketEntryProposal.model_validate(payload),role="ENTRY_ANALYST",snapshot=snap,
                 position=None,opportunity=opp,market_batch={"BTCTMN":(snap,opp)},horizon_bounds=(300,36000))
 

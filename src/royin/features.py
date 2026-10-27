@@ -151,6 +151,41 @@ def compute_wick_ratios(candle: Candle) -> tuple[Decimal, Decimal, Decimal]:
         )
 
 
+def closed_bar_structure(candles: Sequence[Candle], interval_seconds: int) -> dict:
+    """Observed setup context, not a signal or a projected return.
+
+    Caller supplies validated closed bars. The twenty-bar channel and volume
+    baseline exclude the trigger bar; a new high must not redefine its own hurdle.
+    """
+    if type(interval_seconds) is not int or interval_seconds <= 0 or len(candles) < 21:
+        raise ValueError("Structure requires21 closed bars and an explicit interval")
+    previous, last = candles[-21:-1], candles[-1]
+    high = max(c.high for c in previous)
+    low = min(c.low for c in previous)
+    with localcontext() as ctx:
+        ctx.prec = 36
+        ctx.traps[Inexact] = False
+        returns = {}
+        for seconds in (300, 900, 3600):
+            if seconds % interval_seconds == 0:
+                bars = seconds // interval_seconds
+                if 0 < bars < len(candles):
+                    returns[str(seconds)] = str(last.close / candles[-1-bars].close - 1)
+        prior_volume = sum((c.volume for c in previous), Decimal(0)) / 20
+        path = sum((abs(b.close-a.close) for a, b in zip(candles[-21:-1], candles[-20:], strict=True)), Decimal(0))
+        efficiency = abs(last.close-candles[-21].close) / path if path else Decimal(0)
+        return dict(policy="CLOSED_BAR_STRUCTURE_V1", interval_seconds=interval_seconds,
+            prior_channel_bars=20, prior_high=str(high), prior_low=str(low),
+            last_close_above_prior_high=last.close > high,
+            last_close_below_prior_low=last.close < low,
+            prior_low_reclaim=last.low < low <= last.close,
+            high_distance_fraction=str(high / last.close - 1),
+            low_distance_fraction=str(low / last.close - 1),
+            returns_by_seconds=returns, path_efficiency_20=str(efficiency),
+            relative_volume_prior_20=str(last.volume/prior_volume) if prior_volume else None,
+            volume_basis="CLOSED_BASE_VOLUME_NOT_AGGRESSOR_FLOW")
+
+
 def extract_features(
     series: CandleSeries,
     symbol: str,
@@ -160,6 +195,7 @@ def extract_features(
     available_tmn_cash: Decimal = Decimal("5000000"),
     fast_period: int = 10,
     slow_period: int = 30,
+    reference_series: CandleSeries | None = None,
 ) -> FeatureSnapshot:
     """Extract causal features up to cutoff with strictly closed candles and gap validation."""
     step = series.interval_seconds
@@ -214,6 +250,15 @@ def extract_features(
     # Generate deterministic evidence dictionary
     evidences = {}
     evidences["EV_DATA_FRESH"] = f"Candle closed at {last_candle.open_time + step}"
+    evidences["EV_CLOSED_BAR_STRUCTURE"] = json.dumps(
+        closed_bar_structure(valid_candles, step), sort_keys=True, separators=(",", ":"))
+    if reference_series is not None:
+        from royin.forecast_reference import historical_return_reference
+        reference = historical_return_reference(reference_series,cutoff=cutoff)
+        closed_reference = tuple(c for c in reference_series.candles if c.open_time+step <= cutoff)
+        if step != 300 or closed_reference[-len(valid_candles):] != tuple(valid_candles):
+            raise ValueError("Reference history must contain the identical current source suffix")
+        evidences["EV_HORIZON_RETURN_REFERENCE"] = json.dumps(reference,sort_keys=True,separators=(",",":"))
 
     # Close location weighted by base volume is a pressure proxy, not observed aggressor flow.
     with localcontext() as ctx:

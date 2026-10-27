@@ -12,8 +12,9 @@ from itertools import pairwise
 from pathlib import Path
 from urllib.parse import urlencode
 
-from royin.decision import MAX_RESEARCH_SYMBOLS, EntryOpportunityContext
+from royin.decision import MAX_RESEARCH_SYMBOLS, EntryOpportunityContext, ResearchExecutionCapacity
 from royin.features import FeatureSnapshot, extract_features
+from royin.ledger import validate_decimal
 from royin.market_context import catalog_return, market_context
 from royin.market_data import (
     Candle,
@@ -23,9 +24,108 @@ from royin.market_data import (
     parse_history,
 )
 from royin.markets import eligible_markets, load_restrictions, parse_catalog, parse_spot_rules
+from royin.risk import choose_lot_quantity_for_exit, rules_with_notional_floor
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config/wallex-credit-market-policy.json"
+
+
+def research_selection_hints(catalog_rows, rules, recent_traces, *, observed_at,
+                             debit_ceiling, minimum_notional, reserve_exit_base_fee):
+    """Cheap bounded triage before model selection; no I/O, bans or trade authority."""
+    hints = {}
+    for symbol, row in catalog_rows.items():
+        hint = dict(lot_hint="UNKNOWN")
+        if symbol in rules:
+            rule = rules_with_notional_floor(rules[symbol], minimum_notional)
+            price = rule.quantize_price(decimal_number(row["price"], positive=True))
+            if price > 0:
+                quantity = rule.quantize_quantity(debit_ceiling/(price*(1+rule.taker_fee_rate)))
+                selected = choose_lot_quantity_for_exit(rule,quantity,price,price,
+                    reserve_exit_base_fee=reserve_exit_base_fee)
+                hint["lot_hint"] = "FIT_ESTIMATE" if selected is not None else "NO_FIT_FOUND"
+        hints[symbol] = hint
+    statuses = {"HISTORY_PARSE_FAILED", "HISTORY_FETCH_FAILED", "SPREAD_TOO_WIDE",
+                "DEPTH_TOO_SHALLOW", "DEPTH_FETCH_FAILED"}
+    for trace in recent_traces[-12:]:
+        model = trace.get("model_trace") or {}
+        context = model.get("context") or {}
+        at = context.get("cutoff")
+        if type(at) is not int or not 0 <= observed_at-at <= 3600:
+            continue
+        for candidate in context.get("candidates") or ():
+            if candidate.get("symbol") in hints:
+                current=hints[candidate["symbol"]]
+                # Replace observations together; a newer row cannot inherit an older quote/capacity.
+                for key in ("last_capacity_status","last_cash_hurdle","last_trend"):
+                    current.pop(key,None)
+                current.update(last_research_status="DATA_OK",last_research_at=at)
+                cost=candidate.get("execution_cost_context") or {}
+                status=cost.get("capacity",{}).get("status")
+                if status in ("SELLABLE_WITH_BOUNDED_RESIDUAL","BLOCKED_MINIMUM_OR_RESIDUAL"):
+                    current["last_capacity_status"]="FIT" if status=="SELLABLE_WITH_BOUNDED_RESIDUAL" else "BLOCKED"
+                    hurdle=cost.get("cash_break_even_reference_return_fraction",
+                                    cost.get("break_even_reference_return_fraction"))
+                    if hurdle is not None:
+                        if not isinstance(hurdle,(str,Decimal)):
+                            raise ValueError("Historical cost hint requires an exact decimal")
+                        value=Decimal(hurdle)
+                        decimal_number(abs(value))
+                        current["last_cash_hurdle"]=value
+                    evidence=candidate.get("evidences") or ()
+                    current["last_trend"]=next((v for v in ("BULLISH","BEARISH","NEUTRAL")
+                        if "EV_TREND_"+v in evidence),None)
+        for rejection in model.get("research_rejections") or ():
+            if rejection.get("symbol") in hints:
+                current=hints[rejection["symbol"]]
+                for key in ("last_capacity_status","last_cash_hurdle","last_trend"):
+                    current.pop(key,None)
+                current.update(last_research_status=(rejection["reason"]
+                    if rejection.get("reason") in statuses else "OTHER_REJECTION"),last_research_at=at)
+    return hints
+
+
+def research_control_symbols(liquid, hints, *, unavailable_symbols=()):
+    """Reserve up to two research slots for observed executable alternatives, never orders."""
+    eligible=[r for r in liquid if r.symbol not in unavailable_symbols
+        and hints.get(r.symbol,{}).get("lot_hint")=="FIT_ESTIMATE"
+        and hints[r.symbol].get("last_research_status")=="DATA_OK"
+        and hints[r.symbol].get("last_capacity_status")=="FIT"]
+    eligible.sort(key=lambda r:(hints[r.symbol].get("last_trend")!="BULLISH",
+        hints[r.symbol].get("last_cash_hurdle") is None,
+        hints[r.symbol].get("last_cash_hurdle",Decimal(0)),
+        -hints[r.symbol]["last_research_at"],-r.turnover_tmn,r.symbol))
+    return tuple(r.symbol for r in eligible[:2])
+
+
+def bootstrap_research_order(liquid, recent_traces, seed_counts, anchor, *, observed_at):
+    """Prefer fresh proven availability over a failed sticky seed; no new requests or bans."""
+    base=sorted(liquid,key=lambda row:seed_counts.get(row.symbol,0))
+    eligible={row.symbol for row in base}
+    observations={}
+    for trace in recent_traces[-12:]:
+        model=trace.get('model_trace') or {}
+        ctx=model.get('context') or {}
+        at=ctx.get('cutoff',(trace.get('decision') or {}).get('cutoff'))
+        if type(at) is not int or not 0<=observed_at-at<=3600:
+            continue
+        for attempt in trace.get('bootstrap_attempts') or ():
+            if attempt.get('symbol') in eligible:
+                observations[attempt['symbol']]='DATA_OK' if attempt.get('accepted') else 'FAILED'
+        for candidate in ctx.get('candidates') or ():
+            if candidate.get('symbol') in eligible:
+                status=(candidate.get('execution_cost_context') or {}).get('capacity',{}).get('status')
+                observations[candidate['symbol']]='FIT' if status=='SELLABLE_WITH_BOUNDED_RESIDUAL' else 'DATA_OK'
+        for rejected in model.get('research_rejections') or ():
+            if rejected.get('symbol') in eligible:
+                observations[rejected['symbol']]='FAILED'
+    indexes={row.symbol:i for i,row in enumerate(base)}
+    def priority(row):
+        status=observations.get(row.symbol)
+        rank=(0 if status=='FIT' else 1 if row.symbol==anchor and status!='FAILED'
+              else 2 if status=='DATA_OK' else 4 if status=='FAILED' else 3)
+        return rank,(-row.turnover_tmn if rank in (0,2) else indexes[row.symbol]),row.symbol
+    return tuple(sorted(base,key=priority))
 
 
 @dataclass(frozen=True)
@@ -169,7 +269,7 @@ class ScanCandidate:
 def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutoff,
                           candle_received_at, depth_received_at, round_trip_fee_pct,
                           min_depth_tmn, max_spread_pct, available_tmn_cash, limit=3,
-                          snapshot_cutoff=None, rejections=None):
+                          snapshot_cutoff=None, rejections=None, reference_by_symbol=None):
     """Bounded expensive stage: every liquidity-valid candidate, ordered for cheap review.
 
     Host ordering is not a selection. The model chooses one symbol or NO_TRADE; ATR and
@@ -205,7 +305,8 @@ def build_candidate_batch(shortlist, *, series_by_symbol, depth_by_symbol, cutof
                     closed_at=closed_at,required_cutoff=snapshot_cutoff))
                 continue
             snapshot = extract_features(series, row.symbol, cutoff=snapshot_cutoff,
-                                        available_tmn_cash=available_tmn_cash)
+                                        available_tmn_cash=available_tmn_cash,
+                                        reference_series=(reference_by_symbol or {}).get(row.symbol))
             failure_reason = "INVALID_BOOK_VALUE"
             depth = depth_by_symbol[row.symbol]
             if not isinstance(depth,dict):
@@ -330,10 +431,42 @@ class ScannerPublicFeed:
         return decode_json(raw), received
 
 
+def parse_research_history(history, *, end, interval_seconds, cutoff, reference_bars=None):
+    """Preserve the strict current40-bar contract; optional older context never fills gaps."""
+    start=end-40*interval_seconds
+    if reference_bars is None:
+        main=parse_history(history,start=start,end=end,interval_seconds=60,cutoff=cutoff)
+        return aggregate_closed(main,interval_seconds),None
+    if type(reference_bars) is not int or not 40 <= reference_bars <= 200 or interval_seconds != 300:
+        raise ValueError("Reference lookback must be40..200 five-minute bars")
+    keys=("t","o","h","l","c","v")
+    if (not isinstance(history,dict) or history.get("s") != "ok"
+            or any(not isinstance(history.get(k),list) for k in keys)
+            or len({len(history[k]) for k in keys}) != 1):
+        raise ValueError("Malformed research history")
+    times=history["t"]
+    if (len(times)>1001 or any(type(t) is not int or not end-reference_bars*300 <= t <= end for t in times)
+            or any(b<=a for a,b in pairwise(times))):
+        raise ValueError("Invalid reference timestamps or bound")
+    indices=[i for i,t in enumerate(times) if t>=start]
+    current={"s":"ok",**{k:[history[k][i] for i in indices] for k in keys}}
+    main=aggregate_closed(parse_history(current,start=start,end=end,interval_seconds=60,cutoff=cutoff),300)
+    try:
+        reference=aggregate_closed(parse_history(history,start=end-reference_bars*300,end=end,
+            interval_seconds=60,cutoff=cutoff),300)
+        if reference.incomplete_bins:
+            raise ValueError("Incomplete optional reference")
+    except ValueError:
+        reference=None
+    return main,reference
+
+
 def scan_current_market(feed, *, account_symbols, account_as_of, interval_seconds=300,
                         round_trip_fee_pct, min_depth_tmn, max_spread_pct, available_tmn_cash,
                         batch_limit=3, diversify=False, tmn_only=False, use_spot_rules=False,
-                        selected_symbols=None, force_fresh=False):
+                        selected_symbols=None, force_fresh=False, research_debit_tmn=None,
+                        reserve_exit_base_fee=False, research_min_notional_tmn=Decimal("0"),
+                        reference_bars=None):
     """At most one catalog and two GETs per shortlisted symbol; never scan historical winners.
 
     Returns every liquidity-valid candidate at one uniform closed-candle cutoff. The entry
@@ -341,6 +474,10 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
     """
     if interval_seconds not in (60, 300, 900, 1800, 3600):
         raise ValueError("Unsupported scanner interval")
+    if reference_bars is not None and (type(reference_bars) is not int
+            or not 40 <= reference_bars <= 200 or interval_seconds != 300):
+        raise ValueError("Invalid optional reference lookback")
+    validate_decimal(research_min_notional_tmn, "research minimum notional", allow_zero=True)
     now = int(time.time())
     if account_symbols is None or not _fresh(account_as_of, now, 3600):
         return dict(status="BLOCKED_ACCESS", batch=(), errors=[], rejections=[], cutoff=None)
@@ -365,21 +502,22 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
             rows = tuple(row for row in rows if row.symbol in rules)
         except (ValueError,OSError):
             return dict(status="BLOCKED_SPOT_RULES",batch=(),errors=[],rejections=[],cutoff=snapshot_cutoff)
-    series, depths, candle_times, depth_times = {}, {}, {}, {}
+    series, references, depths, candle_times, depth_times = {}, {}, {}, {}, {}
     for row in rows:
         phase = "HISTORY_FETCH"
         try:
             end = now // interval_seconds * interval_seconds
-            start = end - 40 * interval_seconds
+            start = end - (reference_bars or 40) * interval_seconds
             history, candle_times[row.symbol] = feed.get("/v1/udf/history", {
                 "symbol": row.symbol, "resolution": "1", "from": start, "to": end,
             }, cutoff=now, max_age_seconds=0 if force_fresh else 60)
             phase = "HISTORY_PARSE"
-            minute = parse_history(history, start=start, end=end, interval_seconds=60, cutoff=now)
-            bars = aggregate_closed(minute, interval_seconds)
+            bars, reference = parse_research_history(history,end=end,interval_seconds=interval_seconds,
+                cutoff=now,reference_bars=reference_bars)
             if bars.incomplete_bins:
                 raise ValueError("Incomplete aggregation")
             series[row.symbol] = bars
+            references[row.symbol] = reference
             phase = "DEPTH_FETCH"
             depths[row.symbol], depth_times[row.symbol] = feed.get(
                 "/v1/depth", {"symbol": row.symbol}, cutoff=int(time.time()),
@@ -392,7 +530,8 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
         cutoff=int(time.time()), snapshot_cutoff=snapshot_cutoff,
         candle_received_at=candle_times, depth_received_at=depth_times,
         round_trip_fee_pct=round_trip_fee_pct, min_depth_tmn=min_depth_tmn, max_spread_pct=max_spread_pct,
-        available_tmn_cash=available_tmn_cash, limit=batch_limit,rejections=quality_rejections)
+        available_tmn_cash=available_tmn_cash, limit=batch_limit,rejections=quality_rejections,
+        reference_by_symbol=references)
     # Preserve the primary failed fetch/parse rather than adding its secondary missing timestamps.
     failed_symbols = {row["symbol"] for row in rejections}
     rejections.extend(row for row in quality_rejections if row["symbol"] not in failed_symbols)
@@ -410,9 +549,18 @@ def scan_current_market(feed, *, account_symbols, account_as_of, interval_second
             crypto_return = change if catalog_rows[candidate.snapshot.symbol]["quote_asset"] == "USDT" else (
                 (1 + change) / (1 + context.usdt_tmn_return_24h) - 1)
             relative = crypto_return - context.median_return_24h
+        capacity = None
+        if research_debit_tmn is not None and candidate.snapshot.symbol in rules:
+            rule = rules[candidate.snapshot.symbol]
+            capacity = ResearchExecutionCapacity(debit_ceiling_tmn=research_debit_tmn,
+                min_notional=max(rule.min_notional,research_min_notional_tmn),
+                **{key:getattr(rule,key) for key in ("tick_size","step_size",
+                    "min_quantity","maker_fee_rate","taker_fee_rate")},
+                reserve_exit_base_fee=reserve_exit_base_fee)
         enriched.append(ScanCandidate(candidate.snapshot, candidate.score,
             candidate.opportunity.model_copy(update={"market_context":context,
-                "asset_return_24h":change, "relative_strength_24h":relative})))
+                "asset_return_24h":change, "relative_strength_24h":relative,
+                "execution_capacity":capacity})))
     batch = tuple(enriched)
     status = "CANDIDATES" if batch else ("BLOCKED_DATA" if errors else "NO_CANDIDATE")
     return dict(status=status, batch=batch, errors=errors,rejections=rejections,cutoff=snapshot_cutoff,

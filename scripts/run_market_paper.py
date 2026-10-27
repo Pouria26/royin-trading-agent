@@ -63,15 +63,21 @@ from royin.risk import (
 try:
     from scripts.run_paper_trader import (
         ScannerPublicFeed,
+        bootstrap_research_order,
         catalog_candidates,
         quant_candidate_score,
+        research_control_symbols,
+        research_selection_hints,
         scan_current_market,
     )
 except ImportError:
     from run_paper_trader import (
         ScannerPublicFeed,
+        bootstrap_research_order,
         catalog_candidates,
         quant_candidate_score,
+        research_control_symbols,
+        research_selection_hints,
         scan_current_market,
     )
 
@@ -198,6 +204,10 @@ class MarketPaperOrchestrator:
         db_path: Path | None = None,
         config: RuntimeConfig | None = None,
         service_contract=None,
+        source_history=(),
+        entry_analysis_interval_seconds=None,
+        model_budget_pool_id=None,
+        model_budget_pool_sha256=None,
     ):
         from royin.service_contract import ServiceContract
 
@@ -215,6 +225,16 @@ class MarketPaperOrchestrator:
         ):
             raise ValueError("Engine settings must match the immutable service contract")
         self.service_contract = service_contract
+        if entry_analysis_interval_seconds is not None and (
+            type(entry_analysis_interval_seconds) is not int
+            or entry_analysis_interval_seconds not in (300, 900, 1200)
+            or service_contract is None or not source_history
+        ):
+            raise ValueError("Entry cadence override requires an authorized service source history")
+        self.entry_analysis_interval_seconds = (
+            entry_analysis_interval_seconds if entry_analysis_interval_seconds is not None
+            else service_contract.analysis_interval_seconds if service_contract else 300
+        )
         if mode not in ("CURRENT_PAPER","HISTORICAL_REPLAY") or model_mode not in ("REAL_MODEL","FAKE_MODEL","RECORDED"):
             raise ValueError("Unknown execution/evidence mode")
         if (type(duration_seconds) is not int or not 1 <= duration_seconds <= (345600 if service_contract else 36000)
@@ -262,12 +282,21 @@ class MarketPaperOrchestrator:
         self.code_sha256 = source_bundle_sha256(source_root, [
             *source_root.glob("src/royin/*.py"), *source_root.glob("scripts/*.py"), source_root/"requirements.lock",
             source_root/"config/llm-budget-policy.json"])
+        if source_history and (not isinstance(source_history, tuple) or source_history[-1] != self.code_sha256):
+            raise ValueError("Authorized source history must end at the actual runtime source")
+        self.source_history = source_history
+        if (model_budget_pool_id is not None or model_budget_pool_sha256 is not None) and (
+                service_contract is None or not source_history
+                or model_budget_pool_id is None or model_budget_pool_sha256 is None):
+            raise ValueError("Authorized service source and complete funding pool binding required")
+        self.model_budget_pool_id, self.model_budget_pool_sha256 = model_budget_pool_id, model_budget_pool_sha256
         self.dataset_sha256 = None
         self.public_feed = None
         # This is a continuation of an existing paid experiment, never a zero-spend bootstrap.
         self.model_startup_blocked = False
         try:
-            self.budget = (ModelBudget(self.config, require_existing=True)
+            self.budget = (ModelBudget(self.config, require_existing=True,
+                                      pool_id=model_budget_pool_id,pool_sha256=model_budget_pool_sha256)
                            if self.model_mode == "REAL_MODEL" else None)
         except BudgetBlocked:
             if service_contract is None:
@@ -283,10 +312,11 @@ class MarketPaperOrchestrator:
         binding = hashlib.sha256(f"paper:{self.run_id}".encode()).hexdigest()
         self.ledger.initialize_portfolio(self.initial_capital, quote_asset="TMN", binding=binding)
         old_binding = self.ledger.get_meta("engine_source_sha256")
-        if old_binding is not None and old_binding != self.code_sha256:
+        if old_binding is not None and old_binding != self.code_sha256 and old_binding not in source_history:
             self.audit.close()
             raise ValueError("Run revision changed; preserve the previous run and use an explicit new run")
-        self.ledger.set_meta("engine_source_sha256",self.code_sha256)
+        if old_binding is None:
+            self.ledger.set_meta("engine_source_sha256",self.code_sha256)
         profile = json.dumps([mode,model_mode,duration_seconds,horizon_max_seconds,str(order_tmn),
             str(initial_capital),str(stop_pct),str(trail_pct),str(activation_fraction),str(retention_ratio),
             str(minimum_notional_tmn),service_contract.sha256 if service_contract else None],sort_keys=True)
@@ -384,7 +414,9 @@ class MarketPaperOrchestrator:
         previous = self.capture_dir / "manifest.json"
         if previous.exists():
             saved = json.loads(previous.read_text(encoding="utf-8"))
-            if saved.get("run_id") != self.run_id or saved["bindings"]["code_sha256"] != self.code_sha256:
+            if saved.get("run_id") != self.run_id or (
+                    saved["bindings"]["code_sha256"] != self.code_sha256
+                    and saved["bindings"]["code_sha256"] not in source_history):
                 raise ValueError("Previous manifest does not bind this run/revision")
             arm = saved["arms"]["paper_portfolio"]
             self.decision_traces = arm["decision_traces"]
@@ -753,7 +785,7 @@ class MarketPaperOrchestrator:
             # Claim before I/O, including failures; bucket boundaries/restart grant no new call.
             with self.ledger.transaction():
                 self.ledger.set_meta("last_entry_cutoff",str(cutoff))
-                cadence = self.service_contract.analysis_interval_seconds if self.service_contract else 300
+                cadence = self.entry_analysis_interval_seconds
                 self.ledger.set_meta("next_entry_analysis_at",str(now+cadence))
             await self._handle_entry_cycle(feed, now)
 
@@ -772,6 +804,10 @@ class MarketPaperOrchestrator:
             diversify=True,
             tmn_only=True,
             use_spot_rules=True,
+            research_debit_tmn=self.order_tmn,
+            research_min_notional_tmn=self.minimum_notional_tmn,
+            reserve_exit_base_fee=getattr(self,"signal_only",False),
+            reference_bars=200,
         )
         liquid = ()
         if self.model_mode == "REAL_MODEL":
@@ -792,7 +828,10 @@ class MarketPaperOrchestrator:
             seed_counts = json.loads(self.ledger.get_meta("engine_bootstrap_attempt_counts") or "{}")
             if not isinstance(seed_counts, dict) or any(type(n) is not int or n < 0 for n in seed_counts.values()):
                 raise ValueError("Invalid durable bootstrap coverage")
-            bootstrap_rows = sorted(liquid, key=lambda row: seed_counts.get(row.symbol, 0))
+            anchor = self.ledger.get_meta("engine_bootstrap_anchor_symbol")
+            # A persisted anchor is not a fresh availability attestation; failures must influence selection.
+            bootstrap_rows = bootstrap_research_order(liquid,self.decision_traces,seed_counts,anchor,
+                observed_at=int(time.time()))
             for row in bootstrap_rows[:3]:
                 seed_counts[row.symbol] = seed_counts.get(row.symbol, 0) + 1
                 self.ledger.set_meta("engine_bootstrap_attempt_counts", json.dumps(seed_counts))
@@ -802,6 +841,8 @@ class MarketPaperOrchestrator:
                     "accepted":bool(report.get("batch")),"errors":report.get("errors",[]),
                     "rejections":report.get("rejections",[])})
                 if report.get("batch"):
+                    if any(item.snapshot.symbol == row.symbol for item in report["batch"]):
+                        self.ledger.set_meta("engine_bootstrap_anchor_symbol", row.symbol)
                     break
         else:
             report = scan_current_market(feed, **scan_options,batch_limit=5)
@@ -841,15 +882,24 @@ class MarketPaperOrchestrator:
         if self.model_mode == "REAL_MODEL" and self.run_envelope:
             catalog_rows = {row["symbol"]:row for row in payload["result"]["markets"]}
             coverage_history = json.loads(self.ledger.get_meta("engine_research_coverage") or "{}")
+            hints = research_selection_hints(
+                {row.symbol:catalog_rows[row.symbol] for row in liquid},report["market_rules"],
+                self.decision_traces,observed_at=received,debit_ceiling=self.order_tmn,
+                minimum_notional=self.minimum_notional_tmn,
+                reserve_exit_base_fee=getattr(self,"signal_only",False))
             universe = MarketResearchUniverse(catalog_sha256=liquid[0].catalog_sha256, observed_at=received,
                 markets=tuple(MarketCatalogCandidate(symbol=row.symbol,
                     price_tmn=decimal_number(catalog_rows[row.symbol]["price"],positive=True),
                     turnover_tmn=row.turnover_tmn, return_24h=catalog_return(catalog_rows[row.symbol]),
                     research_requests=coverage_history.get(row.symbol,{}).get("requested",0),
-                    accepted_research_count=coverage_history.get(row.symbol,{}).get("accepted",0))
+                    accepted_research_count=coverage_history.get(row.symbol,{}).get("accepted",0),
+                    **hints[row.symbol])
                     for row in liquid if row.symbol in report["market_rules"]),
                 unavailable_symbols=tuple(row["symbol"] for row in bootstrap_attempts
-                    if not row["accepted"] and row["symbol"] in report["market_rules"]))
+                    if not row["accepted"] and row["symbol"] in report["market_rules"]),
+                control_symbols=research_control_symbols(
+                    tuple(row for row in liquid if row.symbol in report["market_rules"]),hints,
+                    unavailable_symbols=tuple(row["symbol"] for row in bootstrap_attempts if not row["accepted"])))
             model_deadline = time.monotonic()+60
             async def load_selected(selected):
                 for symbol in selected:
@@ -893,7 +943,9 @@ class MarketPaperOrchestrator:
                     counts["accepted"] > 0 for counts in coverage_history.values())
                 report["coverage"]["model_accepted_symbols"] = [item.snapshot.symbol for item in researched["batch"]]
                 report["coverage"]["model_visible_catalog"] = len(universe.markets)
-                report["coverage"]["model_requested_symbols"] = list(selected)
+                requested=(model_trace.get("context") or {}).get("requested_symbols",list(selected))
+                report["coverage"]["model_requested_symbols"] = list(requested)
+                report["coverage"]["host_control_symbols"] = [s for s in selected if s not in requested]
                 return {item.snapshot.symbol:(item.snapshot,item.opportunity) for item in report["batch"]}
             try:
                 decision = await decide_role(
@@ -1031,7 +1083,8 @@ class MarketPaperOrchestrator:
                             raise ValueError("No conservative full-quantity unwind quote")
                         economics = assess_target_net(forecast=decision.forecast,rules=target_rules,
                             quantity=risk_result.quantity,entry_price=risk_result.price,
-                            spread_pct=1-unwind_bid/actual_fill_price,slippage_pct=DEFAULT_SLIPPAGE_PCT)
+                            spread_pct=1-unwind_bid/actual_fill_price,slippage_pct=DEFAULT_SLIPPAGE_PCT,
+                            require_central=True)
                         execution_evidence["target_net_check"] = economics
                         if not economics["approved"]:
                             risk_result = replace(risk_result,approved=False,
@@ -1324,6 +1377,10 @@ class MarketPaperOrchestrator:
                 "config_sha256": hashlib.sha256(self.config.model_dump_json().encode()).hexdigest(),
                 "data_sha256": self.dataset_sha256 or hashlib.sha256(json.dumps(captures,sort_keys=True).encode()).hexdigest(),
             },
+            "runtime_source_history": list(self.source_history),
+            "entry_analysis_interval_seconds": self.entry_analysis_interval_seconds,
+            "model_budget_pool": dict(pool_id=self.model_budget_pool_id,authority_sha256=self.model_budget_pool_sha256)
+                if self.model_budget_pool_id else None,
             "public_captures": captures,
             "public_get_attempts": int(self.ledger.get_meta("engine_public_attempts") or "0"),
             "public_get_cap": self.public_get_cap,

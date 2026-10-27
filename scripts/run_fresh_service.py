@@ -58,11 +58,16 @@ class EntrySignals(MarketPaperOrchestrator):
 
     async def _apply_entry_decision(self, feed, decision, batch_map, **context):
         self.selection = None
+        chosen = batch_map.get(decision.symbol)
+        snapshot = chosen[0] if chosen else context["primary_snap"]
         if decision.action == "ENTER" and decision.symbol in batch_map:
             self.selection = (decision, batch_map[decision.symbol], context["model_trace"])
         self.decision_traces.append(
             dict(
                 decision=decision.model_dump(mode="json"),
+                issued_at_utc=datetime.now(UTC).isoformat(),
+                snapshot=snapshot.to_canonical_dict(),
+                snapshot_sha256=snapshot.snapshot_sha256,
                 model_trace=context["model_trace"],
                 execution_mode="SIGNAL_ONLY_NO_PAPER_FILL",
                 market_context=context["report"].get("market_context"),

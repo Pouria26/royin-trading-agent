@@ -95,6 +95,24 @@ class AgentRegressionTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("EV_FALLBACK", decision.evidence_ids)
             self.assertIn("budget", decision.reason.lower())
 
+    async def test_input_contract_failure_is_not_reported_as_empty_credit_or_raw_error(self):
+        for message, code in (("Request exceeds the reserved input byte bound", "REQUEST_INPUT_BYTE_LIMIT"),
+                              ("private-provider-data-should-not-leak", "HOST_BUDGET_BLOCKED")):
+            with self.subTest(code=code):
+                async def block(request, error_message=message):
+                    raise BudgetBlocked(error_message)
+                trace = {}
+                async with httpx2.AsyncClient(transport=httpx2.MockTransport(lambda req: httpx2.Response(200)),
+                        event_hooks={"request":[block]}) as client:
+                    decision = await decide(_make_dummy_snapshot(), config=self.config, client=client,
+                                            model_trace=trace)
+                self.assertEqual(decision.action, "WAIT")
+                self.assertEqual(trace["host_budget_code"], code)
+                self.assertNotIn("private-provider-data", str(decision)+str(trace))
+                if code == "REQUEST_INPUT_BYTE_LIMIT":
+                    self.assertIn("input bound", decision.reason)
+                    self.assertNotIn("budget limit reached", decision.reason)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1623,6 +1623,19 @@ def score_return_forecasts(forecasts, outcomes, *, alpha=Decimal("0.2")):
             mean_absolute_error_difference=sum(
                 (r["abs_error"] - abs(r["outcome"]) for r in rows), Decimal(0)) / n,
         ) if n else None,
+        point_diagnostics=dict(
+            status="DESCRIPTIVE_NOT_CALIBRATED",n=n,
+            mean_forecast=sum((r["q50"] for r in rows),Decimal(0))/n,
+            mean_outcome=sum((r["outcome"] for r in rows),Decimal(0))/n,
+            mean_forecast_minus_outcome=sum((r["q50"]-r["outcome"] for r in rows),Decimal(0))/n,
+            forecast_sign_counts={label:sum((r["q50"]>0)-(r["q50"]<0)==sign for r in rows)
+                for label,sign in (("positive",1),("zero",0),("negative",-1))},
+            outcome_sign_counts={label:sum((r["outcome"]>0)-(r["outcome"]<0)==sign for r in rows)
+                for label,sign in (("positive",1),("zero",0),("negative",-1))},
+            mae_skill_vs_zero=(1-sum((r["abs_error"] for r in rows),Decimal(0))/sum(
+                (abs(r["outcome"]) for r in rows),Decimal(0)))
+                if any(r["outcome"]!=0 for r in rows) else None,
+        ) if n else None,
         bias=(sum((r["bias"] for r in rows), Decimal(0)) / n) if n else None,
         coverage=(Decimal(sum(1 for r in rows if r["covered"])) / n) if n else None,
         mean_width=(sum((r["width"] for r in rows), Decimal(0)) / n) if n else None,
