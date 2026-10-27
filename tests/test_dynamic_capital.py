@@ -31,6 +31,17 @@ class DynamicCapitalTests(unittest.TestCase):
         self.assertFalse(self.plan(free_cash_tmn=D(100000))["approved"])
         self.assertFalse(self.plan(atr_tmn=D(5))["approved"])
 
+    def test_zero_valued_residual_is_inside_total_planned_loss_budget(self):
+        original = self.plan()
+        reserved = self.plan(residual_loss_reserve_tmn=D(500))
+        self.assertTrue(reserved["approved"])
+        self.assertLess(D(reserved["debit_limit_tmn"]), D(original["debit_limit_tmn"]))
+        planned_loss = D(reserved["debit_limit_tmn"]) * D(reserved["loss_fraction"]) + D(500)
+        self.assertLessEqual(planned_loss, D(reserved["risk_budget_tmn"]))
+        self.assertGreater(D(original["debit_limit_tmn"]) * D(original["loss_fraction"]) + D(500),
+                           D(original["risk_budget_tmn"]))
+        self.assertFalse(self.plan(equity_tmn=D(100000), residual_loss_reserve_tmn=D(500))["approved"])
+
     def test_non_decimal_nan_and_negative_inputs_are_rejected(self):
         for value in (1.0, D("NaN"), D("Infinity"), D(-1)):
             with self.subTest(value=value), self.assertRaises((ValueError, TypeError)):
